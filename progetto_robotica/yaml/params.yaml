@@ -1,0 +1,19 @@
+# Termini associati alla dinamica del sistema
+
+m : 12        		# massa in [kg]
+I : 0.3231    		# momento di inerzia
+
+# Coefficienti di Damping 
+
+Y_v_dot : 0
+Y_v : 0  
+Y_r : 0
+X_u_dot : 0
+X_u : 0
+Z_w : 0
+N_r : 0
+N_r_r : 0
+
+freq_to_gazebo : 10	# frequenza pubblicazione pose su gazebo
+
+dt : 0.1    		# tempo di campionamento
