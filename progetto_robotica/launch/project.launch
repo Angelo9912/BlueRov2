@@ -1,8 +1,14 @@
 <?xml version="1.0"?>
 <launch>
+    <rosparam file="$(find progetto_robotica)/yaml/params.yaml" />
+    <arg name="flag" default="MPC" />
     <include file="$(find gazebo_ros)/launch/empty_world.launch">
         <arg name="world_name" value="$(find progetto_robotica)/src/mondo_bluerov2.world" />
-        <arg name="paused" value="true"/>
+        <arg name="paused" value="true" />
     </include>
-    <node name="plan" pkg="progetto_robotica" type="dynamics" />
+    <!--<group
+    if="$(eval flag == 'MPC')">
+        <node name="MPC" pkg="progetto_robotica" type="mpc"/>
+    </group> -->
+    <node name="dynamics" pkg="progetto_robotica" type="dynamics" />
 </launch>
