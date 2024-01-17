@@ -11,4 +11,6 @@
         <node name="MPC" pkg="progetto_robotica" type="mpc"/>
     </group> -->
     <node name="dynamics" pkg="progetto_robotica" type="dynamics" />
+    <node name="backstepping" pkg="progetto_robotica" type="backstepping" />
+    <node name="waypoint_publish" pkg="progetto_robotica" type="waypoint_publish" />
 </launch>
