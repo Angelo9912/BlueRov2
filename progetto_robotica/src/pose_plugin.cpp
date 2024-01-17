@@ -11,6 +11,8 @@
 #include "ros/subscribe_options.h"         // for ros subscribe options
 #include <tf2/LinearMath/Quaternion.h>     // for tf2 quaternion
 #include <tf2/LinearMath/Matrix3x3.h>      // for tf2 matrix3x3
+#include "progetto_robotica/Floats.h"
+#include <vector>
 
 
 namespace gazebo {
@@ -45,23 +47,19 @@ namespace gazebo {
         }
 
       public:
-        void OnRosMsg(const geometry_msgs::PoseConstPtr& _msg) {
-            this->x = _msg->position.x;
-            this->y = _msg->position.y;
-            this->z = _msg->position.z;
-            tf2::Quaternion q(
-                _msg->orientation.x,
-                _msg->orientation.y,
-                _msg->orientation.z,
-                _msg->orientation.w);
-            tf2::Matrix3x3 m(q);
-            m.getRPY(this->roll, this->pitch, this->yaw);
+        void OnRosMsg(const progetto_robotica::FloatsConstPtr& _msg) {
+            this->x = _msg->data[0];
+            this->y = _msg->data[1];
+            this->z = _msg->data[2];
+            this->roll = 0;
+            this->pitch = 0;
+            this->yaw = _msg->data[3];
+            
             // // set model pose
             msgs::Set(this->out_msg.mutable_pose(), ignition::math::Pose3d(this->x, this->y, this->z, this->roll, this->pitch, this->yaw));
 
             // Send the message
             this->publisher->Publish(this->out_msg);
-            ROS_INFO("%f",this->x);
         }
 
         ///ROS helper function that processes messages
@@ -106,8 +104,8 @@ namespace gazebo {
 
             // Create a named topic, and subscribe to it.
             ros::SubscribeOptions so =
-            ros::SubscribeOptions::create<geometry_msgs::Pose>(
-                "/pose_topic",
+            ros::SubscribeOptions::create<progetto_robotica::Floats>(
+                "/state_topic",
                 1,
                 boost::bind(&PosePlugin::OnRosMsg, this, _1),
                 ros::VoidPtr(), &this->rosQueue);

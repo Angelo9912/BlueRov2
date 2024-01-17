@@ -1,6 +1,7 @@
 # Termini associati alla dinamica del sistema
 m: 12 # massa in [kg]
-I: 0.3231 # momento di inerzia
+d: 0.338
+l: 0.457
 
 # Coefficienti di Damping
 
