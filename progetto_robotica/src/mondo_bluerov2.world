@@ -173,7 +173,7 @@
           <geometry>
             <mesh>
               <!--<uri>$(find Scrivania)/BlueRov2.dae</uri> -->
-              <uri>/home/antonio/catkin_ws/src/progetto_robotica/BlueRov2.dae</uri>
+              <uri>/home/angelo/catkin_ws/src/progetto_robotica/BlueRov2.dae</uri>
             </mesh>
           </geometry>
         </visual>

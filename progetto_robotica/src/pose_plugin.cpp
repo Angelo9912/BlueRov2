@@ -115,7 +115,6 @@ namespace gazebo {
             // Spin up the queue helper thread.
             this->rosQueueThread =
             std::thread(std::bind(&PosePlugin::QueueThread, this));
-
             // Wait for a second.
             ros::spinOnce();
         

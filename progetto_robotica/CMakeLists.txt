@@ -231,6 +231,14 @@ add_executable(dynamics src/dynamics.cpp)
 target_link_libraries(dynamics ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(dynamics ${catkin_EXPORTED_TARGETS})
 
+add_executable(backstepping src/backstepping.cpp)
+target_link_libraries(backstepping ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(backstepping ${catkin_EXPORTED_TARGETS})
+
+add_executable(waypoint_publish src/waypoint_publish.cpp)
+target_link_libraries(waypoint_publish ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(waypoint_publish ${catkin_EXPORTED_TARGETS})
+
 target_link_libraries(pose_plugin ${GAZEBO_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(pose_plugin ${pose_plugin_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
