@@ -233,6 +233,10 @@ add_executable(dynamics src/dynamics.cpp)
 target_link_libraries(dynamics ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(dynamics ${catkin_EXPORTED_TARGETS})
 
+add_executable(trajectory_generator src/trajectory_generator.cpp)
+target_link_libraries(trajectory_generator ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(trajectory_generator ${catkin_EXPORTED_TARGETS})
+
 add_executable(backstepping src/backstepping.cpp)
 target_link_libraries(backstepping ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(backstepping ${catkin_EXPORTED_TARGETS})

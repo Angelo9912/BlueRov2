@@ -7,6 +7,8 @@
 #include <vector>
 #include "yaml-cpp/yaml.h" // for yaml
 
+
+
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "waypoint_publish");
@@ -29,7 +31,7 @@ int main(int argc, char **argv)
         // Publishing the state
         std::vector<double> des_state = {x_d, y_d, z_d, psi_d, x_dot_d, y_dot_d, z_dot_d, psi_dot_d};
         progetto_robotica::Floats des_state_msg;
-        state_msg.data = des_state;
+        des_state_msg.data = des_state;
 
         chatter_pub.publish(des_state_msg);
 

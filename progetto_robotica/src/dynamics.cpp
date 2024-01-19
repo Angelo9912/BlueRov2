@@ -61,6 +61,7 @@ int main(int argc, char **argv)
     double N_r = 0.0;
     double N_r_r = 0.0;
     double Z_w = 0.0;
+    double N_v = 0.0;
 
     n.getParam("m", m);
     n.getParam("d", d);
@@ -74,6 +75,7 @@ int main(int argc, char **argv)
     n.getParam("N_r", N_r);
     n.getParam("N_r_r", N_r_r);
     n.getParam("Z_w", Z_w);
+    n.getParam("N_v", N_v);
 
     Eigen::Matrix<double, 4, 4> M;
     M << m, 0.0, 0.0, 0.0,
@@ -82,8 +84,8 @@ int main(int argc, char **argv)
         0.0, 0.0, 0.0, I;
 
     ros::Publisher chatter_pub = n.advertise<progetto_robotica::Floats>("state_topic", 1);
-    ros::Subscriber sub = n.subscribe("tau_topic", 1000, tauCallback);
-    double freq = 100;
+    ros::Subscriber sub = n.subscribe("tau_topic", 1, tauCallback);
+    double freq = 1000;
     double dt = 1 / freq;
     ros::Rate loop_rate(freq);
 
@@ -93,14 +95,24 @@ int main(int argc, char **argv)
 
         // MATRICE DI CORIOLIS
         Eigen::Matrix<double, 4, 4> C;
-        C << 0.0, 0.0, 0.0, Y_v_dot * nu(1) + Y_r * nu(3),
-            0.0, 0.0, 0.0, -X_u_dot * nu(0),
+        // C << 0.0, 0.0, 0.0, Y_v_dot * nu(1) + Y_r * nu(3),
+        //     0.0, 0.0, 0.0, -X_u_dot * nu(0),
+        //     0.0, 0.0, 0.0, 0.0,
+        //     -Y_v_dot * nu(1) - Y_r * nu(3), X_u_dot * nu(0), 0.0, 0.0;
+
+        C << 0.0, 0.0, 0.0, -m*nu(1),
+            0.0, 0.0, 0.0, m*nu(0),
             0.0, 0.0, 0.0, 0.0,
-            -Y_v_dot * nu(1) - Y_r * nu(3), X_u_dot * nu(0), 0.0, 0.0;
+            m*nu(1), -m*nu(0), 0.0, 0.0;
+
 
         // MATRICE DI DAMPING
         Eigen::Matrix<double, 4, 4> D;
-        D.diagonal() << -X_u, -Y_v, -Z_w, -N_r - N_r_r * nu(3);
+        // D.diagonal() << -X_u, -Y_v, -Z_w, -N_r - N_r_r * nu(3);
+        D << -X_u, 0.0, 0.0, 0.0,
+            0.0, -Y_v, 0.0, -Y_r,
+            0.0, 0.0, -Z_w, 0.0,
+            0.0, -N_v, 0.0, -N_r;
 
         // VETTORE DI FORZE E MOMENTI
         Eigen::Matrix<double, 4, 1> tau;

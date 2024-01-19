@@ -82,9 +82,9 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "backstepping");
     ros::NodeHandle n;
     ros::Publisher chatter_pub = n.advertise<progetto_robotica::Floats>("tau_topic", 1);
-    ros::Subscriber sub_des_state = n.subscribe("desired_state_topic", 1000, desStateCallback);
-    ros::Subscriber sub_est_state = n.subscribe("state_topic", 1000, estStateCallback);
-    double freq = 100;
+    ros::Subscriber sub_des_state = n.subscribe("desired_state_topic", 1, desStateCallback);
+    ros::Subscriber sub_est_state = n.subscribe("state_topic", 1, estStateCallback);
+    double freq = 1000;
     double dt = 1 / freq;
     ros::Rate loop_rate(freq);
     // Import parameters from YAML file
@@ -100,6 +100,7 @@ int main(int argc, char **argv)
     double N_r = 0.0;
     double N_r_r = 0.0;
     double Z_w = 0.0;
+    double N_v = 0.0;
 
     n.getParam("m", m);
     n.getParam("d", d);
@@ -113,6 +114,7 @@ int main(int argc, char **argv)
     n.getParam("N_r", N_r);
     n.getParam("N_r_r", N_r_r);
     n.getParam("Z_w", Z_w);
+    n.getParam("N_v", N_v);
 
     while (ros::ok())
     {
@@ -138,39 +140,59 @@ int main(int argc, char **argv)
             sin(est_pose(3)), cos(est_pose(3)), 0.0, 0.0,
             0.0, 0.0, 1.0, 0.0,
             0.0, 0.0, 0.0, 1.0;
+
         Eigen::Matrix<double, 4, 1> nu;
         nu<<u_hat, v_hat, w_hat, r_hat;
+        
         Eigen::Matrix<double, 4, 1> est_pose_dot;
         est_pose_dot = J * nu;
+
         Eigen::Matrix<double, 4, 4> LAMBDA;
         LAMBDA << 1.0, 0.0, 0.0, 0.0,
             0.0, 1.0, 0.0, 0.0,
             0.0, 0.0, 1.0, 0.0,
             0.0, 0.0, 0.0, 1.0;
+        
         Eigen::Matrix<double, 4, 1> q_r_dot;
         q_r_dot = J.inverse() * (des_pos_dot + LAMBDA * error);
+        
         Eigen::Matrix<double, 4, 4> J_inv_dot;
         J_inv_dot << -sin(est_pose(3)) * est_pose_dot(3), cos(est_pose(3) * est_pose_dot(3)), 0.0, 0.0,
             -cos(est_pose(3)) * est_pose_dot(3), -sin(est_pose(3) * est_pose_dot(3)), 0.0, 0.0,
             0.0, 0.0, 0.0, 0.0,
             0.0, 0.0, 0.0, 0.0;
+        
         Eigen::Matrix<double, 4, 1> error_dot;
         error_dot = des_pos_dot - est_pose_dot;
+        
         Eigen::Matrix<double, 4, 1> q_r_2dot;
         q_r_2dot = J.inverse() * (des_pos_2dot + LAMBDA * error_dot) + J_inv_dot * (des_pos_dot + LAMBDA * error);
+        
         Eigen::Matrix<double, 4, 1> s;
         s = J.inverse() * (error_dot + LAMBDA * error);
 
         // CORIOLIS MATRIX
         Eigen::Matrix<double, 4, 4> C;
-        C << 0.0, 0.0, 0.0, Y_v_dot * nu(1) + Y_r * nu(3),
-            0.0, 0.0, 0.0, -X_u_dot * nu(0),
+        // C << 0.0, 0.0, 0.0, Y_v_dot * nu(1) + Y_r * nu(3),
+        //     0.0, 0.0, 0.0, -X_u_dot * nu(0),
+        //     0.0, 0.0, 0.0, 0.0,
+        //     -Y_v_dot * nu(1) - Y_r * nu(3), X_u_dot * nu(0), 0.0, 0.0;
+
+        C << 0.0, 0.0, 0.0, -m*nu(1),
+            0.0, 0.0, 0.0, m*nu(0),
             0.0, 0.0, 0.0, 0.0,
-            -Y_v_dot * nu(1) - Y_r * nu(3), X_u_dot * nu(0), 0.0, 0.0;
+            m*nu(1), -m*nu(0), 0.0, 0.0;
+
 
         // DAMPING MATRIX
         Eigen::Matrix<double, 4, 4> D;
-        D.diagonal() << -X_u, -Y_v, -Z_w, -N_r - N_r_r * r_hat;
+        // D.diagonal() << -X_u, -Y_v, -Z_w, -N_r - N_r_r * r_hat;
+
+        D << -X_u, 0.0, 0.0, 0.0,
+            0.0, -Y_v, 0.0, -Y_r,
+            0.0, 0.0, -Z_w, 0.0,
+            0.0, -N_v, 0.0, -N_r;
+
         Eigen::Matrix<double, 4, 4> M;
         M << m, 0.0, 0.0, 0.0,
             0.0, m, 0.0, 0.0,
