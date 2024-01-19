@@ -17,8 +17,8 @@ int main(int argc, char **argv)
     ros::Rate loop_rate(freq);
     while (ros::ok())
     {
-        double x_d = 5.0;
-        double y_d = 5.0;
+        double x_d = 3.0;
+        double y_d = 3.0;
         double z_d = 1.0;
         double psi_d = 0.0;
         double x_dot_d = 0.0;//0.5*cos(psi_d);

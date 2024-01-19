@@ -50,7 +50,47 @@ int main(int argc, char **argv)
         }
 
         double J_min = J_eval.minCoeff(&i_min);
+        double h_ott = i_min*0.1;
 
+        // spline sulle x
+
+        double Mx = 3/(2*h_ott*h_ott)*(x1-2*x2+x3);
+        double bx1 = 0;
+        double bx2 = Mx/2;
+        double dx1 = x1;
+        double dx2 = x2;
+        double ax1 = Mx/(6*h_ott);
+        double ax2 = -Mx/(6*h_ott);
+        double cx1 = (x2-x1)/h_ott - Mx*h_ott/6;
+        double cx2 = (x3-x2)/h_ott - Mx*h_ott/3;
+
+        // spline sulle y   
+
+        double My = 3/(2*h_ott*h_ott)*(y1-2*y2+y3);
+        double by1 = 0;
+        double by2 = My/2;
+        double dy1 = y1;
+        double dy2 = y2;
+        double ay1 = My/(6*h_ott);
+        double ay2 = -My/(6*h_ott);
+        double cy1 = (y2-y1)/h_ott - My*h_ott/6;
+        double cy2 = (y3-y2)/h_ott - My*h_ott/3;
+
+        // spline sulle z
+
+        double Mz = 3/(2*h_ott*h_ott)*(z1-2*z2+z3);
+        double bz1 = 0;
+        double bz2 = Mz/2;
+        double dz1 = z1;
+        double dz2 = z2;
+        double az1 = Mz/(6*h_ott);
+        double az2 = -Mz/(6*h_ott);
+        double cz1 = (z2-z1)/h_ott - Mz*h_ott/6;
+        double cz2 = (z3-z2)/h_ott - Mz*h_ott/3;
+        int t0 = 0;
+        for (t = t0; t < t0+h_ott; t+=h_ott/149){
+            
+        }
         
 
 
