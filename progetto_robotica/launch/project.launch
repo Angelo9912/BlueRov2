@@ -13,4 +13,5 @@
     <node name="dynamics" pkg="progetto_robotica" type="dynamics" />
     <node name="backstepping" pkg="progetto_robotica" type="backstepping" />
     <node name="waypoint_publish" pkg="progetto_robotica" type="waypoint_publish" />
+    <node name="sim_visualization" pkg="progetto_robotica" type="sim_visualization" />
 </launch>

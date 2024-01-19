@@ -19,11 +19,11 @@ int main(int argc, char **argv)
     {
         double x_d = 5.0;
         double y_d = 5.0;
-        double z_d = 2.0;
+        double z_d = 1.0;
         double psi_d = 0.0;
-        double x_dot_d = 0.01;
-        double y_dot_d = 0.01;
-        double z_dot_d = 0.01;
+        double x_dot_d = 0.0;//0.5*cos(psi_d);
+        double y_dot_d = 0.0;//0.5*sin(psi_d);
+        double z_dot_d = 0.0;
         double psi_dot_d = 0.0;
 
         // Publishing the state

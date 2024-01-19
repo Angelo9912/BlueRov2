@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
   gazebo_plugins
   geometry_msgs
   message_generation
+  gazebo_msgs
 )
 
 find_package(gazebo REQUIRED)
@@ -140,9 +141,10 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GAZEBO_CXX_FLAGS}")
 #list(APPEND CMAKE_CXX_FLAGS "${GAZEBO_CXX_FLAGS}")
 
 ## Declare a C++ library
-add_library(
-  pose_plugin SHARED src/pose_plugin.cpp
-)
+#add_library(
+  #RICORDATI DI DECOMMENTARE QUESTO SE NON VA BENE
+  #pose_plugin SHARED src/pose_plugin.cpp
+#)
 
 #target_link_libraries(
 #  ${catkin_LIBRARIES}
@@ -239,6 +241,10 @@ add_executable(waypoint_publish src/waypoint_publish.cpp)
 target_link_libraries(waypoint_publish ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(waypoint_publish ${catkin_EXPORTED_TARGETS})
 
-target_link_libraries(pose_plugin ${GAZEBO_LIBRARIES} ${roscpp_LIBRARIES})
-add_dependencies(pose_plugin ${pose_plugin_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+#target_link_libraries(pose_plugin ${GAZEBO_LIBRARIES} ${roscpp_LIBRARIES})
+#add_dependencies(pose_plugin ${pose_plugin_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
+add_executable(sim_visualization src/sim_visualization.cpp)
+target_link_libraries(sim_visualization ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(sim_visualization ${catkin_EXPORTED_TARGETS})
 

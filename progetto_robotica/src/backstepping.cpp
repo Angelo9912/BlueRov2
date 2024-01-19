@@ -175,11 +175,12 @@ int main(int argc, char **argv)
             0.0, m, 0.0, 0.0,
             0.0, 0.0, m, 0.0,
             0.0, 0.0, 0.0, I;
+
         Eigen::Matrix<double, 4, 4> K_d;
-        K_d << 1, 0.0, 0.0, 0.0,
-            0.0, 1, 0.0, 0.0,
-            0.0, 0.0, 1, 0.0,
-            0.0, 0.0, 0.0, 1;
+        K_d << 1.0, 0.0, 0.0, 0.0,
+            0.0, 1.0, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0, 1.0;
 
         // Define the torques vector
         Eigen::Matrix<double, 4, 1> torques_vec;
