@@ -15,13 +15,12 @@ double tau_r = 0.0;
 double x = 0.0;
 double y = 0.0;
 double z = 0.0;
+double psi = 0.0;
 double u = 0.0;
 double v = 0.0;
 double w = 0.0;
-double phi = 0.0;
-double theta = 0.0;
-double psi = 0.0;
 double r = 0.0;
+
 
 Eigen::Matrix<double, 4, 1> eta(x, y, z, psi);
 
@@ -109,13 +108,12 @@ int main(int argc, char **argv)
 
         // VETTORE DELLE VELOCITA'
         Eigen::Matrix<double, 4, 1> nu_k1;
-        nu_k1 = dt * M.inverse() * (tau - C * nu - D * nu) + nu;
-        nu = nu_k1;
+        nu_k1 = (dt * M.inverse() * (tau - C * nu - D * nu)) + nu;
 
         // VETTORE DELLE POSIZIONI
         Eigen::Matrix<double, 4, 4> Jacobian;
-        Jacobian << cos(psi), -sin(psi), 0.0, 0.0,
-            sin(psi), cos(psi), 0.0, 0.0,
+        Jacobian << cos(eta(3)), -sin(eta(3)), 0.0, 0.0,
+            sin(eta(3)), cos(eta(3)), 0.0, 0.0,
             0.0, 0.0, 1, 0.0,
             0.0, 0.0, 0.0, 1;
 
@@ -123,7 +121,7 @@ int main(int argc, char **argv)
         eta_dot = Jacobian * nu;
         Eigen::Matrix<double, 4, 1> eta_k1;
         eta_k1 = dt * eta_dot + eta;
-        eta = eta_k1;
+
 
         // SETTARE LA POSIZIONE DEL MODELLO
         std::vector<double> state = {eta(0), eta(1), eta(2), eta(3), nu(0), nu(1), nu(2), nu(3)};
@@ -135,6 +133,8 @@ int main(int argc, char **argv)
         // double stampa = eta(3);
         // //ROS_INFO("%f", stampa);
         // // ROS_WARN("%f",stampa);
+        eta = eta_k1;
+        nu = nu_k1;
 
         ros::spinOnce();
 

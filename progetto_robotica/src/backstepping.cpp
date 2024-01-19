@@ -122,11 +122,11 @@ int main(int argc, char **argv)
         Eigen::Matrix<double, 4, 1> des_pos_dot;
         des_pos_dot << x_dot_d, y_dot_d, z_dot_d, psi_dot_d;
         Eigen::Matrix<double, 4, 1> des_pos_2dot;
-        des_pos_dot.setZero();
+        des_pos_2dot.setZero();
         Eigen::Matrix<double, 4, 1> est_pose;
         est_pose << x_hat, y_hat, z_hat, psi_hat;
-        Eigen::Matrix<double, 4, 1> est_vel;
-        est_vel << u_hat, v_hat, w_hat, r_hat;
+        // Eigen::Matrix<double, 4, 1> est_vel;
+        // est_vel << u_hat, v_hat, w_hat, r_hat;
 
         // Define error vector
         Eigen::Matrix<double, 4, 1> error;
@@ -138,7 +138,8 @@ int main(int argc, char **argv)
             sin(est_pose(3)), cos(est_pose(3)), 0.0, 0.0,
             0.0, 0.0, 1.0, 0.0,
             0.0, 0.0, 0.0, 1.0;
-        Eigen::Matrix<double, 4, 1> nu(u_hat, v_hat, w_hat, r_hat);
+        Eigen::Matrix<double, 4, 1> nu;
+        nu<<u_hat, v_hat, w_hat, r_hat;
         Eigen::Matrix<double, 4, 1> est_pose_dot;
         est_pose_dot = J * nu;
         Eigen::Matrix<double, 4, 4> LAMBDA;
@@ -149,10 +150,10 @@ int main(int argc, char **argv)
         Eigen::Matrix<double, 4, 1> q_r_dot;
         q_r_dot = J.inverse() * (des_pos_dot + LAMBDA * error);
         Eigen::Matrix<double, 4, 4> J_inv_dot;
-        J_inv_dot << -sin(est_pose(3)) * est_pose_dot(3), -cos(est_pose(3) * est_pose_dot(3)), 0.0, 0.0,
+        J_inv_dot << -sin(est_pose(3)) * est_pose_dot(3), cos(est_pose(3) * est_pose_dot(3)), 0.0, 0.0,
             -cos(est_pose(3)) * est_pose_dot(3), -sin(est_pose(3) * est_pose_dot(3)), 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0, 1.0;
+            0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0;
         Eigen::Matrix<double, 4, 1> error_dot;
         error_dot = des_pos_dot - est_pose_dot;
         Eigen::Matrix<double, 4, 1> q_r_2dot;
@@ -184,7 +185,7 @@ int main(int argc, char **argv)
 
         // Define the torques vector
         Eigen::Matrix<double, 4, 1> torques_vec;
-        torques_vec = M * q_r_2dot + C * q_r_dot + K_d * s + J.transpose() * error;
+        torques_vec = M * q_r_2dot + K_d * s + C * q_r_dot + J.transpose() * error;
 
         std::vector<double> torques = {torques_vec(0), torques_vec(1), torques_vec(2), torques_vec(3)};
 
