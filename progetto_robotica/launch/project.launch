@@ -1,17 +1,24 @@
 <?xml version="1.0"?>
 <launch>
     <rosparam file="$(find progetto_robotica)/yaml/params.yaml" />
-    <arg name="flag" default="MPC" />
+    <arg name="flag" default="back" />
     <include file="$(find gazebo_ros)/launch/empty_world.launch">
-        <arg name="world_name" value="$(find progetto_robotica)/src/mondo_bluerov2.world" />
+        <!-- <arg name="world_name" value="$(find progetto_robotica)/src/mondo_bluerov2.world" /> -->
+        <arg name="world_name" value="$(find progetto_robotica)/src/mondo_bluerov2_wall.world" />
         <arg name="paused" value="true" />
     </include>
-    <!--<group
+
+    <group
     if="$(eval flag == 'MPC')">
-        <node name="MPC" pkg="progetto_robotica" type="mpc"/>
-    </group> -->
+        <node name="model_pred_control" pkg="progetto_robotica" type="model_pred_control" />
+    </group>
+
+    <group
+    if="$(eval flag == 'back')">
+        <node name="backstepping" pkg="progetto_robotica" type="backstepping" />
+    </group>
+
     <node name="dynamics" pkg="progetto_robotica" type="dynamics" />
-    <node name="backstepping" pkg="progetto_robotica" type="backstepping" />
     <node name="trajectory_generator" pkg="progetto_robotica" type="trajectory_generator" />
     <node name="sim_visualization" pkg="progetto_robotica" type="sim_visualization" />
 </launch>

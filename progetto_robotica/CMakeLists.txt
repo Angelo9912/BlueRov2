@@ -241,6 +241,10 @@ add_executable(backstepping src/backstepping.cpp)
 target_link_libraries(backstepping ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(backstepping ${catkin_EXPORTED_TARGETS})
 
+add_executable(model_pred_control src/model_pred_control.cpp)
+target_link_libraries(model_pred_control ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(model_pred_control ${catkin_EXPORTED_TARGETS})
+
 add_executable(waypoint_publish src/waypoint_publish.cpp)
 target_link_libraries(waypoint_publish ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(waypoint_publish ${catkin_EXPORTED_TARGETS})

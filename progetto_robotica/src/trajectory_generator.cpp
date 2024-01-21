@@ -49,7 +49,7 @@ int main(int argc, char **argv)
     ros::NodeHandle n;
     ros::Publisher chatter_pub = n.advertise<progetto_robotica::Floats>("desired_state_topic", 1);
     ros::Subscriber sub_est_state = n.subscribe("state_topic", 1, estStateCallback);
-    double freq = 100.0;
+    double freq = 10.0;
     double dt = 1 / freq;
     ros::Rate loop_rate(freq);
 
@@ -59,13 +59,13 @@ int main(int argc, char **argv)
     double y1 = 0.0;
     double z1 = 0.0;
 
-    double x2 = 5.0;
-    double y2 = 5.0;
-    double z2 = 2.0;
+    double x2 = 0.0;
+    double y2 = 7.0;
+    double z2 = 5.0;
 
-    double x3 = 10.0;
-    double y3 = 0.0;
-    double z3 = 4.0;
+    double x3 = -5.0;
+    double y3 = -2.0;
+    double z3 = 0.0;
 
 
     // double coeff_acc = 5.0;
@@ -148,17 +148,16 @@ int main(int argc, char **argv)
         double cz2 = (z3-z2)/h_ott - Mz*h_ott/3;
         int t0 = 0;
 
-        double x[300];
-        double y[300];
-        double z[300];
-        double psi[300];
+        double x[298];
+        double y[298];
+        double z[298];
+        double psi[298];
 
-    
 
-        for (int i=0; i<150; i++){
+        for (int i=0; i<149; i++){
 
             // Troviamo il tempo corrispondente all'indice i
-            double t = (i+1)*h_ott/150;
+            double t = (i+1)*h_ott/149;
 
             x[i] = ax1*pow(t-t0,3.0) + bx1*pow(t-t0,2.0) + cx1*(t-t0) + dx1;
             y[i] = ay1*pow(t-t0,3.0) + by1*pow(t-t0,2.0) + cy1*(t-t0) + dy1;
@@ -166,7 +165,7 @@ int main(int argc, char **argv)
             psi[i] = atan2(3*ay1*pow(t-t0,2.0) + 2*by1*(t-t0) + cy1, 3*ax1*pow(t-t0,2.0) + 2*bx1*(t-t0) + cx1);
         }
 
-        for (int i=150; i<=299; i++){
+        for (int i=149; i<298; i++){
 
             // Troviamo il tempo corrispondente all'indice i
             double t = (i+1)*h_ott/149;
@@ -197,7 +196,7 @@ int main(int argc, char **argv)
         double z_d = z[i_dist_min];
         double psi_d = psi[i_dist_min];
 
-        if(i_dist_min>280){
+        if(i_dist_min>296){
             u_d = 0.0;
             v_d = 0.0;
             w_d = 0.0;
@@ -213,8 +212,6 @@ int main(int argc, char **argv)
         std::vector<double> waypoint = {x_d, y_d, z_d, psi_d, x_dot_d, y_dot_d, z_dot_d, psi_dot_d};
         progetto_robotica::Floats waypoint_msg;
         waypoint_msg.data = waypoint;
-
-        ROS_WARN("u: %f", u_hat);
 
         chatter_pub.publish(waypoint_msg);
 

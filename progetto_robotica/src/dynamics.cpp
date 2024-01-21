@@ -43,6 +43,8 @@ void tauCallback(const progetto_robotica::Floats::ConstPtr &msg)
         tau_r = msg->data[3];
     }
 }
+
+
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "dynamics");
@@ -84,7 +86,7 @@ int main(int argc, char **argv)
         0.0, 0.0, 0.0, I;
 
     ros::Publisher chatter_pub = n.advertise<progetto_robotica::Floats>("state_topic", 1);
-    ros::Subscriber sub = n.subscribe("tau_topic", 1, tauCallback);
+    ros::Subscriber sub = n.subscribe("tau_topic", 1000, tauCallback);
     double freq = 1000;
     double dt = 1 / freq;
     ros::Rate loop_rate(freq);
@@ -126,8 +128,8 @@ int main(int argc, char **argv)
         Eigen::Matrix<double, 4, 4> Jacobian;
         Jacobian << cos(eta(3)), -sin(eta(3)), 0.0, 0.0,
             sin(eta(3)), cos(eta(3)), 0.0, 0.0,
-            0.0, 0.0, 1, 0.0,
-            0.0, 0.0, 0.0, 1;
+            0.0, 0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0, 1.0;
 
         Eigen::Matrix<double, 4, 1> eta_dot;
         eta_dot = Jacobian * nu;
@@ -147,7 +149,6 @@ int main(int argc, char **argv)
         // // ROS_WARN("%f",stampa);
         eta = eta_k1;
         nu = nu_k1;
-
         ros::spinOnce();
 
         loop_rate.sleep();

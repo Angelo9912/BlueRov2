@@ -142,32 +142,29 @@ int main(int argc, char **argv)
             0.0, 0.0, 0.0, 1.0;
 
         Eigen::Matrix<double, 4, 1> nu;
-        nu<<u_hat, v_hat, w_hat, r_hat;
-        
+        nu << u_hat, v_hat, w_hat, r_hat;
+
         Eigen::Matrix<double, 4, 1> est_pose_dot;
         est_pose_dot = J * nu;
 
         Eigen::Matrix<double, 4, 4> LAMBDA;
-        LAMBDA << 1.0, 0.0, 0.0, 0.0,
-            0.0, 1.0, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0, 1.0;
-        
+        LAMBDA << Eigen::Matrix<double,4,4>::Identity();
+
         Eigen::Matrix<double, 4, 1> q_r_dot;
         q_r_dot = J.inverse() * (des_pos_dot + LAMBDA * error);
-        
+
         Eigen::Matrix<double, 4, 4> J_inv_dot;
-        J_inv_dot << -sin(est_pose(3)) * est_pose_dot(3), cos(est_pose(3) * est_pose_dot(3)), 0.0, 0.0,
-            -cos(est_pose(3)) * est_pose_dot(3), -sin(est_pose(3) * est_pose_dot(3)), 0.0, 0.0,
+        J_inv_dot << -sin(est_pose(3)) * nu(3), cos(est_pose(3)) * nu(3), 0.0, 0.0,
+            -cos(est_pose(3)) * nu(3), -sin(est_pose(3)) * nu(3), 0.0, 0.0,
             0.0, 0.0, 0.0, 0.0,
             0.0, 0.0, 0.0, 0.0;
-        
+
         Eigen::Matrix<double, 4, 1> error_dot;
         error_dot = des_pos_dot - est_pose_dot;
-        
+
         Eigen::Matrix<double, 4, 1> q_r_2dot;
         q_r_2dot = J.inverse() * (des_pos_2dot + LAMBDA * error_dot) + J_inv_dot * (des_pos_dot + LAMBDA * error);
-        
+
         Eigen::Matrix<double, 4, 1> s;
         s = J.inverse() * (error_dot + LAMBDA * error);
 
@@ -178,11 +175,10 @@ int main(int argc, char **argv)
         //     0.0, 0.0, 0.0, 0.0,
         //     -Y_v_dot * nu(1) - Y_r * nu(3), X_u_dot * nu(0), 0.0, 0.0;
 
-        C << 0.0, 0.0, 0.0, -m*nu(1),
-            0.0, 0.0, 0.0, m*nu(0),
+        C << 0.0, 0.0, 0.0, -m * nu(1),
+            0.0, 0.0, 0.0, m * nu(0),
             0.0, 0.0, 0.0, 0.0,
-            m*nu(1), -m*nu(0), 0.0, 0.0;
-
+            m * nu(1), -m * nu(0), 0.0, 0.0;
 
         // DAMPING MATRIX
         Eigen::Matrix<double, 4, 4> D;
