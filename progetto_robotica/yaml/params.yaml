@@ -19,6 +19,14 @@ target_x : 15
 target_y : 15
 target_z : 15
 
+MAP_NE_x: 20 #vertice nord est mappa, coordinata x
+MAP_NE_y: 20 #vertice nord est mappa, coordinata y
+MAP_NW_x: -20 #vertice nord ovest mappa, coordinata x
+MAP_NW_y: 20 #vertice nord ovest mappa, coordinata y
+MAP_SW_x: -20 #vertice sud ovest mappa, coordinata x
+MAP_SW_y: -20 #vertice sud ovest mappa, coordinata y
+MAP_SE_x: 20 #vertice sud est mappa, coordinata x
+MAP_SE_y: -20 #vertice sud est mappa, coordinata y
 freq_to_gazebo: 10 # frequenza pubblicazione pose su gazebo
 
 dt: 0.1 # tempo di campionamento

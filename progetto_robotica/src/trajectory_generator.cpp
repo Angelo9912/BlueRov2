@@ -214,7 +214,7 @@ int main(int argc, char **argv)
                 double y[298];
                 double z[298];
                 double psi[298];
-                Eigen::Vector<double, 298> dist;
+                Eigen::VectorXd dist(298);
 
                 for (int i = 0; i < 149; i++)
                 {
@@ -291,7 +291,7 @@ int main(int argc, char **argv)
                 double w_d = 0.0;
                 double r_d = 0.0;
 
-                Eigen::Vector<double, 199> dist;
+                Eigen::VectorXd dist(199);
                 double dx = (x_p - x_1) / 100;
                 double dy = (y_p - y_1) / 100;
                 double dz = (z_p - z_1) / 100;
@@ -375,7 +375,7 @@ int main(int argc, char **argv)
                 double w_d = 0.0;
                 double r_d = 0.0;
 
-                Eigen::Vector<double, 119> dist;
+                Eigen::VectorXd dist(119);
                 double d = sqrt(pow(x_b - x_1, 2) + pow(y_b - y_1, 2)) - 1.0;
                 double alpha = atan2(y_b - y_1, x_b - x_1); // angolo tra la boa e la posizione del robot
                 double x_p = x_1 + d * cos(alpha);

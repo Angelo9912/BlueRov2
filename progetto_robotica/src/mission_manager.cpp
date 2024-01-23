@@ -30,7 +30,7 @@ int main(int argc, char **argv)
     ros::Subscriber sub = nh.subscribe("manager/status_requested_topic", 10, statusReqCallback);
 
     // Loop at 10Hz
-    ros::Rate rate(10);
+    ros::Rate rate(20);
     bool first_time = true;
 
     while (ros::ok())
@@ -40,7 +40,7 @@ int main(int argc, char **argv)
             if (status_req == "RUNNING")
             {
                 status_true = "RUNNING";
-                ROS_WARN("You are now RUNNING");
+                ROS_WARN("YOU WENT FROM PAUSE -> RUNNING");
                 first_time = true;
             }
             else if (status_req == "COMPLETED")
@@ -75,7 +75,7 @@ int main(int argc, char **argv)
             else if (status_req == "PAUSED")
             {
                 status_true = "PAUSED";
-                ROS_WARN("You are now PAUSED");
+                ROS_WARN("YOU WENT FROM RUNNING -> PAUSED");
                 first_time = true;
             }
         }
