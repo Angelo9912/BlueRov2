@@ -47,7 +47,7 @@ int main(int argc, char **argv)
     ros::Subscriber state_sub = nh.subscribe("state_topic", 10, estStateCallback);
 
     // Set the publishing rate (e.g., 10 Hz)
-    ros::Rate rate(1);
+    ros::Rate rate(5);
 
     Eigen::Matrix<double, 1, 3> sphere1;
     sphere1 << 3.0, 5.0, 3.0;
@@ -57,20 +57,18 @@ int main(int argc, char **argv)
     box1 << -3.0, 5.5, 1.0;
     Eigen::Matrix<double, 1, 3> box2;
     box2 << 10.0, -10, 5.0;
-
     Eigen::Matrix<double, 4, 3> buoy_positions;
     buoy_positions << sphere1, box1, sphere2, box2;
-
-    bool i_seen[4] = {false, false, false, false};
 
     while (ros::ok())
     {
         // Compute distance from nearest buoy
+        Eigen::Matrix<double, 4, 1> distances;
         double dist_sphere1 = sqrt(pow(x_hat - sphere1(0), 2) + pow(y_hat - sphere1(1), 2) + pow(z_hat - sphere1(2), 2));
         double dist_box1 = sqrt(pow(x_hat - box1(0), 2) + pow(y_hat - box1(1), 2) + pow(z_hat - box1(2), 2));
         double dist_sphere2 = sqrt(pow(x_hat - sphere2(0), 2) + pow(y_hat - sphere2(1), 2) + pow(z_hat - sphere2(2), 2));
         double dist_box2 = sqrt(pow(x_hat - box2(0), 2) + pow(y_hat - box2(1), 2) + pow(z_hat - box2(2), 2));
-
+        distances << dist_sphere1, dist_box1, dist_sphere2, dist_box2;
         int i_min = 0;
         for (int i = 0; i < 4; i++)
         {
@@ -90,7 +88,6 @@ int main(int argc, char **argv)
             buoy_msg.data = buoy_pos;
             buoy_msg.strategy = "Circumference";
             buoy_pub.publish(buoy_msg);
-            i_seen[i_min] = true;
         }
         else if ((i_min % 2) != 0)
         {
@@ -102,7 +99,6 @@ int main(int argc, char **argv)
             buoy_msg.data = buoy_pos;
             buoy_msg.strategy = "UP_DOWN";
             buoy_pub.publish(buoy_msg);
-            i_seen[i_min] = true;
         }
 
         // Spin once to let the ROS node handle callbacks

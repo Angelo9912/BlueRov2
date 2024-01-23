@@ -12,15 +12,14 @@ double tau_v = 0.0;
 double tau_w = 0.0;
 double tau_r = 0.0;
 
-double x = 0.0;
-double y = 0.0;
-double z = 0.0;
+double x = -17.0;
+double y = 17.0;
+double z = 4.0;
 double psi = 0.0;
 double u = 0.0;
 double v = 0.0;
 double w = 0.0;
 double r = 0.0;
-
 
 Eigen::Matrix<double, 4, 1> eta(x, y, z, psi);
 
@@ -43,7 +42,6 @@ void tauCallback(const progetto_robotica::Floats::ConstPtr &msg)
         tau_r = msg->data[3];
     }
 }
-
 
 int main(int argc, char **argv)
 {
@@ -102,11 +100,10 @@ int main(int argc, char **argv)
         //     0.0, 0.0, 0.0, 0.0,
         //     -Y_v_dot * nu(1) - Y_r * nu(3), X_u_dot * nu(0), 0.0, 0.0;
 
-        C << 0.0, 0.0, 0.0, -m*nu(1),
-            0.0, 0.0, 0.0, m*nu(0),
+        C << 0.0, 0.0, 0.0, -m * nu(1),
+            0.0, 0.0, 0.0, m * nu(0),
             0.0, 0.0, 0.0, 0.0,
-            m*nu(1), -m*nu(0), 0.0, 0.0;
-
+            m * nu(1), -m * nu(0), 0.0, 0.0;
 
         // MATRICE DI DAMPING
         Eigen::Matrix<double, 4, 4> D;
@@ -135,7 +132,6 @@ int main(int argc, char **argv)
         eta_dot = Jacobian * nu;
         Eigen::Matrix<double, 4, 1> eta_k1;
         eta_k1 = dt * eta_dot + eta;
-
 
         // SETTARE LA POSIZIONE DEL MODELLO
         std::vector<double> state = {eta(0), eta(1), eta(2), eta(3), nu(0), nu(1), nu(2), nu(3)};
