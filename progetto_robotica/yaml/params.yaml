@@ -15,7 +15,9 @@ N_r: 0
 N_r_r: 0
 N_v : 0
 
-
+target_x : 15
+target_y : 15
+target_z : 15
 
 freq_to_gazebo: 10 # frequenza pubblicazione pose su gazebo
 

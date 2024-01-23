@@ -2,15 +2,18 @@
 #include "std_msgs/String.h"
 #include <sstream>
 #include <ros/console.h>
-#include <eigen3/Eigen/Dense>         // for eigen matrix
-#include "progetto_robotica/Floats.h" // for accessing -- progetto_robotica Floats()
-#include "progetto_robotica/Floats_String.h"   // for accessing -- progetto_robotica buoy()
+#include <eigen3/Eigen/Dense>                // for eigen matrix
+#include "progetto_robotica/Floats.h"        // for accessing -- progetto_robotica Floats()
+#include "progetto_robotica/Floats_String.h" // for accessing -- progetto_robotica buoy()
 #include <vector>
 #include "yaml-cpp/yaml.h" // for yaml
 
 double x_hat = 0.0;
 double y_hat = 0.0;
 double z_hat = 0.0;
+double x_b = 0.0;
+double y_b = 0.0;
+double z_b = 0.0;
 
 // Callback function for the state_topic subscriber
 void estStateCallback(const progetto_robotica::Floats::ConstPtr &msg)
@@ -44,39 +47,62 @@ int main(int argc, char **argv)
     ros::Subscriber state_sub = nh.subscribe("state_topic", 10, estStateCallback);
 
     // Set the publishing rate (e.g., 10 Hz)
-    ros::Rate rate(10);
-    double sphere[3];
-    sphere = [ 3.0, 5.0, 3.0 ];
-    double box[3];
-    box = [ -3.0, 5.5, 5.0 ];
+    ros::Rate rate(1);
+
+    Eigen::Matrix<double, 1, 3> sphere1;
+    sphere1 << 3.0, 5.0, 3.0;
+    Eigen::Matrix<double, 1, 3> sphere2;
+    sphere2 << -8.0, -12.0, 7.0;
+    Eigen::Matrix<double, 1, 3> box1;
+    box1 << -3.0, 5.5, 1.0;
+    Eigen::Matrix<double, 1, 3> box2;
+    box2 << 10.0, -10, 5.0;
+
+    Eigen::Matrix<double, 4, 3> buoy_positions;
+    buoy_positions << sphere1, box1, sphere2, box2;
+
+    bool i_seen[4] = {false, false, false, false};
 
     while (ros::ok())
     {
         // Compute distance from nearest buoy
-        dist_sphere = sqrt(pow(x_hat - sphere[0], 2) + pow(y_hat - sphere[1], 2) + pow(z_hat - sphere[2], 2));
-        dist_box = sqrt(pow(x_hat - box[0], 2) + pow(y_hat - box[1], 2) + pow(z_hat - box[2], 2));
+        double dist_sphere1 = sqrt(pow(x_hat - sphere1(0), 2) + pow(y_hat - sphere1(1), 2) + pow(z_hat - sphere1(2), 2));
+        double dist_box1 = sqrt(pow(x_hat - box1(0), 2) + pow(y_hat - box1(1), 2) + pow(z_hat - box1(2), 2));
+        double dist_sphere2 = sqrt(pow(x_hat - sphere2(0), 2) + pow(y_hat - sphere2(1), 2) + pow(z_hat - sphere2(2), 2));
+        double dist_box2 = sqrt(pow(x_hat - box2(0), 2) + pow(y_hat - box2(1), 2) + pow(z_hat - box2(2), 2));
 
-        if (dist_sphere < dist_box)
+        int i_min = 0;
+        for (int i = 0; i < 4; i++)
         {
-            x_b = sphere[0];
-            y_b = sphere[1];
-            z_b = sphere[2];
+            if (distances[i] <= distances[i_min])
+            {
+                i_min = i;
+            }
+        }
+
+        if ((i_min % 2) == 0)
+        {
+            x_b = buoy_positions(i_min, 0);
+            y_b = buoy_positions(i_min, 1);
+            z_b = buoy_positions(i_min, 2);
             std::vector<double> buoy_pos = {x_b, y_b, z_b};
             progetto_robotica::Floats_String buoy_msg;
             buoy_msg.data = buoy_pos;
             buoy_msg.strategy = "Circumference";
             buoy_pub.publish(buoy_msg);
+            i_seen[i_min] = true;
         }
-        else
+        else if ((i_min % 2) != 0)
         {
-            x_b = box[0];
-            y_b = box[1];
-            z_b = box[2];
+            x_b = buoy_positions(i_min, 0);
+            y_b = buoy_positions(i_min, 1);
+            z_b = buoy_positions(i_min, 2);
             std::vector<double> buoy_pos = {x_b, y_b, z_b};
             progetto_robotica::Floats_String buoy_msg;
             buoy_msg.data = buoy_pos;
             buoy_msg.strategy = "UP_DOWN";
             buoy_pub.publish(buoy_msg);
+            i_seen[i_min] = true;
         }
 
         // Spin once to let the ROS node handle callbacks

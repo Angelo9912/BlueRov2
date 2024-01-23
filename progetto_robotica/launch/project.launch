@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
     <rosparam file="$(find progetto_robotica)/yaml/params.yaml" />
-    <arg name="flag" default="back" />
+    <arg name="flag" default="MPC" />
     <include file="$(find gazebo_ros)/launch/empty_world.launch">
         <!-- <arg name="world_name" value="$(find progetto_robotica)/src/mondo_bluerov2.world" /> -->
         <arg name="world_name" value="$(find progetto_robotica)/src/mondo_bluerov2_wall.world" />
@@ -19,6 +19,10 @@
     </group>
 
     <node name="dynamics" pkg="progetto_robotica" type="dynamics" />
+
     <node name="trajectory_generator" pkg="progetto_robotica" type="trajectory_generator" />
     <node name="sim_visualization" pkg="progetto_robotica" type="sim_visualization" />
+    <node name="planner" pkg="progetto_robotica" type="planner" />
+    <node name="camera" pkg="progetto_robotica" type="camera" />
+    <node name="mission_manager" pkg="progetto_robotica" type="mission_manager" />
 </launch>

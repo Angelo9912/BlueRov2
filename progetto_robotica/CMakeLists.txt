@@ -57,6 +57,7 @@ find_package(gazebo REQUIRED)
 add_message_files(
  FILES
  Floats.msg
+ Floats_String.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -245,14 +246,22 @@ add_executable(model_pred_control src/model_pred_control.cpp)
 target_link_libraries(model_pred_control ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(model_pred_control ${catkin_EXPORTED_TARGETS})
 
-add_executable(waypoint_publish src/waypoint_publish.cpp)
-target_link_libraries(waypoint_publish ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
-add_dependencies(waypoint_publish ${catkin_EXPORTED_TARGETS})
-
 #target_link_libraries(pose_plugin ${GAZEBO_LIBRARIES} ${roscpp_LIBRARIES})
 #add_dependencies(pose_plugin ${pose_plugin_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 add_executable(sim_visualization src/sim_visualization.cpp)
 target_link_libraries(sim_visualization ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(sim_visualization ${catkin_EXPORTED_TARGETS})
+
+add_executable(planner src/planner.cpp)
+target_link_libraries(planner ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(planner ${catkin_EXPORTED_TARGETS})
+
+add_executable(camera src/camera.cpp)
+target_link_libraries(camera ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(camera ${catkin_EXPORTED_TARGETS})
+
+add_executable(mission_manager src/mission_manager.cpp)
+target_link_libraries(mission_manager ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(mission_manager ${catkin_EXPORTED_TARGETS})
 
