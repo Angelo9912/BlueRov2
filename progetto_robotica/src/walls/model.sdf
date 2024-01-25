@@ -6,11 +6,24 @@
       <self_collide>0</self_collide>
       <enable_wind>0</enable_wind>
       <kinematic>0</kinematic>
+      <gravity>1</gravity>
+      <inertial>
+        <mass>1</mass>
+        <pose>0 0 0 0 -0 0</pose>
+        <inertia>
+          <ixx>1</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>1</iyy>
+          <iyz>0</iyz>
+          <izz>1</izz>
+        </inertia>
+      </inertial>
       <visual name='Wall_2_Visual'>
-        <pose>0 0 20 0 -0 0</pose>
+        <pose>0 0 2.5 0 -0 0</pose>
         <geometry>
           <box>
-            <size>40 0.15 40</size>
+            <size>40 0.15 5</size>
           </box>
         </geometry>
         <material>
@@ -18,22 +31,27 @@
             <uri>file://media/materials/scripts/gazebo.material</uri>
             <name>Gazebo/Grey</name>
           </script>
-          <ambient>0.921569 0.807843 0.615686 1</ambient>
-          <shader type='pixel'/>
+          <ambient>0.922 0.808 0.616 1</ambient>
+          <shader type='pixel'>
+            <normal_map>__default__</normal_map>
+          </shader>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.01 0.01 0.01 1</specular>
+          <emissive>0 0 0 1</emissive>
         </material>
         <meta>
           <layer>0</layer>
         </meta>
-        <transparency>0.25</transparency>
+        <transparency>0.2</transparency>
         <cast_shadows>1</cast_shadows>
       </visual>
       <collision name='Wall_2_Collision'>
         <laser_retro>0</laser_retro>
         <max_contacts>10</max_contacts>
-        <pose>0 0 20 0 -0 0</pose>
+        <pose>0 0 2.5 0 -0 0</pose>
         <geometry>
           <box>
-            <size>40 0.15 40</size>
+            <size>40 0.15 5</size>
           </box>
         </geometry>
         <surface>
@@ -88,11 +106,24 @@
       <self_collide>0</self_collide>
       <enable_wind>0</enable_wind>
       <kinematic>0</kinematic>
+      <gravity>1</gravity>
+      <inertial>
+        <mass>1</mass>
+        <pose>0 0 0 0 -0 0</pose>
+        <inertia>
+          <ixx>1</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>1</iyy>
+          <iyz>0</iyz>
+          <izz>1</izz>
+        </inertia>
+      </inertial>
       <visual name='Wall_5_Visual'>
-        <pose>0 0 20 0 -0 0</pose>
+        <pose>0 0 2.5 0 -0 0</pose>
         <geometry>
           <box>
-            <size>40.15 0.15 40</size>
+            <size>40.15 0.15 5</size>
           </box>
         </geometry>
         <material>
@@ -100,22 +131,27 @@
             <uri>file://media/materials/scripts/gazebo.material</uri>
             <name>Gazebo/Grey</name>
           </script>
-          <ambient>0.921569 0.807843 0.615686 1</ambient>
-          <shader type='pixel'/>
+          <ambient>0.922 0.808 0.616 1</ambient>
+          <shader type='pixel'>
+            <normal_map>__default__</normal_map>
+          </shader>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.01 0.01 0.01 1</specular>
+          <emissive>0 0 0 1</emissive>
         </material>
         <meta>
           <layer>0</layer>
         </meta>
-        <transparency>0.25</transparency>
+        <transparency>0.2</transparency>
         <cast_shadows>1</cast_shadows>
       </visual>
       <collision name='Wall_5_Collision'>
         <laser_retro>0</laser_retro>
         <max_contacts>10</max_contacts>
-        <pose>0 0 20 0 -0 0</pose>
+        <pose>0 0 2.5 0 -0 0</pose>
         <geometry>
           <box>
-            <size>40.15 0.15 40</size>
+            <size>40.15 0.15 5</size>
           </box>
         </geometry>
         <surface>
@@ -170,11 +206,24 @@
       <self_collide>0</self_collide>
       <enable_wind>0</enable_wind>
       <kinematic>0</kinematic>
+      <gravity>1</gravity>
+      <inertial>
+        <mass>1</mass>
+        <pose>0 0 0 0 -0 0</pose>
+        <inertia>
+          <ixx>1</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>1</iyy>
+          <iyz>0</iyz>
+          <izz>1</izz>
+        </inertia>
+      </inertial>
       <visual name='Wall_7_Visual'>
-        <pose>0 0 20 0 -0 0</pose>
+        <pose>0 0 2.5 0 -0 0</pose>
         <geometry>
           <box>
-            <size>40.15 0.15 40</size>
+            <size>40.15 0.15 5</size>
           </box>
         </geometry>
         <material>
@@ -182,22 +231,27 @@
             <uri>file://media/materials/scripts/gazebo.material</uri>
             <name>Gazebo/Grey</name>
           </script>
-          <ambient>0.921569 0.807843 0.615686 1</ambient>
-          <shader type='pixel'/>
+          <ambient>0.922 0.808 0.616 1</ambient>
+          <shader type='pixel'>
+            <normal_map>__default__</normal_map>
+          </shader>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.01 0.01 0.01 1</specular>
+          <emissive>0 0 0 1</emissive>
         </material>
         <meta>
           <layer>0</layer>
         </meta>
-        <transparency>0.25</transparency>
+        <transparency>0.2</transparency>
         <cast_shadows>1</cast_shadows>
       </visual>
       <collision name='Wall_7_Collision'>
         <laser_retro>0</laser_retro>
         <max_contacts>10</max_contacts>
-        <pose>0 0 20 0 -0 0</pose>
+        <pose>0 0 2.5 0 -0 0</pose>
         <geometry>
           <box>
-            <size>40.15 0.15 40</size>
+            <size>40.15 0.15 5</size>
           </box>
         </geometry>
         <surface>
@@ -252,11 +306,24 @@
       <self_collide>0</self_collide>
       <enable_wind>0</enable_wind>
       <kinematic>0</kinematic>
+      <gravity>1</gravity>
+      <inertial>
+        <mass>1</mass>
+        <pose>0 0 0 0 -0 0</pose>
+        <inertia>
+          <ixx>1</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>1</iyy>
+          <iyz>0</iyz>
+          <izz>1</izz>
+        </inertia>
+      </inertial>
       <visual name='Wall_9_Visual'>
-        <pose>0 0 20 0 -0 0</pose>
+        <pose>0 0 2.5 0 -0 0</pose>
         <geometry>
           <box>
-            <size>40.15 0.15 40</size>
+            <size>40.15 0.15 5</size>
           </box>
         </geometry>
         <material>
@@ -264,22 +331,27 @@
             <uri>file://media/materials/scripts/gazebo.material</uri>
             <name>Gazebo/Grey</name>
           </script>
-          <ambient>0.921569 0.807843 0.615686 1</ambient>
-          <shader type='pixel'/>
+          <ambient>0.922 0.808 0.616 1</ambient>
+          <shader type='pixel'>
+            <normal_map>__default__</normal_map>
+          </shader>
+          <diffuse>0.7 0.7 0.7 1</diffuse>
+          <specular>0.01 0.01 0.01 1</specular>
+          <emissive>0 0 0 1</emissive>
         </material>
         <meta>
           <layer>0</layer>
         </meta>
-        <transparency>0.25</transparency>
+        <transparency>0.2</transparency>
         <cast_shadows>1</cast_shadows>
       </visual>
       <collision name='Wall_9_Collision'>
         <laser_retro>0</laser_retro>
         <max_contacts>10</max_contacts>
-        <pose>0 0 20 0 -0 0</pose>
+        <pose>0 0 2.5 0 -0 0</pose>
         <geometry>
           <box>
-            <size>40.15 0.15 40</size>
+            <size>40.15 0.15 5</size>
           </box>
         </geometry>
         <surface>
@@ -329,7 +401,7 @@
         </surface>
       </collision>
     </link>
-    <static>0</static>
+    <static>1</static>
     <allow_auto_disable>1</allow_auto_disable>
   </model>
 </sdf>

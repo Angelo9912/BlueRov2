@@ -7,6 +7,7 @@
 #include "progetto_robotica/Floats_String.h" // for accessing -- progetto_robotica buoy()
 #include <vector>
 #include "yaml-cpp/yaml.h" // for yaml
+#include <ctime>
 
 double x_hat = 0.0;
 double y_hat = 0.0;
@@ -155,6 +156,8 @@ int main(int argc, char **argv)
     bool condition_to_run;
     bool flag_start_mission = true;
     bool inversion = false;
+    bool timer_init = true;
+    bool to_target = false;
 
     bool is_first_spline = true;
 
@@ -164,8 +167,8 @@ int main(int argc, char **argv)
     double dist_wall_right;
     double dist_wall[4];
 
-    double const SPLINE_STEP_X = 4.0;
-    double const SPLINE_STEP_Y = 4.0;
+    double const SPLINE_STEP_X = 3.0;
+    double const SPLINE_STEP_Y = 3.0;
     double const SPLINE_STEP_Z = 4.0;
 
     std::string exploring_direction = ""; // "up", "down", "left", "right"
@@ -182,6 +185,13 @@ int main(int argc, char **argv)
     double x_3;
     double y_3;
     double z_3;
+
+    //Comando di velocità verticale
+    double w;
+
+    //Tempi di start & end
+    double start;
+    double end;
 
     // Set the loop rate (in Hz)
     ros::Rate loop_rate(5);
@@ -229,7 +239,40 @@ int main(int argc, char **argv)
             condition_to_run = buoys_pos(n_buoys - 1, 0) == x_b && buoys_pos(n_buoys - 1, 1) == y_b && buoys_pos(n_buoys - 1, 2) == z_b && !is_used(n_buoys - 1, 0);
         }
 
-        if (mission_status == "PAUSED")
+        if (ros::Time::now().toSec() > end && !timer_init && mission_status == "PAUSED")
+        {
+            ROS_WARN("TIMEOUT DA PAUSED");
+            status_req = "RUNNING";
+            std_msgs::String status_req_msg;
+            status_req_msg.data = status_req;
+            publisher_status.publish(status_req_msg);
+
+            ros::Duration(0.5).sleep(); // sleep
+
+            if (!to_target)
+            {
+                waypoint_msg.strategy = "Target";
+                std::vector<double> waypoint_pos = {target_x, target_y, target_z};
+                waypoint_msg.data = waypoint_pos;
+                publisher.publish(waypoint_msg);
+
+                ros::Duration(0.5).sleep(); // sleep
+                to_target = true;
+            }
+        }
+        else if (ros::Time::now().toSec() > end && !timer_init && mission_status == "RUNNING" && !to_target)
+        {
+            ROS_WARN("TIMEOUT DA RUNNING");
+
+            status_req = "PAUSED";
+            std_msgs::String status_req_msg;
+            status_req_msg.data = status_req;
+            publisher_status.publish(status_req_msg);
+
+            ros::Duration(0.5).sleep(); // sleep
+        }
+
+        else if (mission_status == "PAUSED")
         {
             if (strategy == "Circumference" && buoy_seen && condition_to_run)
             {
@@ -267,7 +310,6 @@ int main(int argc, char **argv)
             }
             else if (inversion)
             {
-                inversion = false;
                 ROS_WARN("INVERSION");
                 waypoint_msg.strategy = "Spline";
 
@@ -278,20 +320,20 @@ int main(int argc, char **argv)
                     i_wall_direction = 2;
                     if (exploring_direction == "left")
                     {
-                        x_2 = x_1 - SPLINE_STEP_X / 4;
-                        y_2 = y_1 - SPLINE_STEP_Y / 4;
+                        x_2 = x_1 - SPLINE_STEP_X / 2;
+                        y_2 = y_1 - SPLINE_STEP_Y / 2;
                         z_2 = z_1;
-                        x_3 = x_2 - SPLINE_STEP_X / 4;
-                        y_3 = y_2 - SPLINE_STEP_Y / 4;
+                        x_3 = x_2 - SPLINE_STEP_X / 2;
+                        y_3 = y_2 - SPLINE_STEP_Y / 2;
                         z_3 = z_1;
                     }
                     else if (exploring_direction == "right")
                     {
-                        x_2 = x_1 + SPLINE_STEP_X / 4;
-                        y_2 = y_1 - SPLINE_STEP_Y / 4;
+                        x_2 = x_1 + SPLINE_STEP_X / 2;
+                        y_2 = y_1 - SPLINE_STEP_Y / 2;
                         z_2 = z_1;
-                        x_3 = x_2 + SPLINE_STEP_X / 4;
-                        y_3 = y_2 - SPLINE_STEP_Y / 4;
+                        x_3 = x_2 + SPLINE_STEP_X / 2;
+                        y_3 = y_2 - SPLINE_STEP_Y / 2;
                         z_3 = z_1;
                     }
                 }
@@ -301,20 +343,20 @@ int main(int argc, char **argv)
                     i_wall_direction = 0;
                     if (exploring_direction == "left")
                     {
-                        x_2 = x_1 - SPLINE_STEP_X / 4;
-                        y_2 = y_1 + SPLINE_STEP_Y / 4;
+                        x_2 = x_1 - SPLINE_STEP_X / 2;
+                        y_2 = y_1 + SPLINE_STEP_Y / 2;
                         z_2 = z_1;
-                        x_3 = x_2 - SPLINE_STEP_X / 4;
-                        y_3 = y_2 + SPLINE_STEP_Y / 4;
+                        x_3 = x_2 - SPLINE_STEP_X / 2;
+                        y_3 = y_2 + SPLINE_STEP_Y / 2;
                         z_3 = z_1;
                     }
                     else if (exploring_direction == "right")
                     {
-                        x_2 = x_1 + SPLINE_STEP_X / 4;
-                        y_2 = y_1 + SPLINE_STEP_Y / 4;
+                        x_2 = x_1 + SPLINE_STEP_X / 2;
+                        y_2 = y_1 + SPLINE_STEP_Y / 2;
                         z_2 = z_1;
-                        x_3 = x_2 + SPLINE_STEP_X / 4;
-                        y_3 = y_2 + SPLINE_STEP_Y / 4;
+                        x_3 = x_2 + SPLINE_STEP_X / 2;
+                        y_3 = y_2 + SPLINE_STEP_Y / 2;
                         z_3 = z_1;
                     }
                 }
@@ -324,20 +366,20 @@ int main(int argc, char **argv)
                     i_wall_direction = 1;
                     if (exploring_direction == "up")
                     {
-                        x_2 = x_1 + SPLINE_STEP_X / 4;
-                        y_2 = y_1 + SPLINE_STEP_Y / 4;
+                        x_2 = x_1 + SPLINE_STEP_X / 2;
+                        y_2 = y_1 + SPLINE_STEP_Y / 2;
                         z_2 = z_1;
-                        x_3 = x_2 + SPLINE_STEP_X / 4;
-                        y_3 = y_2 + SPLINE_STEP_Y / 4;
+                        x_3 = x_2 + SPLINE_STEP_X / 2;
+                        y_3 = y_2 + SPLINE_STEP_Y / 2;
                         z_3 = z_1;
                     }
                     else if (exploring_direction == "down")
                     {
-                        x_2 = x_1 + SPLINE_STEP_X / 4;
-                        y_2 = y_1 - SPLINE_STEP_Y / 4;
+                        x_2 = x_1 + SPLINE_STEP_X / 2;
+                        y_2 = y_1 - SPLINE_STEP_Y / 2;
                         z_2 = z_1;
-                        x_3 = x_2 + SPLINE_STEP_X / 4;
-                        y_3 = y_2 - SPLINE_STEP_Y / 4;
+                        x_3 = x_2 + SPLINE_STEP_X / 2;
+                        y_3 = y_2 - SPLINE_STEP_Y / 2;
                         z_3 = z_1;
                     }
                 }
@@ -347,34 +389,35 @@ int main(int argc, char **argv)
                     i_wall_direction = 3;
                     if (exploring_direction == "up")
                     {
-                        x_2 = x_1 - SPLINE_STEP_X / 4;
-                        y_2 = y_1 + SPLINE_STEP_Y / 4;
+                        x_2 = x_1 - SPLINE_STEP_X / 2;
+                        y_2 = y_1 + SPLINE_STEP_Y / 2;
                         z_2 = z_1;
-                        x_3 = x_2 - SPLINE_STEP_X / 4;
-                        y_3 = y_2 + SPLINE_STEP_Y / 4;
+                        x_3 = x_2 - SPLINE_STEP_X / 2;
+                        y_3 = y_2 + SPLINE_STEP_Y / 2;
                         z_3 = z_1;
                     }
                     else if (exploring_direction == "down")
                     {
-                        x_2 = x_1 - SPLINE_STEP_X / 4;
-                        y_2 = y_1 - SPLINE_STEP_Y / 4;
+                        x_2 = x_1 - SPLINE_STEP_X / 2;
+                        y_2 = y_1 - SPLINE_STEP_Y / 2;
                         z_2 = z_1;
-                        x_3 = x_2 - SPLINE_STEP_X / 4;
-                        y_3 = y_2 - SPLINE_STEP_Y / 4;
+                        x_3 = x_2 - SPLINE_STEP_X / 2;
+                        y_3 = y_2 - SPLINE_STEP_Y / 2;
                         z_3 = z_1;
                     }
-
-                    std::vector<double> waypoint_pos = {x_2, y_2, z_2, x_3, y_3, z_3};
-                    waypoint_msg.data = waypoint_pos;
-                    status_req = "RUNNING";
-                    // Publish the message
-                    std_msgs::String status_req_msg;
-                    status_req_msg.data = status_req;
-                    // Publish the message
-                    publisher_status.publish(status_req_msg);
-                    publisher.publish(waypoint_msg);
-                    ros::Duration(0.5).sleep(); // sleep for half a second
                 }
+
+                std::vector<double> waypoint_pos = {x_2, y_2, z_2, x_3, y_3, z_3};
+                waypoint_msg.data = waypoint_pos;
+                status_req = "RUNNING";
+                // Publish the message
+                std_msgs::String status_req_msg;
+                status_req_msg.data = status_req;
+                // Publish the message
+                publisher_status.publish(status_req_msg);
+                inversion = false;
+                publisher.publish(waypoint_msg);
+                ros::Duration(1.5).sleep(); // sleep for half a second
             }
             else
             {
@@ -383,6 +426,14 @@ int main(int argc, char **argv)
 
                 if (flag_start_mission)
                 {
+                    if (timer_init)
+                    {
+                        start = ros::Time::now().toSec();
+                        end = start + 60.0*10;
+                        timer_init = false;
+                        ROS_WARN("START: %f", start);
+                        ROS_WARN("END: %f", end);
+                    }
                     flag_start_mission = false;
 
                     if (i_wall_min == 0)
@@ -395,10 +446,10 @@ int main(int argc, char **argv)
                         i_wall_direc_expl = 2;
 
                         x_2 = x_1;
-                        y_2 = y_1 - SPLINE_STEP_Y / 4 - SAFE_DIST / 2;
+                        y_2 = y_1 - SPLINE_STEP_Y / 2 - SAFE_DIST / 2;
                         z_2 = z_1;
                         x_3 = x_1;
-                        y_3 = y_2 - SPLINE_STEP_Y / 4 - SAFE_DIST / 2;
+                        y_3 = y_2 - SPLINE_STEP_Y / 2 - SAFE_DIST / 2;
                         z_3 = z_1;
                     }
                     else if (i_wall_min == 1)
@@ -410,10 +461,10 @@ int main(int argc, char **argv)
                         i_wall_direction = 0;
                         i_wall_direc_expl = 3;
 
-                        x_2 = x_1 - SPLINE_STEP_X / 4 - SAFE_DIST / 2;
+                        x_2 = x_1 - SPLINE_STEP_X / 2 - SAFE_DIST / 2;
                         y_2 = y_1;
                         z_2 = z_1;
-                        x_3 = x_2 - SPLINE_STEP_X / 4 - SAFE_DIST / 2;
+                        x_3 = x_2 - SPLINE_STEP_X / 2 - SAFE_DIST / 2;
                         y_3 = y_1;
                         z_3 = z_1;
                     }
@@ -427,10 +478,10 @@ int main(int argc, char **argv)
                         i_wall_direc_expl = 0;
 
                         x_2 = x_1;
-                        y_2 = y_1 + SPLINE_STEP_Y / 4 + SAFE_DIST / 2;
+                        y_2 = y_1 + SPLINE_STEP_Y / 2 + SAFE_DIST / 2;
                         z_2 = z_1;
                         x_3 = x_1;
-                        y_3 = y_2 + SPLINE_STEP_Y / 4 + SAFE_DIST / 2;
+                        y_3 = y_2 + SPLINE_STEP_Y / 2 + SAFE_DIST / 2;
                         z_3 = z_1;
                     }
                     else if (i_wall_min == 3)
@@ -442,10 +493,10 @@ int main(int argc, char **argv)
                         i_wall_direction = 2;
                         i_wall_direc_expl = 1;
 
-                        x_2 = x_1 + SPLINE_STEP_X / 4 + SAFE_DIST / 2;
+                        x_2 = x_1 + SPLINE_STEP_X / 2 + SAFE_DIST / 2;
                         y_2 = y_1;
                         z_2 = z_1;
-                        x_3 = x_2 + SPLINE_STEP_X / 4 + SAFE_DIST / 2;
+                        x_3 = x_2 + SPLINE_STEP_X / 2 + SAFE_DIST / 2;
                         y_3 = y_1;
                         z_3 = z_1;
                     }
@@ -459,11 +510,11 @@ int main(int argc, char **argv)
                         i_wall_direction = 3;
                         i_wall_direc_expl = 2;
 
-                        x_2 = x_1 - SPLINE_STEP_X / 4 - SAFE_DIST / 2;
-                        y_2 = y_1 - SPLINE_STEP_Y / 4 - SAFE_DIST / 2;
+                        x_2 = x_1 - SPLINE_STEP_X / 2 - SAFE_DIST / 2;
+                        y_2 = y_1 - SPLINE_STEP_Y / 2 - SAFE_DIST / 2;
                         z_2 = z_1;
-                        x_3 = x_2 - SPLINE_STEP_X / 4 - SAFE_DIST / 2;
-                        y_3 = y_2 - SPLINE_STEP_Y / 4 - SAFE_DIST / 2;
+                        x_3 = x_2 - SPLINE_STEP_X / 2 - SAFE_DIST / 2;
+                        y_3 = y_2 - SPLINE_STEP_Y / 2 - SAFE_DIST / 2;
                         z_3 = z_1;
                     }
                     else if (dist_wall[1] <= SAFE_DIST && dist_wall[2] <= SAFE_DIST)
@@ -475,11 +526,11 @@ int main(int argc, char **argv)
                         i_wall_direction = 0;
                         i_wall_direc_expl = 3;
 
-                        x_2 = x_1 - SPLINE_STEP_X / 4 - SAFE_DIST / 2;
-                        y_2 = y_1 + SPLINE_STEP_Y / 4 + SAFE_DIST / 2;
+                        x_2 = x_1 - SPLINE_STEP_X / 2 - SAFE_DIST / 2;
+                        y_2 = y_1 + SPLINE_STEP_Y / 2 + SAFE_DIST / 2;
                         z_2 = z_1;
-                        x_3 = x_2 - SPLINE_STEP_X / 4 - SAFE_DIST / 2;
-                        y_3 = y_2 + SPLINE_STEP_Y / 4 + SAFE_DIST / 2;
+                        x_3 = x_2 - SPLINE_STEP_X / 2 - SAFE_DIST / 2;
+                        y_3 = y_2 + SPLINE_STEP_Y / 2 + SAFE_DIST / 2;
                         z_3 = z_1;
                     }
                     else if (dist_wall[2] <= SAFE_DIST && dist_wall[3] <= SAFE_DIST)
@@ -491,11 +542,11 @@ int main(int argc, char **argv)
                         i_wall_direction = 1;
                         i_wall_direc_expl = 0;
 
-                        x_2 = x_1 + SPLINE_STEP_X / 4 + SAFE_DIST / 2;
-                        y_2 = y_1 + SPLINE_STEP_Y / 4 + SAFE_DIST / 2;
+                        x_2 = x_1 + SPLINE_STEP_X / 2 + SAFE_DIST / 2;
+                        y_2 = y_1 + SPLINE_STEP_Y / 2 + SAFE_DIST / 2;
                         z_2 = z_1;
-                        x_3 = x_2 + SPLINE_STEP_X / 4 + SAFE_DIST / 2;
-                        y_3 = y_2 + SPLINE_STEP_Y / 4 + SAFE_DIST / 2;
+                        x_3 = x_2 + SPLINE_STEP_X / 2 + SAFE_DIST / 2;
+                        y_3 = y_2 + SPLINE_STEP_Y / 2 + SAFE_DIST / 2;
                         z_3 = z_1;
                     }
                     else if (dist_wall[3] <= SAFE_DIST && dist_wall[0] <= SAFE_DIST)
@@ -507,15 +558,17 @@ int main(int argc, char **argv)
                         i_wall_direction = 2;
                         i_wall_direc_expl = 1;
 
-                        x_2 = x_1 + SPLINE_STEP_X / 4 + SAFE_DIST / 2;
-                        y_2 = y_1 - SPLINE_STEP_Y / 4 - SAFE_DIST / 2;
+                        x_2 = x_1 + SPLINE_STEP_X / 2 + SAFE_DIST / 2;
+                        y_2 = y_1 - SPLINE_STEP_Y / 2 - SAFE_DIST / 2;
                         z_2 = z_1;
-                        x_3 = x_2 + SPLINE_STEP_X / 4 + SAFE_DIST / 2;
-                        y_3 = y_2 - SPLINE_STEP_Y / 4 - SAFE_DIST / 2;
+                        x_3 = x_2 + SPLINE_STEP_X / 2 + SAFE_DIST / 2;
+                        y_3 = y_2 - SPLINE_STEP_Y / 2 - SAFE_DIST / 2;
                         z_3 = z_1;
                     }
+                    z_2 = 3.0;
+                    z_3 = 2.5;
 
-                    ROS_WARN("I_WALL_DIRECTION: %d I_WALL_DIRECTION_EXP %d", i_wall_direction, i_wall_direc_expl);
+                    // ROS_WARN("I_WALL_DIRECTION: %d I_WALL_DIRECTION_EXP %d", i_wall_direction, i_wall_direc_expl);
                 }
                 else
                 {
@@ -525,22 +578,24 @@ int main(int argc, char **argv)
                         if (is_first_spline)
                         {
                             is_first_spline = !is_first_spline;
-                            x_2 = x_1 + SPLINE_STEP_X / 4;
-                            y_2 = y_1 + SPLINE_STEP_Y / 4;
-                            z_2 = z_1 + SPLINE_STEP_Z / 4;
+                            x_2 = x_1 + SPLINE_STEP_X / 2;
+                            y_2 = y_1 + SPLINE_STEP_Y / 2;
+                            z_2 = z_1 + SPLINE_STEP_Z / 2;
                             x_3 = x_1;
-                            y_3 = y_2 + SPLINE_STEP_Y / 4;
+                            y_3 = y_2 + SPLINE_STEP_Y / 2;
                             z_3 = z_1;
+                            w = 0.4;
                         }
                         else
                         {
                             is_first_spline = !is_first_spline;
-                            x_2 = x_1 - SPLINE_STEP_X / 4;
-                            y_2 = y_1 + SPLINE_STEP_Y / 4;
-                            z_2 = z_1 - SPLINE_STEP_Z / 4;
+                            x_2 = x_1 - SPLINE_STEP_X / 2;
+                            y_2 = y_1 + SPLINE_STEP_Y / 2;
+                            z_2 = z_1 - SPLINE_STEP_Z / 2;
                             x_3 = x_1;
-                            y_3 = y_2 + SPLINE_STEP_Y / 4;
+                            y_3 = y_2 + SPLINE_STEP_Y / 2;
                             z_3 = z_1;
+                            w = -0.4;
                         }
                     }
                     if (direction == "down")
@@ -548,22 +603,24 @@ int main(int argc, char **argv)
                         if (is_first_spline)
                         {
                             is_first_spline = !is_first_spline;
-                            x_2 = x_1 - SPLINE_STEP_X / 4;
-                            y_2 = y_1 - SPLINE_STEP_Y / 4;
-                            z_2 = z_1 + SPLINE_STEP_Z / 4;
+                            x_2 = x_1 - SPLINE_STEP_X / 2;
+                            y_2 = y_1 - SPLINE_STEP_Y / 2;
+                            z_2 = z_1 + SPLINE_STEP_Z / 2;
                             x_3 = x_1;
-                            y_3 = y_2 - SPLINE_STEP_Y / 4;
+                            y_3 = y_2 - SPLINE_STEP_Y / 2;
                             z_3 = z_1;
+                            w = 0.4;
                         }
                         else
                         {
                             is_first_spline = !is_first_spline;
-                            x_2 = x_1 + SPLINE_STEP_X / 4;
-                            y_2 = y_1 - SPLINE_STEP_Y / 4;
-                            z_2 = z_1 - SPLINE_STEP_Z / 4;
+                            x_2 = x_1 + SPLINE_STEP_X / 2;
+                            y_2 = y_1 - SPLINE_STEP_Y / 2;
+                            z_2 = z_1 - SPLINE_STEP_Z / 2;
                             x_3 = x_1;
-                            y_3 = y_2 - SPLINE_STEP_Y / 4;
+                            y_3 = y_2 - SPLINE_STEP_Y / 2;
                             z_3 = z_1;
+                            w = -0.4;
                         }
                     }
                     if (direction == "left")
@@ -571,22 +628,24 @@ int main(int argc, char **argv)
                         if (is_first_spline)
                         {
                             is_first_spline = !is_first_spline;
-                            x_2 = x_1 - SPLINE_STEP_X / 4;
-                            y_2 = y_1 + SPLINE_STEP_Y / 4;
-                            z_2 = z_1 + SPLINE_STEP_Z / 4;
-                            x_3 = x_2 - SPLINE_STEP_X / 4;
+                            x_2 = x_1 - SPLINE_STEP_X / 2;
+                            y_2 = y_1 + SPLINE_STEP_Y / 2;
+                            z_2 = z_1 + SPLINE_STEP_Z / 2;
+                            x_3 = x_2 - SPLINE_STEP_X / 2;
                             y_3 = y_1;
                             z_3 = z_1;
+                            w = 0.4;
                         }
                         else
                         {
                             is_first_spline = !is_first_spline;
-                            x_2 = x_1 - SPLINE_STEP_X / 4;
-                            y_2 = y_1 - SPLINE_STEP_Y / 4;
-                            z_2 = z_1 - SPLINE_STEP_Z / 4;
-                            x_3 = x_2 - SPLINE_STEP_X / 4;
+                            x_2 = x_1 - SPLINE_STEP_X / 2;
+                            y_2 = y_1 - SPLINE_STEP_Y / 2;
+                            z_2 = z_1 - SPLINE_STEP_Z / 2;
+                            x_3 = x_2 - SPLINE_STEP_X / 2;
                             y_3 = y_1;
                             z_3 = z_1;
+                            w = -0.4;
                         }
                     }
                     if (direction == "right")
@@ -594,27 +653,39 @@ int main(int argc, char **argv)
                         if (is_first_spline)
                         {
                             is_first_spline = !is_first_spline;
-                            x_2 = x_1 + SPLINE_STEP_X / 4;
-                            y_2 = y_1 - SPLINE_STEP_Y / 4;
-                            z_2 = z_1 + SPLINE_STEP_Z / 4;
-                            x_3 = x_2 + SPLINE_STEP_X / 4;
+                            x_2 = x_1 + SPLINE_STEP_X / 2;
+                            y_2 = y_1 - SPLINE_STEP_Y / 2;
+                            z_2 = z_1 + SPLINE_STEP_Z / 2;
+                            x_3 = x_2 + SPLINE_STEP_X / 2;
                             y_3 = y_1;
                             z_3 = z_1;
+                            w = 0.4;
                         }
                         else
                         {
                             is_first_spline = !is_first_spline;
-                            x_2 = x_1 + SPLINE_STEP_X / 4;
-                            y_2 = y_1 + SPLINE_STEP_Y / 4;
-                            z_2 = z_1 - SPLINE_STEP_Z / 4;
-                            x_3 = x_2 + SPLINE_STEP_X / 4;
+                            x_2 = x_1 + SPLINE_STEP_X / 2;
+                            y_2 = y_1 + SPLINE_STEP_Y / 2;
+                            z_2 = z_1 - SPLINE_STEP_Z / 2;
+                            x_3 = x_2 + SPLINE_STEP_X / 2;
                             y_3 = y_1;
                             z_3 = z_1;
+                            w = -0.4;
                         }
                     }
                 }
+                if (z_2 > 4.5)
+                {
+                    z_2 = 4.5;
+                    z_3 = 2.5;
+                }
+                else if (z_2 < 0.5)
+                {
+                    z_2 = 0.5;
+                    z_3 = 2.5;
+                }
 
-                std::vector<double> waypoint_pos = {x_2, y_2, z_2, x_3, y_3, z_3};
+                std::vector<double> waypoint_pos = {x_2, y_2, z_2, x_3, y_3, z_3, w};
                 waypoint_msg.data = waypoint_pos;
                 status_req = "RUNNING";
                 // Publish the message
@@ -652,14 +723,15 @@ int main(int argc, char **argv)
                 status_req_msg.data = status_req;
 
                 publisher_status.publish(status_req_msg);
-                ros::Duration(0.5).sleep(); // sleep for half a second
+                ros::Duration(0.5).sleep(); // sleep for 1.5 seconds
             }
         }
 
         // PASSAGGIO DA SPLINE A BOA
-        else if (mission_status == "RUNNING" && buoy_seen && strategy == "Spline" && condition_to_run)
+        else if (mission_status == "RUNNING" && buoy_seen && waypoint_msg.strategy == "Spline" && condition_to_run)
         {
             status_req = "PAUSED";
+            ROS_WARN("BUOY SEEN");
             // Publish the message
             std_msgs::String status_req_msg;
             status_req_msg.data = status_req;

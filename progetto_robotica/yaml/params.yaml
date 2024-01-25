@@ -17,7 +17,7 @@ N_v : 0
 
 target_x : 15
 target_y : 15
-target_z : 15
+target_z : 5
 
 MAP_NE_x: 20 #vertice nord est mappa, coordinata x
 MAP_NE_y: 20 #vertice nord est mappa, coordinata y

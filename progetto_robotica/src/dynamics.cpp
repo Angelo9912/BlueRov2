@@ -12,9 +12,9 @@ double tau_v = 0.0;
 double tau_w = 0.0;
 double tau_r = 0.0;
 
-double x = -17.0;
-double y = 17.0;
-double z = 4.0;
+double x = +17.0;
+double y = +17.0;
+double z = 5.0;
 double psi = 0.0;
 double u = 0.0;
 double v = 0.0;
@@ -132,6 +132,14 @@ int main(int argc, char **argv)
         eta_dot = Jacobian * nu;
         Eigen::Matrix<double, 4, 1> eta_k1;
         eta_k1 = dt * eta_dot + eta;
+
+        // wrapToPi(eta_k1(3));
+        double rem = std::fmod(eta_k1(3)+M_PI, 2 * M_PI);
+        if (rem < 0)
+        {
+            rem += 2 * M_PI;
+        }
+        eta_k1(3) = rem - M_PI;
 
         // SETTARE LA POSIZIONE DEL MODELLO
         std::vector<double> state = {eta(0), eta(1), eta(2), eta(3), nu(0), nu(1), nu(2), nu(3)};

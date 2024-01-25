@@ -133,6 +133,24 @@ int main(int argc, char **argv)
         // Define error vector
         Eigen::Matrix<double, 4, 1> error;
         error = des_pose - est_pose;
+        double angle_tmp = error(3);
+        if(angle_tmp>0){
+            if(angle_tmp>2*M_PI-angle_tmp){
+                error(3) = angle_tmp-2*M_PI;
+            }
+            else{
+                error(3) = angle_tmp;
+            }
+        }
+        else{
+            angle_tmp = -angle_tmp;
+            if(angle_tmp>2*M_PI-angle_tmp){
+                error(3) = 2*M_PI-angle_tmp;
+            }
+            else{
+                error(3) = -angle_tmp;
+            }
+        }
 
         // Define Jacobian Matrix
         Eigen::Matrix<double, 4, 4> J;

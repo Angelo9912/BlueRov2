@@ -50,7 +50,6 @@ void desStateCallback(const progetto_robotica::Floats::ConstPtr &msg)
         z_dot_d = msg->data[6];
         psi_dot_d = msg->data[7];
     }
-
 }
 void estStateCallback(const progetto_robotica::Floats::ConstPtr &msg)
 {
@@ -122,24 +121,24 @@ int main(int argc, char **argv)
         // Computing the control law
         Eigen::Matrix<double, 8, 8> A_cont;
         A_cont << 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                  0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
-                  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                  0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
-                  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
-                  0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0;
         Eigen::Matrix<double, 8, 8> A = dt * A_cont + Eigen::Matrix<double, 8, 8>::Identity();
 
         Eigen::Matrix<double, 8, 4> B_cont;
         B_cont << 0.0, 0.0, 0.0, 0.0,
-                  1.0, 0.0, 0.0, 0.0,
-                  0.0, 0.0, 0.0, 0.0,
-                  0.0, 1.0, 0.0, 0.0,
-                  0.0, 0.0, 0.0, 0.0,
-                  0.0, 0.0, 1.0, 0.0,
-                  0.0, 0.0, 0.0, 0.0,
-                  0.0, 0.0, 0.0, 1.0;
+            1.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0,
+            0.0, 1.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 1.0;
 
         Eigen::Matrix<double, 8, 4> B = dt * B_cont;
 
@@ -148,18 +147,18 @@ int main(int argc, char **argv)
         Eigen::Matrix<double, 8, 4> Zero;
         Zero.setZero();
         Eigen::Matrix<double, 32, 16> PHI;
-        PHI << C*B, Zero, Zero, Zero,
-               C*A*B, C*B, Zero, Zero,
-               C*A*A*B, C*A*B, C*B, Zero,
-               C*A*A*A*B, C*A*A*B, C*A*B, C*B;
-        
-        Eigen::Matrix<double, 32, 8> F;
-        F << C*A,
-             C*A*A,
-             C*A*A*A,
-             C*A*A*A*A;
+        PHI << C * B, Zero, Zero, Zero,
+            C * A * B, C * B, Zero, Zero,
+            C * A * A * B, C * A * B, C * B, Zero,
+            C * A * A * A * B, C * A * A * B, C * A * B, C * B;
 
-        Eigen::Matrix<double, 16, 16> Rc = 0.05*Eigen::Matrix<double, 16, 16>::Identity();
+        Eigen::Matrix<double, 32, 8> F;
+        F << C * A,
+            C * A * A,
+            C * A * A * A,
+            C * A * A * A * A;
+
+        Eigen::Matrix<double, 16, 16> Rc = 0.01 * Eigen::Matrix<double, 16, 16>::Identity();
 
         // Estrazione valori desired state
 
@@ -172,31 +171,74 @@ int main(int argc, char **argv)
         // Trasformazione da body a world frame
         Eigen::Matrix<double, 4, 4> J;
         J << cos(psi_hat), -sin(psi_hat), 0.0, 0.0,
-             sin(psi_hat), cos(psi_hat), 0.0, 0.0,
-             0.0, 0.0, 1.0, 0.0,
-             0.0, 0.0, 0.0, 1.0;
-        
+            sin(psi_hat), cos(psi_hat), 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0, 1.0;
+
         Eigen::Matrix<double, 4, 1> est_nu;
         est_nu << u_hat, v_hat, w_hat, r_hat;
 
         Eigen::Matrix<double, 4, 1> est_vel;
-        est_vel = J*est_nu;
+        est_vel = J * est_nu;
 
         Eigen::Matrix<double, 8, 1> est_state;
         est_state << x_hat, est_vel(0), y_hat, est_vel(1), z_hat, est_vel(2), psi_hat, est_vel(3);
 
+        Eigen::Matrix<double, 32, 1> prediction;
+        prediction = F * est_state;
+        for (int i = 6; i < 32; i += 8)
+        {
+            double rem = std::fmod(prediction(i) + M_PI, 2 * M_PI);
+            if (rem < 0)
+            {
+                rem += 2 * M_PI;
+            }
+            prediction(i) = rem - M_PI;
+        }
+
+        Eigen::Matrix<double, 32, 1> error;
+        error = r - prediction;
+
+        for (int i = 6; i < 32; i += 8)
+        {
+            double angle_tmp = error(i);
+            if (angle_tmp > 0)
+            {
+                if (angle_tmp > 2 * M_PI - angle_tmp)
+                {
+                    error(i) = angle_tmp - 2 * M_PI;
+                }
+                else
+                {
+                    error(i) = angle_tmp;
+                }
+            }
+            else
+            {
+                angle_tmp = -angle_tmp;
+                if (angle_tmp > 2 * M_PI - angle_tmp)
+                {
+                    error(i) = 2 * M_PI - angle_tmp;
+                }
+                else
+                {
+                    error(i) = -angle_tmp;
+                }
+            }
+        }
+
         Eigen::Matrix<double, 16, 1> DeltaU;
-        DeltaU = (PHI.transpose()*PHI + Rc).inverse()*PHI.transpose()*(r-F*est_state);
+        DeltaU = (PHI.transpose() * PHI + Rc).inverse() * PHI.transpose() * (error);
         Eigen::Matrix<double, 4, 1> u;
         u << DeltaU(0), DeltaU(1), DeltaU(2), DeltaU(3);
 
         // Computing the torques
         // Actually, the torques are computed transforming the MPC control law in feedback linearization input
         Eigen::Matrix<double, 4, 1> torques_vec;
-        torques_vec(0) = m*u(0)*cos(psi_hat) - X_u*u_hat + m*u(1)*sin(psi_hat);
-        torques_vec(1) = m*u(1)*cos(psi_hat) - Y_v*v_hat - Y_r*r_hat - m*u(0)*sin(psi_hat);
-        torques_vec(2) = m*u(2) - Z_w*w_hat;
-        torques_vec(3) = I*u(3) - N_v*v_hat - N_r*r_hat;
+        torques_vec(0) = m * u(0) * cos(psi_hat) - X_u * u_hat + m * u(1) * sin(psi_hat);
+        torques_vec(1) = m * u(1) * cos(psi_hat) - Y_v * v_hat - Y_r * r_hat - m * u(0) * sin(psi_hat);
+        torques_vec(2) = m * u(2) - Z_w * w_hat;
+        torques_vec(3) = I * u(3) - N_v * v_hat - N_r * r_hat;
 
         std::vector<double> torques = {torques_vec(0), torques_vec(1), torques_vec(2), torques_vec(3)};
 

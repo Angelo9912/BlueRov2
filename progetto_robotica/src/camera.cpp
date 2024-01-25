@@ -49,14 +49,25 @@ int main(int argc, char **argv)
     // Set the publishing rate (e.g., 10 Hz)
     ros::Rate rate(5);
 
+    // Eigen::Matrix<double, 1, 3> sphere1;
+    // sphere1 << 3.0, 5.0, 2.5;
+    // Eigen::Matrix<double, 1, 3> sphere2;
+    // sphere2 << -8.0, -12.0, 2.0;
+    // Eigen::Matrix<double, 1, 3> box1;
+    // box1 << -3.0, 5.5, 1.0;
+    // Eigen::Matrix<double, 1, 3> box2;
+    // box2 << 10.0, -10, 1.5;
+    // Eigen::Matrix<double, 4, 3> buoy_positions;
+    // buoy_positions << sphere1, box1, sphere2, box2;
+
     Eigen::Matrix<double, 1, 3> sphere1;
-    sphere1 << 3.0, 5.0, 3.0;
+    sphere1 << 10.0, 10.0, 2.5;
     Eigen::Matrix<double, 1, 3> sphere2;
-    sphere2 << -8.0, -12.0, 7.0;
+    sphere2 << -8.0, -12.0, 2.0;
     Eigen::Matrix<double, 1, 3> box1;
-    box1 << -3.0, 5.5, 1.0;
+    box1 << 14, 10.0, 2.0;
     Eigen::Matrix<double, 1, 3> box2;
-    box2 << 10.0, -10, 5.0;
+    box2 << 10.0, -10, 1.5;
     Eigen::Matrix<double, 4, 3> buoy_positions;
     buoy_positions << sphere1, box1, sphere2, box2;
 

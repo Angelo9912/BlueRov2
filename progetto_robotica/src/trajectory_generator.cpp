@@ -37,6 +37,13 @@ double x_p = 0.0;
 double y_p = 0.0;
 double z_p = 0.0;
 
+double x_t = 0.0;
+double y_t = 0.0;
+double z_t = 0.0;
+
+// Comando di velocità (variabile nelle Splines)
+double w = 0.0;
+
 std::string strategy = "";
 std::string mission_status = "";
 
@@ -90,6 +97,17 @@ void waypointCallback(const progetto_robotica::Floats_String::ConstPtr &msg)
             x_3 = msg->data[3];
             y_3 = msg->data[4];
             z_3 = msg->data[5];
+            w = msg->data[6];
+            strategy = msg->strategy;
+        }
+        else if (msg->strategy == "Target")
+        {
+            x_1 = x_hat;
+            y_1 = y_hat;
+            z_1 = z_hat;
+            x_t = msg->data[0];
+            y_t = msg->data[1];
+            z_t = msg->data[2];
             strategy = msg->strategy;
         }
     }
@@ -149,7 +167,7 @@ int main(int argc, char **argv)
     // int i_min = 0;
     while (ros::ok())
     {
-        if (mission_status == "PAUSED")
+        if (mission_status == "PAUSED" || mission_status == "COMPLETED")
         {
             x_d = x_hat;
             y_d = y_hat;
@@ -162,11 +180,89 @@ int main(int argc, char **argv)
         }
         if (mission_status == "RUNNING")
         {
-            if (strategy == "Spline")
+            if (strategy == "Target")
             {
                 double u_d = 0.5;
                 double v_d = 0.0;
                 double w_d = 0.0;
+                double r_d = 0.0;
+
+                double pos_rel_x = x_t - x_1;
+                double pos_rel_y = y_t - y_1;
+                double pos_rel_z = z_t - z_1;
+
+                double dist_to_targ = sqrt(pow(pos_rel_x, 2) + pow(pos_rel_y, 2) + pow(pos_rel_z, 2));
+                double step = 0.1;
+
+                int n_waypoints = (int)(dist_to_targ / step);
+                ROS_WARN("n_waypoints : %d", n_waypoints);
+                double dx = pos_rel_x / n_waypoints;
+                double dy = pos_rel_y / n_waypoints;
+                double dz = pos_rel_z / n_waypoints;
+                ROS_WARN("[dx dy dz] : [%f %f %f]", dx, dy, dz);
+
+                double x[n_waypoints];
+                double y[n_waypoints];
+                double z[n_waypoints];
+                double psi[n_waypoints];
+                Eigen::VectorXd dist(n_waypoints);
+
+                for (int i = 1; i <= n_waypoints; i++)
+                {
+                    x[i - 1] = x_1 + i * dx;
+                    y[i - 1] = y_1 + i * dy;
+                    z[i - 1] = z_1 + i * dz;
+                    psi[i - 1] = atan2(dy, dx);
+                }
+                int i_dist_min = 0;
+                for (int i = 1; i <= n_waypoints; i++)
+                {
+                    dist(i - 1) = sqrt(pow(x_hat - x[i - 1], 2.0) + pow(y_hat - y[i - 1], 2.0) + pow(z_hat - z[i - 1], 2.0));
+                    if (i - 1 == 0)
+                    {
+                        dist_min = dist(i - 1);
+                    }
+                    else
+                    {
+                        if (dist(i - 1) < dist_min)
+                        {
+                            dist_min = dist(i - 1);
+                            i_dist_min = i - 1;
+                        }
+                    }
+                }
+
+                x_d = x[i_dist_min];
+                y_d = y[i_dist_min];
+                z_d = z[i_dist_min];
+                psi_d = psi[i_dist_min];
+
+                if (i_dist_min > n_waypoints - 3)
+                {
+                    u_d = 0.0;
+                    v_d = 0.0;
+                    w_d = 0.0;
+                    r_d = 0.0;
+                    if (x_hat > x_d - 0.2 && x_hat < x_d + 0.2 && y_hat > y_d - 0.2 && y_hat < y_d + 0.2 && z_hat > z_d - 0.2 && z_hat < z_d + 0.2)
+                    {
+                        std::string status_req = "COMPLETED";
+                        std_msgs::String msg;
+                        msg.data = status_req;
+                        publisher_status.publish(msg);
+                    }
+                }
+
+                x_dot_d = u_d * cos(psi_d) - v_d * sin(psi_d);
+                y_dot_d = u_d * sin(psi_d) + v_d * cos(psi_d);
+                z_dot_d = w_d;
+                psi_dot_d = r_d;
+            }
+
+            else if (strategy == "Spline")
+            {
+                double u_d = 0.5;
+                double v_d = 0.0;
+                double w_d = w;
                 double r_d = 0.0;
                 double vel = sqrt(u_d * u_d + v_d * v_d + w_d * w_d);
                 double waypoint_distance = (sqrt(pow(x_2 - x_1, 2) + pow(y_2 - y_1, 2) + pow(z_2 - z_1, 2)) + sqrt(pow(x_3 - x_2, 2) + pow(y_3 - y_2, 2) + pow(z_3 - z_2, 2))) / 2;
@@ -263,7 +359,11 @@ int main(int argc, char **argv)
                 z_d = z[i_dist_min];
                 psi_d = psi[i_dist_min];
 
-                if (i_dist_min > 296)
+                if(i_dist_min > 150 && i_dist_min < 296)
+                {
+                    w_d = -w;
+                }
+                else if(i_dist_min > 296)
                 {
                     u_d = 0.0;
                     v_d = 0.0;
@@ -274,6 +374,7 @@ int main(int argc, char **argv)
                     msg.data = status_req;
                     publisher_status.publish(msg);
                 }
+                
                 x_dot_d = u_d * cos(psi_d) - v_d * sin(psi_d);
                 y_dot_d = u_d * sin(psi_d) + v_d * cos(psi_d);
                 z_dot_d = w_d;
@@ -370,7 +471,7 @@ int main(int argc, char **argv)
                 double z[119];
                 double psi[119];
 
-                double u_d = 0.5;
+                double u_d = 0.3;
                 double v_d = 0.0;
                 double w_d = 0.0;
                 double r_d = 0.0;
