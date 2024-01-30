@@ -41,6 +41,9 @@ double x_t = 0.0;
 double y_t = 0.0;
 double z_t = 0.0;
 
+bool UP_DOWN_first_phase = true;
+int CIRCUMFERENCE_phase = 1;
+
 // Comando di velocità (variabile nelle Splines)
 double w = 0.0;
 
@@ -108,6 +111,16 @@ void waypointCallback(const progetto_robotica::Floats_String::ConstPtr &msg)
             x_t = msg->data[0];
             y_t = msg->data[1];
             z_t = msg->data[2];
+            strategy = msg->strategy;
+        }
+        else if (msg->strategy == "Initial")
+        {
+            x_1 = x_hat;
+            y_1 = y_hat;
+            z_1 = z_hat;
+            x_2 = msg->data[0];
+            y_2 = msg->data[1];
+            z_2 = msg->data[2];
             strategy = msg->strategy;
         }
     }
@@ -180,7 +193,86 @@ int main(int argc, char **argv)
         }
         if (mission_status == "RUNNING")
         {
-            if (strategy == "Target")
+            if (strategy == "Initial")
+            {
+                double u_d = 0.5;
+                double v_d = 0.0;
+                double w_d = 0.0;
+                double r_d = 0.0;
+
+                double pos_rel_x = x_2 - x_1;
+                double pos_rel_y = y_2 - y_1;
+                double pos_rel_z = z_2 - z_1;
+
+                double dist_to_targ = sqrt(pow(pos_rel_x, 2) + pow(pos_rel_y, 2) + pow(pos_rel_z, 2));
+                double step = 0.1;
+
+                int n_waypoints = (int)(dist_to_targ / step);
+                double dx = pos_rel_x / n_waypoints;
+                double dy = pos_rel_y / n_waypoints;
+                double dz = pos_rel_z / n_waypoints;
+
+                // VELOCITA' DI DISCESA COSTANTE CON SEGNO DIPENDENTE DAL SEGNO DI dz
+                w_d = 0.3*dz/abs(dz);
+
+                double x[n_waypoints];
+                double y[n_waypoints];
+                double z[n_waypoints];
+                double psi[n_waypoints];
+                Eigen::VectorXd dist(n_waypoints);
+
+                for (int i = 1; i <= n_waypoints; i++)
+                {
+                    x[i - 1] = x_1 + i * dx;
+                    y[i - 1] = y_1 + i * dy;
+                    z[i - 1] = z_1 + i * dz;
+                    psi[i - 1] = atan2(dy, dx);
+                }
+                int i_dist_min = 0;
+                for (int i = 1; i <= n_waypoints; i++)
+                {
+                    dist(i - 1) = sqrt(pow(x_hat - x[i - 1], 2.0) + pow(y_hat - y[i - 1], 2.0) + pow(z_hat - z[i - 1], 2.0));
+                    if (i - 1 == 0)
+                    {
+                        dist_min = dist(i - 1);
+                    }
+                    else
+                    {
+                        if (dist(i - 1) < dist_min)
+                        {
+                            dist_min = dist(i - 1);
+                            i_dist_min = i - 1;
+                        }
+                    }
+                }
+
+                x_d = x[i_dist_min];
+                y_d = y[i_dist_min];
+                z_d = z[i_dist_min];
+                psi_d = psi[i_dist_min];
+
+                if (i_dist_min > n_waypoints - 3)
+                {
+                    u_d = 0.0;
+                    v_d = 0.0;
+                    w_d = 0.0;
+                    r_d = 0.0;
+
+                    if (x_hat > x_d - 0.2 && x_hat < x_d + 0.2 && y_hat > y_d - 0.2 && y_hat < y_d + 0.2 && z_hat > z_d - 0.2 && z_hat < z_d + 0.2)
+                    {
+                        std::string status_req = "PAUSED";
+                        std_msgs::String msg;
+                        msg.data = status_req;
+                        publisher_status.publish(msg);
+                    }
+                }
+
+                x_dot_d = u_d * cos(psi_d) - v_d * sin(psi_d);
+                y_dot_d = u_d * sin(psi_d) + v_d * cos(psi_d);
+                z_dot_d = w_d;
+                psi_dot_d = r_d;
+            }
+            else if (strategy == "Target")
             {
                 double u_d = 0.5;
                 double v_d = 0.0;
@@ -359,11 +451,11 @@ int main(int argc, char **argv)
                 z_d = z[i_dist_min];
                 psi_d = psi[i_dist_min];
 
-                if(i_dist_min > 150 && i_dist_min < 296)
+                if (i_dist_min > 150 && i_dist_min < 296)
                 {
                     w_d = -w;
                 }
-                else if(i_dist_min > 296)
+                else if (i_dist_min > 296)
                 {
                     u_d = 0.0;
                     v_d = 0.0;
@@ -374,7 +466,7 @@ int main(int argc, char **argv)
                     msg.data = status_req;
                     publisher_status.publish(msg);
                 }
-                
+
                 x_dot_d = u_d * cos(psi_d) - v_d * sin(psi_d);
                 y_dot_d = u_d * sin(psi_d) + v_d * cos(psi_d);
                 z_dot_d = w_d;
@@ -387,7 +479,7 @@ int main(int argc, char **argv)
                 double z[199];
                 double psi[199];
 
-                double u_d = 0.5;
+                double u_d = 0.3;
                 double v_d = 0.0;
                 double w_d = 0.0;
                 double r_d = 0.0;
@@ -418,20 +510,77 @@ int main(int argc, char **argv)
                     psi[i] = atan2(cos(beta + t), -sin(beta + t));
                 }
 
-                int i_dist_min = 0;
-                for (int i = 0; i < 199; i++)
+                int i_dist_min;
+
+                if (CIRCUMFERENCE_phase == 1)
                 {
-                    dist(i) = sqrt(pow(x_hat - x[i], 2.0) + pow(y_hat - y[i], 2.0) + pow(z_hat - z[i], 2.0));
-                    if (i == 0)
+                    ROS_WARN("RETTA");
+                    i_dist_min = 0;
+                    for (int i = 0; i < 99; i++)
                     {
-                        dist_min = dist(i);
-                    }
-                    else
-                    {
-                        if (dist(i) < dist_min)
+                        dist(i) = sqrt(pow(x_hat - x[i], 2.0) + pow(y_hat - y[i], 2.0) + pow(z_hat - z[i], 2.0));
+                        if (i == 0)
                         {
                             dist_min = dist(i);
-                            i_dist_min = i;
+                        }
+                        else
+                        {
+                            if (dist(i) < dist_min)
+                            {
+                                dist_min = dist(i);
+                                i_dist_min = i;
+                            }
+                        }
+                    }
+                    if (i_dist_min >= 97)
+                    {
+                        CIRCUMFERENCE_phase = 2;
+                    }
+                }
+                else if (CIRCUMFERENCE_phase == 2)
+                {
+                    ROS_WARN("CIRCONFERENZA 1");
+                    i_dist_min = 99;
+                    for (int i = 99; i < 149; i++)
+                    {
+                        dist(i) = sqrt(pow(x_hat - x[i], 2.0) + pow(y_hat - y[i], 2.0) + pow(z_hat - z[i], 2.0));
+                        if (i == 99)
+                        {
+                            dist_min = dist(i);
+                        }
+                        else
+                        {
+                            if (dist(i) < dist_min)
+                            {
+                                dist_min = dist(i);
+                                i_dist_min = i;
+                            }
+                        }
+                    }
+                    if (i_dist_min >= 147)
+                    {
+                        CIRCUMFERENCE_phase = 3;
+                    }
+                }
+                else
+                {
+                    ROS_WARN("CIRCONFERENZA 2");
+
+                    i_dist_min = 149;
+                    for (int i = 149; i < 199; i++)
+                    {
+                        dist(i) = sqrt(pow(x_hat - x[i], 2.0) + pow(y_hat - y[i], 2.0) + pow(z_hat - z[i], 2.0));
+                        if (i == 149)
+                        {
+                            dist_min = dist(i);
+                        }
+                        else
+                        {
+                            if (dist(i) < dist_min)
+                            {
+                                dist_min = dist(i);
+                                i_dist_min = i;
+                            }
                         }
                     }
                 }
@@ -440,8 +589,9 @@ int main(int argc, char **argv)
                 y_d = y[i_dist_min];
                 z_d = z[i_dist_min];
                 psi_d = psi[i_dist_min];
+                ROS_WARN("i_dist_min: %d", i_dist_min);
 
-                if (i_dist_min > 50 && i_dist_min <= 196)
+                if (i_dist_min > 99 && i_dist_min <= 196)
                 {
                     u_d = 0.1;
                     v_d = 0.0;
@@ -458,6 +608,7 @@ int main(int argc, char **argv)
                     std_msgs::String msg;
                     msg.data = status_req;
                     publisher_status.publish(msg);
+                    CIRCUMFERENCE_phase = 1;
                 }
                 x_dot_d = u_d * cos(psi_d) - v_d * sin(psi_d);
                 y_dot_d = u_d * sin(psi_d) + v_d * cos(psi_d);
@@ -477,15 +628,26 @@ int main(int argc, char **argv)
                 double r_d = 0.0;
 
                 Eigen::VectorXd dist(119);
-                double d = sqrt(pow(x_b - x_1, 2) + pow(y_b - y_1, 2)) - 1.0;
-                double alpha = atan2(y_b - y_1, x_b - x_1); // angolo tra la boa e la posizione del robot
-                double x_p = x_1 + d * cos(alpha);
-                double y_p = y_1 + d * sin(alpha);
-                double z_p = z_b;
+                double d = sqrt(pow(x_1 - x_b, 2.0) + pow(y_1 - y_b, 2.0));
+                double alpha = atan2(y_1 - y_b, x_1 - x_b); // angolo tra la boa e la posizione del robot
+                double x_p;
+                double y_p;
+                double z_p;
+
+                x_p = x_b + cos(alpha);
+                y_p = y_b + sin(alpha);
+                z_p = z_b;
+
                 double dx = (x_p - x_1) / 100;
                 double dy = (y_p - y_1) / 100;
                 double dz = (z_p - z_1) / 100;
 
+                if (dz > 0)
+                    w_d = 0.1;
+                else
+                    w_d = -0.1;
+
+                // FASE DI AVVICINAMENTO
                 for (int i = 0; i < 99; i++)
                 {
                     x[i] = x_1 + (i + 1) * dx;
@@ -494,6 +656,7 @@ int main(int argc, char **argv)
                     psi[i] = atan2(dy, dx);
                 }
 
+                // FASE DI RISALITA
                 double dz2 = 0.5 / 20; // passo di risalita su asse z per ripianificazione locale
 
                 for (int i = 99; i < 119; i++)
@@ -503,21 +666,55 @@ int main(int argc, char **argv)
                     z[i] = z[i - 1] + dz2;
                     psi[i] = psi[i - 1];
                 }
-
-                int i_dist_min = 0;
-                for (int i = 0; i < 119; i++)
+                int i_dist_min;
+                if (UP_DOWN_first_phase)
                 {
-                    dist(i) = sqrt(pow(x_hat - x[i], 2.0) + pow(y_hat - y[i], 2.0) + pow(z_hat - z[i], 2.0));
-                    if (i == 0)
+                    i_dist_min = 0;
+
+                    // Scelta del waypoint più vicino
+
+                    for (int i = 0; i < 99; i++)
                     {
-                        dist_min = dist(i);
-                    }
-                    else
-                    {
-                        if (dist(i) < dist_min)
+                        dist(i) = sqrt(pow(x_hat - x[i], 2.0) + pow(y_hat - y[i], 2.0) + pow(z_hat - z[i], 2.0));
+                        if (i == 0)
                         {
                             dist_min = dist(i);
-                            i_dist_min = i;
+                        }
+                        else
+                        {
+                            if (dist(i) < dist_min)
+                            {
+                                dist_min = dist(i);
+                                i_dist_min = i;
+                            }
+                        }
+                    }
+                    if (i_dist_min >= 97)
+                    {
+                        UP_DOWN_first_phase = false;
+                    }
+                }
+                else
+                {
+                    ROS_WARN("z: %f", z_hat);
+                    i_dist_min = 99;
+
+                    // Scelta del waypoint più vicino
+
+                    for (int i = 99; i < 119; i++)
+                    {
+                        dist(i) = sqrt(pow(x_hat - x[i], 2.0) + pow(y_hat - y[i], 2.0) + pow(z_hat - z[i], 2.0));
+                        if (i == 99)
+                        {
+                            dist_min = dist(i);
+                        }
+                        else
+                        {
+                            if (dist(i) < dist_min)
+                            {
+                                dist_min = dist(i);
+                                i_dist_min = i;
+                            }
                         }
                     }
                 }
@@ -531,7 +728,6 @@ int main(int argc, char **argv)
                 {
                     u_d = 0.1;
                     v_d = 0.0;
-                    w_d = 0.0;
                     r_d = 0.0;
                 }
                 else if (i_dist_min >= 99 && i_dist_min < 116)
@@ -551,6 +747,7 @@ int main(int argc, char **argv)
                     std_msgs::String msg;
                     msg.data = status_req;
                     publisher_status.publish(msg);
+                    UP_DOWN_first_phase = true;
                 }
                 x_dot_d = u_d * cos(psi_d) - v_d * sin(psi_d);
                 y_dot_d = u_d * sin(psi_d) + v_d * cos(psi_d);

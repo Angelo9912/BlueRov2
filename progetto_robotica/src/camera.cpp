@@ -67,7 +67,7 @@ int main(int argc, char **argv)
     Eigen::Matrix<double, 1, 3> box1;
     box1 << 14, 10.0, 2.0;
     Eigen::Matrix<double, 1, 3> box2;
-    box2 << 10.0, -10, 1.5;
+    box2 << 10.0, -10.0, 1.5;
     Eigen::Matrix<double, 4, 3> buoy_positions;
     buoy_positions << sphere1, box1, sphere2, box2;
 

@@ -73,6 +73,7 @@ void estStateCallback(const progetto_robotica::Floats::ConstPtr &msg)
         v_hat = msg->data[5];
         w_hat = msg->data[6];
         r_hat = msg->data[7];
+        ROS_WARN("z_hat: %f", z_hat);
     }
 }
 
@@ -169,7 +170,7 @@ int main(int argc, char **argv)
 
     double const SPLINE_STEP_X = 3.0;
     double const SPLINE_STEP_Y = 3.0;
-    double const SPLINE_STEP_Z = 4.0;
+    double const SPLINE_STEP_Z = 3.5;
 
     std::string exploring_direction = ""; // "up", "down", "left", "right"
     std::string direction = "";
@@ -186,12 +187,12 @@ int main(int argc, char **argv)
     double y_3;
     double z_3;
 
-    //Comando di velocità verticale
+    // Comando di velocità verticale
     double w;
 
-    //Tempi di start & end
-    double start;
-    double end;
+    // Tempi di start & end
+    double start_time;
+    double end_time;
 
     // Set the loop rate (in Hz)
     ros::Rate loop_rate(5);
@@ -239,7 +240,7 @@ int main(int argc, char **argv)
             condition_to_run = buoys_pos(n_buoys - 1, 0) == x_b && buoys_pos(n_buoys - 1, 1) == y_b && buoys_pos(n_buoys - 1, 2) == z_b && !is_used(n_buoys - 1, 0);
         }
 
-        if (ros::Time::now().toSec() > end && !timer_init && mission_status == "PAUSED")
+        if (ros::Time::now().toSec() > end_time && !timer_init && mission_status == "PAUSED")
         {
             ROS_WARN("TIMEOUT DA PAUSED");
             status_req = "RUNNING";
@@ -260,7 +261,7 @@ int main(int argc, char **argv)
                 to_target = true;
             }
         }
-        else if (ros::Time::now().toSec() > end && !timer_init && mission_status == "RUNNING" && !to_target)
+        else if (ros::Time::now().toSec() > end_time && !timer_init && mission_status == "RUNNING" && !to_target)
         {
             ROS_WARN("TIMEOUT DA RUNNING");
 
@@ -421,19 +422,23 @@ int main(int argc, char **argv)
             }
             else
             {
-                ROS_WARN("SPLINE");
-                waypoint_msg.strategy = "Spline";
+                //////////////////////////////////////////////////////////////////////////////////////////////////////
+                /////////////////////////////////// INIZIALIZZAZIONE DELLA MISSIONE///////////////////////////////////
+                //////////////////////////////////////////////////////////////////////////////////////////////////////
+                ////////// Si decide la direzione iniziale di esplorazione in base alla posizione del robot //////////
+                //////////////////////////////////////////////////////////////////////////////////////////////////////
 
                 if (flag_start_mission)
                 {
                     if (timer_init)
                     {
-                        start = ros::Time::now().toSec();
-                        end = start + 60.0*10;
+                        start_time = ros::Time::now().toSec();
+                        end_time = start_time + 60.0 * 40;
                         timer_init = false;
-                        ROS_WARN("START: %f", start);
-                        ROS_WARN("END: %f", end);
+                        ROS_WARN("START: %f", start_time);
+                        ROS_WARN("END: %f", end_time);
                     }
+
                     flag_start_mission = false;
 
                     if (i_wall_min == 0)
@@ -510,12 +515,8 @@ int main(int argc, char **argv)
                         i_wall_direction = 3;
                         i_wall_direc_expl = 2;
 
-                        x_2 = x_1 - SPLINE_STEP_X / 2 - SAFE_DIST / 2;
-                        y_2 = y_1 - SPLINE_STEP_Y / 2 - SAFE_DIST / 2;
-                        z_2 = z_1;
-                        x_3 = x_2 - SPLINE_STEP_X / 2 - SAFE_DIST / 2;
-                        y_3 = y_2 - SPLINE_STEP_Y / 2 - SAFE_DIST / 2;
-                        z_3 = z_1;
+                        x_2 = x_1 - SPLINE_STEP_X - SAFE_DIST;
+                        y_2 = y_1 - SPLINE_STEP_Y - SAFE_DIST;
                     }
                     else if (dist_wall[1] <= SAFE_DIST && dist_wall[2] <= SAFE_DIST)
                     {
@@ -526,12 +527,8 @@ int main(int argc, char **argv)
                         i_wall_direction = 0;
                         i_wall_direc_expl = 3;
 
-                        x_2 = x_1 - SPLINE_STEP_X / 2 - SAFE_DIST / 2;
-                        y_2 = y_1 + SPLINE_STEP_Y / 2 + SAFE_DIST / 2;
-                        z_2 = z_1;
-                        x_3 = x_2 - SPLINE_STEP_X / 2 - SAFE_DIST / 2;
-                        y_3 = y_2 + SPLINE_STEP_Y / 2 + SAFE_DIST / 2;
-                        z_3 = z_1;
+                        x_2 = x_1 - SPLINE_STEP_X - SAFE_DIST;
+                        y_2 = y_1 + SPLINE_STEP_Y + SAFE_DIST;
                     }
                     else if (dist_wall[2] <= SAFE_DIST && dist_wall[3] <= SAFE_DIST)
                     {
@@ -542,12 +539,8 @@ int main(int argc, char **argv)
                         i_wall_direction = 1;
                         i_wall_direc_expl = 0;
 
-                        x_2 = x_1 + SPLINE_STEP_X / 2 + SAFE_DIST / 2;
-                        y_2 = y_1 + SPLINE_STEP_Y / 2 + SAFE_DIST / 2;
-                        z_2 = z_1;
-                        x_3 = x_2 + SPLINE_STEP_X / 2 + SAFE_DIST / 2;
-                        y_3 = y_2 + SPLINE_STEP_Y / 2 + SAFE_DIST / 2;
-                        z_3 = z_1;
+                        x_2 = x_1 + SPLINE_STEP_X + SAFE_DIST;
+                        y_2 = y_1 + SPLINE_STEP_Y + SAFE_DIST;
                     }
                     else if (dist_wall[3] <= SAFE_DIST && dist_wall[0] <= SAFE_DIST)
                     {
@@ -558,17 +551,23 @@ int main(int argc, char **argv)
                         i_wall_direction = 2;
                         i_wall_direc_expl = 1;
 
-                        x_2 = x_1 + SPLINE_STEP_X / 2 + SAFE_DIST / 2;
-                        y_2 = y_1 - SPLINE_STEP_Y / 2 - SAFE_DIST / 2;
-                        z_2 = z_1;
-                        x_3 = x_2 + SPLINE_STEP_X / 2 + SAFE_DIST / 2;
-                        y_3 = y_2 - SPLINE_STEP_Y / 2 - SAFE_DIST / 2;
-                        z_3 = z_1;
+                        x_2 = x_1 + SPLINE_STEP_X+ SAFE_DIST;
+                        y_2 = y_1 - SPLINE_STEP_Y - SAFE_DIST;
                     }
-                    z_2 = 3.0;
-                    z_3 = 2.5;
+                    z_2 = 2.5;
 
-                    // ROS_WARN("I_WALL_DIRECTION: %d I_WALL_DIRECTION_EXP %d", i_wall_direction, i_wall_direc_expl);
+                    ROS_WARN("ALLONTANAMENTO DAL MURO");
+                    waypoint_msg.strategy = "Initial";
+                    std::vector<double> waypoint_pos = {x_2, y_2, z_2};
+                    waypoint_msg.data = waypoint_pos;
+                    status_req = "RUNNING";
+                    // Publish the message
+                    std_msgs::String status_req_msg;
+                    status_req_msg.data = status_req;
+                    // Publish the message
+                    publisher_status.publish(status_req_msg);
+                    publisher.publish(waypoint_msg);
+                    ros::Duration(0.5).sleep(); // sleep for half a second
                 }
                 else
                 {
@@ -585,6 +584,11 @@ int main(int argc, char **argv)
                             y_3 = y_2 + SPLINE_STEP_Y / 2;
                             z_3 = z_1;
                             w = 0.4;
+                            if (z_2 > 4.25)
+                            {
+                                z_2 = 4.25;
+                                z_3 = 2.5;
+                            }
                         }
                         else
                         {
@@ -596,6 +600,11 @@ int main(int argc, char **argv)
                             y_3 = y_2 + SPLINE_STEP_Y / 2;
                             z_3 = z_1;
                             w = -0.4;
+                            if (z_2 < 0.75)
+                            {
+                                z_2 = 0.75;
+                                z_3 = 2.5;
+                            }
                         }
                     }
                     if (direction == "down")
@@ -610,6 +619,11 @@ int main(int argc, char **argv)
                             y_3 = y_2 - SPLINE_STEP_Y / 2;
                             z_3 = z_1;
                             w = 0.4;
+                            if (z_2 > 4.25)
+                            {
+                                z_2 = 4.25;
+                                z_3 = 2.5;
+                            }
                         }
                         else
                         {
@@ -621,6 +635,11 @@ int main(int argc, char **argv)
                             y_3 = y_2 - SPLINE_STEP_Y / 2;
                             z_3 = z_1;
                             w = -0.4;
+                            if (z_2 < 0.75)
+                            {
+                                z_2 = 0.75;
+                                z_3 = 2.5;
+                            }
                         }
                     }
                     if (direction == "left")
@@ -635,6 +654,11 @@ int main(int argc, char **argv)
                             y_3 = y_1;
                             z_3 = z_1;
                             w = 0.4;
+                            if (z_2 > 4.25)
+                            {
+                                z_2 = 4.25;
+                                z_3 = 2.5;
+                            }
                         }
                         else
                         {
@@ -646,6 +670,11 @@ int main(int argc, char **argv)
                             y_3 = y_1;
                             z_3 = z_1;
                             w = -0.4;
+                            if (z_2 < 0.75)
+                            {
+                                z_2 = 0.75;
+                                z_3 = 2.5;
+                            }
                         }
                     }
                     if (direction == "right")
@@ -660,6 +689,11 @@ int main(int argc, char **argv)
                             y_3 = y_1;
                             z_3 = z_1;
                             w = 0.4;
+                            if (z_2 > 4.25)
+                            {
+                                z_2 = 4.25;
+                                z_3 = 2.5;
+                            }
                         }
                         else
                         {
@@ -671,37 +705,33 @@ int main(int argc, char **argv)
                             y_3 = y_1;
                             z_3 = z_1;
                             w = -0.4;
+                            if (z_2 < 0.75)
+                            {
+                                z_2 = 0.75;
+                                z_3 = 2.5;
+                            }
                         }
                     }
+                    ROS_WARN("SPLINE");
+                    waypoint_msg.strategy = "Spline";
+                    std::vector<double> waypoint_pos = {x_2, y_2, z_2, x_3, y_3, z_3, w};
+                    waypoint_msg.data = waypoint_pos;
+                    status_req = "RUNNING";
+                    // Publish the message
+                    std_msgs::String status_req_msg;
+                    status_req_msg.data = status_req;
+                    // Publish the message
+                    publisher_status.publish(status_req_msg);
+                    publisher.publish(waypoint_msg);
+                    ros::Duration(0.5).sleep(); // sleep for half a second
                 }
-                if (z_2 > 4.5)
-                {
-                    z_2 = 4.5;
-                    z_3 = 2.5;
-                }
-                else if (z_2 < 0.5)
-                {
-                    z_2 = 0.5;
-                    z_3 = 2.5;
-                }
-
-                std::vector<double> waypoint_pos = {x_2, y_2, z_2, x_3, y_3, z_3, w};
-                waypoint_msg.data = waypoint_pos;
-                status_req = "RUNNING";
-                // Publish the message
-                std_msgs::String status_req_msg;
-                status_req_msg.data = status_req;
-                // Publish the message
-                publisher_status.publish(status_req_msg);
-                publisher.publish(waypoint_msg);
-                ros::Duration(0.5).sleep(); // sleep for half a second
             }
         }
 
         // CASO DI EMERGENZA (se il robot si trova troppo vicino al muro)
         else if (mission_status == "RUNNING" && dist_wall[i_wall_direction] <= SAFE_DIST && !inversion)
         {
-            if (dist_wall[i_wall_direc_expl] <= SAFE_DIST)
+            if (dist_wall[i_wall_direc_expl] <= 2 * SPLINE_STEP_X)
             {
                 ROS_WARN("I_WALL_DIRECTION: %d I_WALL_DIRECTION_EXP %d", i_wall_direction, i_wall_direc_expl);
                 status_req = "PAUSED";
