@@ -9,6 +9,7 @@
 #include "yaml-cpp/yaml.h" // for yaml
 #include <ctime>
 
+// Definizioni variabili da richiamare nelle callback
 double x_hat = 0.0;
 double y_hat = 0.0;
 double z_hat = 0.0;
@@ -40,15 +41,19 @@ double MAP_SE_y = 0.0;
 
 Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> buoys_pos(1, 3);
 Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic> is_used(1, 1);
-int n_buoys = 0;
-double const SAFE_DIST = 3.0;
+int n_buoys = 0;                 //numero boe indiviudate, verrà utilizzato per scartarae le boe già visitate
+double const SAFE_DIST = 3.0;    // distanza di sicurezza che deve essere mantenuta dalle boe
 
-// Subscriber callback function
+////////////////////////////////////// Subscriber callback function //////////////////////////////////////
 
+// variabile di stato missione, PAUSED/RUNNING/COMPLETED
 void statusCallback(const std_msgs::String::ConstPtr &msg)
 {
-    mission_status = msg->data.c_str();
+    mission_status = msg->data.c_str(); 
 }
+
+// Sottoscrizione alla topic degli stati stimati (allo stato attuale si assume la presenza del filtro di kalman, mentre sulla
+// topic al momento pubblichiamo gli stati della dinamica
 
 void estStateCallback(const progetto_robotica::Floats::ConstPtr &msg)
 {
@@ -77,6 +82,7 @@ void estStateCallback(const progetto_robotica::Floats::ConstPtr &msg)
     }
 }
 
+// callback dei dati ricevuti dalla camera
 void buoyCallback(const progetto_robotica::Floats_String::ConstPtr &msg)
 {
     if (msg->data[0] != msg->data[0])
@@ -93,24 +99,29 @@ void buoyCallback(const progetto_robotica::Floats_String::ConstPtr &msg)
         z_b = msg->data[2];
         strategy = msg->strategy;
         bool flag_new_buoy = true;
-
+        // valutiamo la prima boa avvistata
         if (n_buoys == 0)
         {
-            buoys_pos << x_b, y_b, z_b;
-            is_used << false;
+            buoys_pos << x_b, y_b, z_b;     // se ne aggiungono le coordinate nella matrice buoys_pos (sarà una matrice con n righe 
+                                            // e 3 colonne
+            is_used << false;               // è un vettore colonna con n righe, il primo elemento ora si setta a false in modo da 
+                                            // non ripescare questa boa
             n_buoys++;
         }
         else if (n_buoys > 0)
         {
-            for (int i = 0; i < n_buoys; i++)
+            // scorriamo il vettore delle boe, se la boa individuata dalla camera è già stata visitata, non la consideriamo, altrimenti
+            // la aggiungiamo alla matrice
+            for (int i = 0; i < n_buoys; i++) 
             {
                 if (buoys_pos(i, 0) >= x_b - 1.0 && buoys_pos(i, 0) <= x_b + 1.0 && buoys_pos(i, 1) >= y_b - 1.0 && buoys_pos(i, 1) <= y_b + 1.0 && buoys_pos(i, 2) >= z_b - 1.0 && buoys_pos(i, 2) <= z_b + 1.0)
                 {
                     flag_new_buoy = false;
                 }
             }
-            if (flag_new_buoy)
+            if (flag_new_buoy) // la boa vista è "nuova"
             {
+                // incremento delle dimensioni delle matrici dinamiche con le coordinate della nuova boa
                 buoys_pos.conservativeResize(n_buoys + 1, 3);
                 buoys_pos(n_buoys, 0) = x_b;
                 buoys_pos(n_buoys, 1) = y_b;
@@ -153,30 +164,32 @@ int main(int argc, char **argv)
     nh.getParam("MAP_SE_x", MAP_SE_x);
     nh.getParam("MAP_SE_y", MAP_SE_y);
 
-    double target[3] = {target_x, target_y, target_z};
-    bool condition_to_run;
-    bool flag_start_mission = true;
-    bool inversion = false;
-    bool timer_init = true;
-    bool to_target = false;
+    double target[3] = {target_x, target_y, target_z};    // coordinate del target da raggiungere a fine missione
+    bool condition_to_run;                                // condizione che deve essere rispettata per ripianificazione locale
+    bool flag_start_mission = true;                       // flag che serve per avviare la missione
+    bool inversion = false;                               // flag per fare l'inversione evitando collisioni con i muri
+    bool timer_init = true;                               // flag per avviare il timer
+    bool to_target = false;                               // flag che ci dice quando puntare al target di fine missione
 
-    bool is_first_spline = true;
+    bool is_first_spline = true;                            // la spline è divisa in due "sotto-spline", con questo flag passiamo da una all'altra
 
-    double dist_wall_up;
-    double dist_wall_down;
-    double dist_wall_left;
-    double dist_wall_right;
-    double dist_wall[4];
+    double dist_wall_up;                                    // distanza dal muro in alto
+    double dist_wall_down;                                // distanza dal muro in basso
+    double dist_wall_left;                                // distanza dal muro a sinistra
+    double dist_wall_right;                               // distanza dal muro a destra
+    double dist_wall[4];                                    // metto le distanze in un vettore di quattro elementi
 
+    // definisco gli step delle spline nei 3 passi: ogni spline deve spostarsi di 3 metri nelle x, 3 metri nelle y e 3.5 metri nelle z
     double const SPLINE_STEP_X = 3.0;
     double const SPLINE_STEP_Y = 3.0;
     double const SPLINE_STEP_Z = 3.5;
 
-    std::string exploring_direction = ""; // "up", "down", "left", "right"
-    std::string direction = "";
-    int i_wall_direction;
-    int i_wall_direc_expl;
+    std::string exploring_direction = ""; // "up", "down", "left", "right" -> direzione verso cui faccio l'inversion
+    std::string direction = "";           // "up", "down", "left", "right" -> direzione di avanzamento tenendo il muro sulla destra 
+    int i_wall_direction;                 // indice associato al muro che ho davanti mentre avanzo
+    int i_wall_direc_expl;                // indice associato al muro che ho davanti nella direzione di esplorazione
 
+    // coordinate dei waypoint per la spline
     double x_1;
     double y_1;
     double z_1;
@@ -187,7 +200,7 @@ int main(int argc, char **argv)
     double y_3;
     double z_3;
 
-    // Comando di velocità verticale
+    // Comando di velocità di heave
     double w;
 
     // Tempi di start & end
@@ -199,9 +212,11 @@ int main(int argc, char **argv)
     // Main loop
     while (ros::ok())
     {
+        // il primo waypoint è la posizione in cui mi trovo, che prendo dal "filtro di kalman"
         x_1 = x_hat;
         y_1 = y_hat;
         z_1 = z_hat;
+        
         // Compute distance from nearest buoy
         double alpha = atan2(y_b - y_hat, x_b - x_hat);
         double x_p = x_b + cos(alpha - M_PI / 2);
@@ -220,7 +235,7 @@ int main(int argc, char **argv)
         dist_wall[2] = dist_wall_down;
         dist_wall[3] = dist_wall_left;
 
-        // Calcolo del muro minimo
+        // Calcolo del muro a distanza minima
         int i_wall_min = 0;
         for (int i = 0; i < 4; i++)
         {
@@ -237,11 +252,15 @@ int main(int argc, char **argv)
         }
         else
         {
+            // definisco il valore booleano della condizione per ripianificazione
             condition_to_run = buoys_pos(n_buoys - 1, 0) == x_b && buoys_pos(n_buoys - 1, 1) == y_b && buoys_pos(n_buoys - 1, 2) == z_b && !is_used(n_buoys - 1, 0);
         }
 
+        // per puntare al target, associamo un timeout di missione: dopo un certo tempo (scelto considerando l'autonomia del robot)
+        // il robot interrompe la sua esplo
         if (ros::Time::now().toSec() > end_time && !timer_init && mission_status == "PAUSED")
         {
+        
             ROS_WARN("TIMEOUT DA PAUSED");
             status_req = "RUNNING";
             std_msgs::String status_req_msg;
