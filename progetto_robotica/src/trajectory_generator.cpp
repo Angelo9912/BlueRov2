@@ -41,6 +41,9 @@ double x_t = 0.0;
 double y_t = 0.0;
 double z_t = 0.0;
 
+// Verso di rotazione della circonferenza
+double clockwise;
+
 bool UP_DOWN_first_phase = true;
 int CIRCUMFERENCE_phase = 1;
 
@@ -74,16 +77,18 @@ void waypointCallback(const progetto_robotica::Floats_String::ConstPtr &msg)
             x_p = msg->data[3];
             y_p = msg->data[4];
             z_p = msg->data[5];
+            clockwise = msg->data[6];
             strategy = msg->strategy;
             x_1 = x_hat;
             y_1 = y_hat;
             z_1 = z_hat;
+            
         }
         else if (msg->strategy == "UP_DOWN")
         {
-            x_b = msg->data[0];
-            y_b = msg->data[1];
-            z_b = msg->data[2];
+            x_p = msg->data[0];
+            y_p = msg->data[1];
+            z_p = msg->data[2];
             strategy = msg->strategy;
             x_1 = x_hat;
             y_1 = y_hat;
@@ -501,8 +506,12 @@ int main(int argc, char **argv)
                 double beta = atan2(y_p - y_b, x_p - x_b);
 
                 for (int i = 99; i < 199; i++)
-                {
-                    double t = (i - 99) * k;
+                {   
+                    double t;
+                    if(clockwise == 1.0)
+                        t = -(i - 99) * k;
+                    else
+                        t = (i - 99) * k;
 
                     x[i] = x_b + cos(beta + t);
                     y[i] = y_b + sin(beta + t);
@@ -628,15 +637,6 @@ int main(int argc, char **argv)
                 double r_d = 0.0;
 
                 Eigen::VectorXd dist(119);
-                double d = sqrt(pow(x_1 - x_b, 2.0) + pow(y_1 - y_b, 2.0));
-                double alpha = atan2(y_1 - y_b, x_1 - x_b); // angolo tra la boa e la posizione del robot
-                double x_p;
-                double y_p;
-                double z_p;
-
-                x_p = x_b + cos(alpha);
-                y_p = y_b + sin(alpha);
-                z_p = z_b;
 
                 double dx = (x_p - x_1) / 100;
                 double dy = (y_p - y_1) / 100;
