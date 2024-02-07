@@ -9,16 +9,16 @@
 #include "yaml-cpp/yaml.h" // for yaml
 
 // Declare callback variables
-double x_hat = 0.0;    // x stimata
-double y_hat = 0.0;    // y stimata
-double z_hat = 0.0;    // z stimata
-double psi_hat = 0.0;  // psi stimata
-double u_hat = 0.0;    // velocità di surge stimata
-double v_hat = 0.0;    // velocità di sway stimata
-double w_hat = 0.0;    // velocità di heave stimata
-double r_hat = 0.0;    // velocità angolare di yaw stimata
+double x_hat = 0.0;   // x stimata
+double y_hat = 0.0;   // y stimata
+double z_hat = 0.0;   // z stimata
+double psi_hat = 0.0; // psi stimata
+double u_hat = 0.0;   // velocità di surge stimata
+double v_hat = 0.0;   // velocità di sway stimata
+double w_hat = 0.0;   // velocità di heave stimata
+double r_hat = 0.0;   // velocità angolare di yaw stimata
 
-//coordiate spline a 3 punti 
+// coordiate spline a 3 punti
 
 double x_1 = 0.0; // coordiata x del primo waypoint
 double y_1 = 0.0; // coordiata y del primo waypoint
@@ -33,7 +33,7 @@ double y_3 = 0.0; // coordiata y del terzo waypoint
 double z_3 = 0.0; // coordiata z del terzo waypoint
 
 double x_b = 0.0; // coordiata x della boa vista
-double y_b = 0.0; // coordiata y della boa vista 
+double y_b = 0.0; // coordiata y della boa vista
 double z_b = 0.0; // coordiata z della boa vista
 double x_p = 0.0; // coordiata x del punto da raggiungere per ripianificazione locale
 double y_p = 0.0; // coordiata y del punto da raggiungere per ripianificazione locale
@@ -47,23 +47,23 @@ double clockwise; // Verso di rotazione della circonferenza
 
 // spezziamo la traiettoria di circonferenza e di UP_DOWN in più fasi, queste variabili servono per gestire le varie fasi
 bool UP_DOWN_first_phase = true; // booleano per gesire le fasi di up_down(2 fasi)
-int CIRCUMFERENCE_phase = 1; // intero per gestire le fasi di circumference(3 fasi)
+int CIRCUMFERENCE_phase = 1;     // intero per gestire le fasi di circumference(3 fasi)
 
 double w = 0.0; // Comando di velocità di heave (variabile nelle Splines)
 
-std::string strategy = ""; // strategia di controllo
+std::string strategy = "";       // strategia di controllo
 std::string mission_status = ""; // stato di missione
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////// DEFINIZIONE CALLBACK /////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void statusCallback(const std_msgs::String::ConstPtr &msg)        // CALLBACK macchina a stati
+void statusCallback(const std_msgs::String::ConstPtr &msg) // CALLBACK macchina a stati
 {
     mission_status = msg->data.c_str();
 }
 
-void waypointCallback(const progetto_robotica::Floats_String::ConstPtr &msg)    // CALLBACK che riceve i waypoint
+void waypointCallback(const progetto_robotica::Floats_String::ConstPtr &msg) // CALLBACK che riceve i waypoint
 {
     if (msg->data[0] != msg->data[0])
     {
@@ -72,7 +72,7 @@ void waypointCallback(const progetto_robotica::Floats_String::ConstPtr &msg)    
         z_b = 0.0;
         strategy = "";
     }
-    else                                        // in base alla strategia, cambia il numero di informazioni che prendiamo dal messaggio
+    else // in base alla strategia, cambia il numero di informazioni che prendiamo dal messaggio
     {
         if (msg->strategy == "Circumference")
         {
@@ -87,7 +87,6 @@ void waypointCallback(const progetto_robotica::Floats_String::ConstPtr &msg)    
             x_1 = x_hat;
             y_1 = y_hat;
             z_1 = z_hat;
-            
         }
         else if (msg->strategy == "UP_DOWN")
         {
@@ -136,7 +135,7 @@ void waypointCallback(const progetto_robotica::Floats_String::ConstPtr &msg)    
     }
 }
 
-void estStateCallback(const progetto_robotica::Floats::ConstPtr &msg)    // CALLBACK in cui prendiamo gli stati "stimati"
+void estStateCallback(const progetto_robotica::Floats::ConstPtr &msg) // CALLBACK in cui prendiamo gli stati "stimati"
 {
     if (msg->data[0] != msg->data[0])
     {
@@ -171,24 +170,24 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "trajectory_generator");
     ros::NodeHandle n;
     // Definisco publisher e subscriber
-    ros::Publisher chatter_pub = n.advertise<progetto_robotica::Floats>("desired_state_topic", 1); // publisher stato desiderato
+    ros::Publisher chatter_pub = n.advertise<progetto_robotica::Floats>("desired_state_topic", 1);         // publisher stato desiderato
     ros::Publisher publisher_status = n.advertise<std_msgs::String>("manager/status_requested_topic", 10); // publisher stato richiesto al manager di missione
 
-    ros::Subscriber sub_est_state = n.subscribe("state_topic", 1, estStateCallback); //sottoscrizione alla topic di stato stimato
-    ros::Subscriber sub_waypoint = n.subscribe("waypoints_topic", 1, waypointCallback); //sottoscrizione alla topic di waypoint
-    ros::Subscriber sub_status = n.subscribe("manager/status_topic", 1, statusCallback); //sottoscrizione alla topic di mission status
-    double freq = 10.0;            // frequenza di lavoro
-    double dt = 1 / freq;            // tempo di campionamento
+    ros::Subscriber sub_est_state = n.subscribe("state_topic", 1, estStateCallback);     // sottoscrizione alla topic di stato stimato
+    ros::Subscriber sub_waypoint = n.subscribe("waypoints_topic", 1, waypointCallback);  // sottoscrizione alla topic di waypoint
+    ros::Subscriber sub_status = n.subscribe("manager/status_topic", 1, statusCallback); // sottoscrizione alla topic di mission status
+    double freq = 10.0;                                                                  // frequenza di lavoro
+    double dt = 1 / freq;                                                                // tempo di campionamento
     ros::Rate loop_rate(freq);
 
     // Inizializzo i valori di stato desiderato
-    double x_d = 0.0; // x desiderata
-    double y_d = 0.0; // y desiderata
-    double z_d = 0.0; // z desiderata
-    double psi_d = 0.0; // psi desiderata
-    double x_dot_d = 0.0; // x derivata desiderata
-    double y_dot_d = 0.0; // y derivata desiderata
-    double z_dot_d = 0.0; // z derivata desiderata
+    double x_d = 0.0;       // x desiderata
+    double y_d = 0.0;       // y desiderata
+    double z_d = 0.0;       // z desiderata
+    double psi_d = 0.0;     // psi desiderata
+    double x_dot_d = 0.0;   // x derivata desiderata
+    double y_dot_d = 0.0;   // y derivata desiderata
+    double z_dot_d = 0.0;   // z derivata desiderata
     double psi_dot_d = 0.0; // psi derivata desiderata
 
     double dist_min;
@@ -198,7 +197,7 @@ int main(int argc, char **argv)
     {
         if (mission_status == "PAUSED" || mission_status == "COMPLETED")
         {
-            // Vogliamo stare fermi nella posizione in cui ci troviamo 
+            // Vogliamo stare fermi nella posizione in cui ci troviamo
             x_d = x_hat;
             y_d = y_hat;
             z_d = z_hat;
@@ -213,47 +212,46 @@ int main(int argc, char **argv)
             if (strategy == "Initial")
             {
                 // inizio missione
-                double u_d = 0.5;    // velocità di surge
-                double v_d = 0.0;    // velocità di sway
-                double w_d = 0.0;    // velocità di heave
-                double r_d = 0.0;    // velocità angolare di yaw
+                double u_d = 0.5; // velocità di surge
+                double v_d = 0.0; // velocità di sway
+                double w_d = 0.0; // velocità di heave
+                double r_d = 0.0; // velocità angolare di yaw
 
                 // definisco la posizione relativa tra i primi due waypoint
                 double pos_rel_x = x_2 - x_1; // posizione relativa nelle x
                 double pos_rel_y = y_2 - y_1; // posizione relativa nelle y
                 double pos_rel_z = z_2 - z_1; // posizione relativa nelle z
 
-                // il secondo waypoint è il nostro target, definiamo la distanza da esso e vogliamo spezzare questo segmento in 
+                // il secondo waypoint è il nostro target, definiamo la distanza da esso e vogliamo spezzare questo segmento in
                 // tanti segmentini, con un passo di 10 cm
                 double dist_to_targ = sqrt(pow(pos_rel_x, 2) + pow(pos_rel_y, 2) + pow(pos_rel_z, 2)); // distanza dal target
-                double step = 0.1; // passo dei segmentini
-                
-                int n_waypoints = (int)(dist_to_targ / step); // il numero di waypoint intermedi dipende dalla distanza e dallo step scelto
-                
-                double dx = pos_rel_x / n_waypoints;    // spostamento nelle x
-                double dy = pos_rel_y / n_waypoints;    // spostamento nelle y
-                double dz = pos_rel_z / n_waypoints;    // spostamento nelle z
+                double step = 0.1;                                                                     // passo dei segmentini
 
-                w_d = 0.3*dz/abs(dz); // VELOCITA' DI HEAVE COSTANTE CON SEGNO DIPENDENTE DAL SEGNO DI dz
+                int n_waypoints = (int)(dist_to_targ / step); // il numero di waypoint intermedi dipende dalla distanza e dallo step scelto
+
+                double dx = pos_rel_x / n_waypoints; // spostamento nelle x
+                double dy = pos_rel_y / n_waypoints; // spostamento nelle y
+                double dz = pos_rel_z / n_waypoints; // spostamento nelle z
+
+                w_d = 0.3 * dz / abs(dz); // VELOCITA' DI HEAVE COSTANTE CON SEGNO DIPENDENTE DAL SEGNO DI dz
 
                 // definiamo dei vettori di x,y,z di dimensione pari al numero di waypoint
                 double x[n_waypoints];
                 double y[n_waypoints];
                 double z[n_waypoints];
                 double psi[n_waypoints];
-                
-                Eigen::VectorXd dist(n_waypoints);  // definiamo un vettore di distanze di dimensione pari al numero di waypoint
 
+                Eigen::VectorXd dist(n_waypoints); // definiamo un vettore di distanze di dimensione pari al numero di waypoint
 
                 for (int i = 1; i <= n_waypoints; i++)
-                {    // riempiamo i vettori
+                { // riempiamo i vettori
                     x[i - 1] = x_1 + i * dx;
                     y[i - 1] = y_1 + i * dy;
                     z[i - 1] = z_1 + i * dz;
                     psi[i - 1] = atan2(dy, dx);
                 }
                 int i_dist_min = 0; // indice che mi dice qual è il waypoint intermedio a distanza minima
-                // la strategia consiste nel dividere la retta in tanti segmentini delimitati dai waypoint e inseguire sempre 
+                // la strategia consiste nel dividere la retta in tanti segmentini delimitati dai waypoint e inseguire sempre
                 // quello a distanza minore
                 for (int i = 1; i <= n_waypoints; i++)
                 {
@@ -278,7 +276,7 @@ int main(int argc, char **argv)
                 z_d = z[i_dist_min];
                 psi_d = psi[i_dist_min];
 
-                if (i_dist_min > n_waypoints - 3) // poco prima della fine della traiettoria annulliamo le velocità per dare il tempo 
+                if (i_dist_min > n_waypoints - 3) // poco prima della fine della traiettoria annulliamo le velocità per dare il tempo
                                                   // al robot di fermarsi
                 {
                     u_d = 0.0;
@@ -302,13 +300,13 @@ int main(int argc, char **argv)
                 z_dot_d = w_d;
                 psi_dot_d = r_d;
             }
-            else if (strategy == "Target")    // è passato troppo tempo quindi ci disinteressiamo dell'esplorazione e andiamo a destinazione
+            else if (strategy == "Target") // è passato troppo tempo quindi ci disinteressiamo dell'esplorazione e andiamo a destinazione
             {
                 double u_d = 0.5;
                 double v_d = 0.0;
                 double w_d = 0.0;
                 double r_d = 0.0;
-                
+
                 // ragionamento analogo a quello visto per la strategia initial
                 double pos_rel_x = x_t - x_1;
                 double pos_rel_y = y_t - y_1;
@@ -532,17 +530,21 @@ int main(int argc, char **argv)
                 double beta = atan2(y_p - y_b, x_p - x_b);
 
                 for (int i = 99; i < 199; i++)
-                {   
+                {
                     double t;
-                    if(clockwise == 1.0)
+                    if (clockwise == 1.0)
+                    {
                         t = -(i - 99) * k;
+                        psi[i] = atan2(-cos(beta + t), sin(beta + t));
+                    }
                     else
+                    {
                         t = (i - 99) * k;
-
+                        psi[i] = atan2(cos(beta + t), -sin(beta + t));
+                    }
                     x[i] = x_b + cos(beta + t);
                     y[i] = y_b + sin(beta + t);
                     z[i] = z_b;
-                    psi[i] = atan2(cos(beta + t), -sin(beta + t));
                 }
 
                 int i_dist_min;

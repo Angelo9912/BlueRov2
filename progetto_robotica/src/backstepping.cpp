@@ -221,7 +221,7 @@ int main(int argc, char **argv)
 
         // Define the torques vector
         Eigen::Matrix<double, 4, 1> torques_vec;
-        torques_vec = M * q_r_2dot + K_d * s + C * q_r_dot + J.transpose() * error;
+        torques_vec = M * q_r_2dot + K_d * s + C * q_r_dot + J.transpose() * error + D * nu;
 
         std::vector<double> torques = {torques_vec(0), torques_vec(1), torques_vec(2), torques_vec(3)};
 

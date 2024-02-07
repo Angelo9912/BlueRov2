@@ -39,6 +39,9 @@ double MAP_NW_y = 0.0;
 double MAP_SE_x = 0.0;
 double MAP_SE_y = 0.0;
 
+bool is_Spline_xy = false;
+bool is_Spline_z = false;
+
 Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> buoys_pos(1, 3);
 Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic> is_used(1, 1);
 int n_buoys = 0;              // numero boe indiviudate, verrà utilizzato per scartarae le boe già visitate
@@ -166,6 +169,8 @@ int main(int argc, char **argv)
     nh.getParam("MAP_NW_y", MAP_NW_y);
     nh.getParam("MAP_SE_x", MAP_SE_x);
     nh.getParam("MAP_SE_y", MAP_SE_y);
+    nh.getParam("is_Spline_xy", is_Spline_xy);
+    nh.getParam("is_Spline_z", is_Spline_z);
 
     double target[3] = {target_x, target_y, target_z}; // coordinate del target da raggiungere a fine missione
     bool condition_to_run;                             // condizione che deve essere rispettata per ripianificazione locale
@@ -187,10 +192,10 @@ int main(int argc, char **argv)
     double const SPLINE_STEP_Y = 3.0;
     double const SPLINE_STEP_Z = 3.5;
 
-    std::string exploring_direction = ""; // "up", "down", "left", "right" -> direzione verso cui faccio l'inversion
-    std::string direction = "";           // "up", "down", "left", "right" -> direzione di avanzamento tenendo il muro sulla destra
-    int i_wall_direction;                 // indice associato al muro che ho davanti mentre avanzo
-    int i_wall_direc_expl;                // indice associato al muro che ho davanti nella direzione di esplorazione
+    std::string exploring_direction = "";          // "up", "down", "left", "right" -> direzione verso cui faccio l'inversion
+    std::string direction = "";                    // "up", "down", "left", "right" -> direzione di avanzamento tenendo il muro sulla destra
+    int i_wall_direction;                          // indice associato al muro che ho davanti mentre avanzo
+    int i_wall_direc_expl;                         // indice associato al muro che ho davanti nella direzione di esplorazione
     progetto_robotica::Floats_String waypoint_msg; // messaggio da pubblicare sulla topic dei waypoint
 
     // coordinate dei waypoint per la spline
@@ -659,13 +664,35 @@ int main(int argc, char **argv)
                         if (is_first_spline)
                         {
                             is_first_spline = !is_first_spline;
-                            x_2 = x_1 + SPLINE_STEP_X / 2;
-                            y_2 = y_1 + SPLINE_STEP_Y / 2;
-                            z_2 = z_1 + SPLINE_STEP_Z / 2;
-                            x_3 = x_1;
-                            y_3 = y_2 + SPLINE_STEP_Y / 2;
-                            z_3 = z_1;
-                            w = 0.4;
+
+                            if (is_Spline_xy)
+                            {
+                                x_2 = x_1 + SPLINE_STEP_X / 2;
+                                y_2 = y_1 + SPLINE_STEP_Y / 2;
+                                x_3 = x_1;
+                                y_3 = y_2 + SPLINE_STEP_Y / 2;
+                            }
+                            else
+                            {
+                                x_2 = x_1;
+                                y_2 = y_1 + SPLINE_STEP_Y / 2;
+                                x_3 = x_1;
+                                y_3 = y_2 + SPLINE_STEP_Y / 2;
+                            }
+
+                            if (is_Spline_z)
+                            {
+                                z_2 = z_1 + SPLINE_STEP_Z / 2;
+                                z_3 = 2.5;
+                                w = 0.4;
+                            }
+                            else
+                            {
+                                z_2 = z_1;
+                                z_3 = 2.5;
+                                w = 0.0;
+                            }
+
                             if (z_2 > 4.25)
                             {
                                 z_2 = 4.25;
@@ -675,13 +702,31 @@ int main(int argc, char **argv)
                         else
                         {
                             is_first_spline = !is_first_spline;
-                            x_2 = x_1 - SPLINE_STEP_X / 2;
-                            y_2 = y_1 + SPLINE_STEP_Y / 2;
-                            z_2 = z_1 - SPLINE_STEP_Z / 2;
-                            x_3 = x_1;
-                            y_3 = y_2 + SPLINE_STEP_Y / 2;
-                            z_3 = z_1;
-                            w = -0.4;
+
+                            if(is_Spline_xy){
+                                x_2 = x_1 - SPLINE_STEP_X / 2;
+                                y_2 = y_1 + SPLINE_STEP_Y / 2;
+                                x_3 = x_1;
+                                y_3 = y_2 + SPLINE_STEP_Y / 2;
+                            }
+                            else{
+                                x_2 = x_1;
+                                y_2 = y_1 + SPLINE_STEP_Y / 2;
+                                x_3 = x_1;
+                                y_3 = y_2 + SPLINE_STEP_Y / 2;
+                            }
+                            
+                            if(is_Spline_z){
+                                z_2 = z_1 - SPLINE_STEP_Z / 2;
+                                z_3 = 2.5;
+                                w = -0.4;
+                            }
+                            else{
+                                z_2 = z_1;
+                                z_3 = 2.5;
+                                w = 0.0;
+                            }
+
                             if (z_2 < 0.75)
                             {
                                 z_2 = 0.75;
@@ -694,13 +739,33 @@ int main(int argc, char **argv)
                         if (is_first_spline)
                         {
                             is_first_spline = !is_first_spline;
-                            x_2 = x_1 - SPLINE_STEP_X / 2;
-                            y_2 = y_1 - SPLINE_STEP_Y / 2;
-                            z_2 = z_1 + SPLINE_STEP_Z / 2;
-                            x_3 = x_1;
-                            y_3 = y_2 - SPLINE_STEP_Y / 2;
-                            z_3 = z_1;
-                            w = 0.4;
+                            
+                            if(is_Spline_xy){
+                                x_2 = x_1 - SPLINE_STEP_X / 2;
+                                y_2 = y_1 - SPLINE_STEP_Y / 2;
+                                x_3 = x_1;
+                                y_3 = y_2 - SPLINE_STEP_Y / 2;
+                            }
+                            else{
+                                x_2 = x_1;
+                                y_2 = y_1 - SPLINE_STEP_Y / 2;
+                                x_3 = x_1;
+                                y_3 = y_2 - SPLINE_STEP_Y / 2;
+                            }
+
+                            if (is_Spline_z)
+                            {
+                                z_2 = z_1 + SPLINE_STEP_Z / 2;
+                                z_3 = 2.5;
+                                w = 0.4;
+                            }
+                            else
+                            {
+                                z_2 = z_1;
+                                z_3 = 2.5;
+                                w = 0.0;
+                            }
+                            
                             if (z_2 > 4.25)
                             {
                                 z_2 = 4.25;
@@ -710,13 +775,33 @@ int main(int argc, char **argv)
                         else
                         {
                             is_first_spline = !is_first_spline;
-                            x_2 = x_1 + SPLINE_STEP_X / 2;
-                            y_2 = y_1 - SPLINE_STEP_Y / 2;
-                            z_2 = z_1 - SPLINE_STEP_Z / 2;
-                            x_3 = x_1;
-                            y_3 = y_2 - SPLINE_STEP_Y / 2;
-                            z_3 = z_1;
-                            w = -0.4;
+
+                            if(is_Spline_xy){
+                                x_2 = x_1 + SPLINE_STEP_X / 2;
+                                y_2 = y_1 - SPLINE_STEP_Y / 2;
+                                x_3 = x_1;
+                                y_3 = y_2 - SPLINE_STEP_Y / 2;
+                            }
+                            else{
+                                x_2 = x_1;
+                                y_2 = y_1 - SPLINE_STEP_Y / 2;
+                                x_3 = x_1;
+                                y_3 = y_2 - SPLINE_STEP_Y / 2;
+                            }
+
+                            if (is_Spline_z)
+                            {
+                                z_2 = z_1 - SPLINE_STEP_Z / 2;
+                                z_3 = 2.5;
+                                w = -0.4;
+                            }
+                            else
+                            {
+                                z_2 = z_1;
+                                z_3 = 2.5;
+                                w = 0.0;
+                            }
+
                             if (z_2 < 0.75)
                             {
                                 z_2 = 0.75;
@@ -729,13 +814,33 @@ int main(int argc, char **argv)
                         if (is_first_spline)
                         {
                             is_first_spline = !is_first_spline;
-                            x_2 = x_1 - SPLINE_STEP_X / 2;
-                            y_2 = y_1 + SPLINE_STEP_Y / 2;
-                            z_2 = z_1 + SPLINE_STEP_Z / 2;
-                            x_3 = x_2 - SPLINE_STEP_X / 2;
-                            y_3 = y_1;
-                            z_3 = z_1;
-                            w = 0.4;
+
+                            if (is_Spline_xy)
+                            {
+                                x_2 = x_1 - SPLINE_STEP_X / 2;
+                                y_2 = y_1 - SPLINE_STEP_Y / 2;
+                                x_3 = x_2 - SPLINE_STEP_X / 2;
+                                y_3 = y_1;
+                            }
+                            else
+                            {
+                                x_2 = x_1 - SPLINE_STEP_X / 2;
+                                y_2 = y_1;
+                                x_3 = x_2 - SPLINE_STEP_X / 2;
+                                y_3 = y_1;
+                            }
+                            
+                            if(is_Spline_z){
+                                z_2 = z_1 + SPLINE_STEP_Z / 2;
+                                z_3 = 2.5;
+                                w = 0.4;
+                            }
+                            else{
+                                z_2 = z_1;
+                                z_3 = 2.5;
+                                w = 0.0;
+                            }
+                            
                             if (z_2 > 4.25)
                             {
                                 z_2 = 4.25;
@@ -745,13 +850,35 @@ int main(int argc, char **argv)
                         else
                         {
                             is_first_spline = !is_first_spline;
-                            x_2 = x_1 - SPLINE_STEP_X / 2;
-                            y_2 = y_1 - SPLINE_STEP_Y / 2;
-                            z_2 = z_1 - SPLINE_STEP_Z / 2;
-                            x_3 = x_2 - SPLINE_STEP_X / 2;
-                            y_3 = y_1;
-                            z_3 = z_1;
-                            w = -0.4;
+
+                            if (is_Spline_xy)
+                            {
+                                x_2 = x_1 - SPLINE_STEP_X / 2;
+                                y_2 = y_1 + SPLINE_STEP_Y / 2;
+                                x_3 = x_2 - SPLINE_STEP_X / 2;
+                                y_3 = y_1;
+                            }
+                            else
+                            {
+                                x_2 = x_1 - SPLINE_STEP_X / 2;
+                                y_2 = y_1;
+                                x_3 = x_2 - SPLINE_STEP_X / 2;
+                                y_3 = y_1;
+                            }
+
+                            if (is_Spline_z)
+                            {
+                                z_2 = z_1 - SPLINE_STEP_Z / 2;
+                                z_3 = 2.5;
+                                w = -0.4;
+                            }
+                            else
+                            {
+                                z_2 = z_1;
+                                z_3 = 2.5;
+                                w = 0.0;
+                            }
+
                             if (z_2 < 0.75)
                             {
                                 z_2 = 0.75;
@@ -764,13 +891,35 @@ int main(int argc, char **argv)
                         if (is_first_spline)
                         {
                             is_first_spline = !is_first_spline;
-                            x_2 = x_1 + SPLINE_STEP_X / 2;
-                            y_2 = y_1 - SPLINE_STEP_Y / 2;
-                            z_2 = z_1 + SPLINE_STEP_Z / 2;
-                            x_3 = x_2 + SPLINE_STEP_X / 2;
-                            y_3 = y_1;
-                            z_3 = z_1;
-                            w = 0.4;
+
+                            if (is_Spline_xy)
+                            {
+                                x_2 = x_1 + SPLINE_STEP_X / 2;
+                                y_2 = y_1 + SPLINE_STEP_Y / 2;
+                                x_3 = x_2 + SPLINE_STEP_X / 2;
+                                y_3 = y_1;
+                            }
+                            else
+                            {
+                                x_2 = x_1 + SPLINE_STEP_X / 2;
+                                y_2 = y_1;
+                                x_3 = x_2 + SPLINE_STEP_X / 2;
+                                y_3 = y_1;
+                            }
+
+                            if (is_Spline_z)
+                            {
+                                z_2 = z_1 + SPLINE_STEP_Z / 2;
+                                z_3 = 2.5;
+                                w = 0.4;
+                            }
+                            else
+                            {
+                                z_2 = z_1;
+                                z_3 = 2.5;
+                                w = 0.0;
+                            }
+
                             if (z_2 > 4.25)
                             {
                                 z_2 = 4.25;
@@ -780,13 +929,35 @@ int main(int argc, char **argv)
                         else
                         {
                             is_first_spline = !is_first_spline;
-                            x_2 = x_1 + SPLINE_STEP_X / 2;
-                            y_2 = y_1 + SPLINE_STEP_Y / 2;
-                            z_2 = z_1 - SPLINE_STEP_Z / 2;
-                            x_3 = x_2 + SPLINE_STEP_X / 2;
-                            y_3 = y_1;
-                            z_3 = z_1;
-                            w = -0.4;
+
+                            if (is_Spline_xy)
+                            {
+                                x_2 = x_1 + SPLINE_STEP_X / 2;
+                                y_2 = y_1 - SPLINE_STEP_Y / 2;
+                                x_3 = x_2 + SPLINE_STEP_X / 2;
+                                y_3 = y_1;
+                            }
+                            else
+                            {
+                                x_2 = x_1 + SPLINE_STEP_X / 2;
+                                y_2 = y_1;
+                                x_3 = x_2 + SPLINE_STEP_X / 2;
+                                y_3 = y_1;
+                            }
+
+                            if (is_Spline_z)
+                            {
+                                z_2 = z_1 - SPLINE_STEP_Z / 2;
+                                z_3 = 2.5;
+                                w = -0.4;
+                            }
+                            else
+                            {
+                                z_2 = z_1;
+                                z_3 = 2.5;
+                                w = 0.0;
+                            }
+                            
                             if (z_2 < 0.75)
                             {
                                 z_2 = 0.75;
