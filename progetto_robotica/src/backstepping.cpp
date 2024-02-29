@@ -84,7 +84,7 @@ int main(int argc, char **argv)
     ros::Publisher chatter_pub = n.advertise<progetto_robotica::Floats>("tau_topic", 1);
     ros::Subscriber sub_des_state = n.subscribe("desired_state_topic", 1, desStateCallback);
     ros::Subscriber sub_est_state = n.subscribe("state_topic", 1, estStateCallback);
-    double freq = 1000;
+    double freq = 100;
     double dt = 1 / freq;
     ros::Rate loop_rate(freq);
     // Import parameters from YAML file
@@ -168,6 +168,8 @@ int main(int argc, char **argv)
         Eigen::Matrix<double, 4, 4> LAMBDA;
         LAMBDA << Eigen::Matrix<double,4,4>::Identity();
 
+        LAMBDA(3,3) = 10;  
+
         Eigen::Matrix<double, 4, 1> q_r_dot;
         q_r_dot = J.inverse() * (des_pos_dot + LAMBDA * error);
 
@@ -188,10 +190,6 @@ int main(int argc, char **argv)
 
         // CORIOLIS MATRIX
         Eigen::Matrix<double, 4, 4> C;
-        // C << 0.0, 0.0, 0.0, Y_v_dot * nu(1) + Y_r * nu(3),
-        //     0.0, 0.0, 0.0, -X_u_dot * nu(0),
-        //     0.0, 0.0, 0.0, 0.0,
-        //     -Y_v_dot * nu(1) - Y_r * nu(3), X_u_dot * nu(0), 0.0, 0.0;
 
         C << 0.0, 0.0, 0.0, -m * nu(1),
             0.0, 0.0, 0.0, m * nu(0),
@@ -214,10 +212,7 @@ int main(int argc, char **argv)
             0.0, 0.0, 0.0, I;
 
         Eigen::Matrix<double, 4, 4> K_d;
-        K_d << 1.0, 0.0, 0.0, 0.0,
-            0.0, 1.0, 0.0, 0.0,
-            0.0, 0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0, 1.0;
+        K_d << Eigen::Matrix<double,4,4>::Identity();
 
         // Define the torques vector
         Eigen::Matrix<double, 4, 1> torques_vec;

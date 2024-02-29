@@ -28,6 +28,6 @@ MAP_SW_y: -20 #vertice sud ovest mappa, coordinata y
 MAP_SE_x: 20 #vertice sud est mappa, coordinata x
 MAP_SE_y: -20 #vertice sud est mappa, coordinata y
 
-is_Spline_xy: False  # Linear: False, Spline: True
-is_Spline_z: False  # Linear: False, Spline: True
+is_Spline_xy: True  # Linear: False, Spline: True
+is_Spline_z: True  # Linear: False, Spline: True
 

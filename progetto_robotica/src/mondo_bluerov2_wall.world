@@ -69,11 +69,6 @@
     <gravity>0 0 0</gravity>
     <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
     <atmosphere type='adiabatic'/>
-    <!-- <physics type='ode'>
-      <max_step_size>0.001</max_step_size>
-      <real_time_factor>1</real_time_factor>
-      <real_time_update_rate>1000</real_time_update_rate>
-    </physics> -->
     <scene>
       <ambient>0.4 0.4 0.4 1</ambient>
       <background>0.7 0.7 0.7 1</background>
@@ -90,7 +85,7 @@
     <state world_name='default'>
       <sim_time>596 916000000</sim_time>
       <real_time>0 0</real_time>
-      <wall_time>1706117522 424153989</wall_time>
+      <wall_time>1708709257 237991499</wall_time>
       <iterations>0</iterations>
       <model name='bluerov2'>
         <pose>0 0 0 0 -0 0</pose>
@@ -113,10 +108,10 @@
         </link>
       </model>
       <model name='unit_box'>
-        <pose>14 10 2 0 -0 0</pose>
+        <pose>14 10 1 0 -0 0</pose>
         <scale>0.173762 0.197096 0.157377</scale>
         <link name='link'>
-          <pose>14 10 2 0 -0 0</pose>
+          <pose>14 10 1 0 -0 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
@@ -186,7 +181,7 @@
     </state>
     <gui fullscreen='0'>
       <camera name='user_camera'>
-        <pose>11.1767 3.81545 16.6309 0 0.994204 1.57549</pose>
+        <pose>15.7481 -10.3611 8.57442 0 0.234204 1.63949</pose>
         <view_controller>orbit</view_controller>
         <projection_type>perspective</projection_type>
       </camera>
@@ -863,5 +858,10 @@
       <allow_auto_disable>1</allow_auto_disable>
       <pose>0 0 0 0 -0 0</pose>
     </model>
+    <physics type='ode'>
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+    </physics>
   </world>
 </sdf>

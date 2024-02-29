@@ -229,7 +229,6 @@ int main(int argc, char **argv)
         // Compute distance from nearest buoy
         double dist2buoy = sqrt(pow(x_b - x_hat, 2) + pow(y_b - y_hat, 2) + pow(z_b - z_hat, 2));
         buoy_seen = dist2buoy < 3.0;
-        ROS_WARN("Boa vista (main)? %d", buoy_seen);
 
         // Compute distance from walls
         dist_wall_up = abs(MAP_NE_y - y_hat);
@@ -259,9 +258,6 @@ int main(int argc, char **argv)
         {
             // definisco il valore booleano della condizione per ripianificazione
             condition_to_run = buoys_pos(n_buoys - 1, 0) == x_b && buoys_pos(n_buoys - 1, 1) == y_b && buoys_pos(n_buoys - 1, 2) == z_b && !is_used(n_buoys - 1, 0);
-            ROS_WARN("Ultima boa vista [%f,%f,%f]", buoys_pos(n_buoys - 1, 0), buoys_pos(n_buoys - 1, 1), buoys_pos(n_buoys - 1, 2));
-            ROS_WARN("Boa utilizzata? %d", is_used(n_buoys - 1, 0));
-            ROS_WARN("Condizione per ripianificazione: %d", condition_to_run);
         }
 
         // per puntare al target, associamo un timeout di missione: dopo un certo tempo (scelto considerando l'autonomia del robot)
@@ -302,7 +298,25 @@ int main(int argc, char **argv)
 
         else if (mission_status == "PAUSED")
         {
-            if (strategy == "Circumference" && buoy_seen && condition_to_run)
+            if (to_target)
+            {
+                ROS_WARN("MAPPA ESPLORATA, POSSO ANDARE AL TARGET FINALE");
+                status_req = "RUNNING";
+
+                // Publish the message
+                std_msgs::String status_req_msg;
+                status_req_msg.data = status_req;
+
+                // Publish the message
+                publisher_status.publish(status_req_msg);
+                waypoint_msg.strategy = "Target";
+                std::vector<double> waypoint_pos = {target_x, target_y, target_z};
+                waypoint_msg.data = waypoint_pos;
+                publisher.publish(waypoint_msg);
+
+                ros::Duration(0.5).sleep(); // sleep
+            }
+            else if (strategy == "Circumference" && buoy_seen && condition_to_run)
             {
                 ROS_WARN("CIRCUMFERENCE");
                 is_used(n_buoys - 1, 0) = true;
@@ -408,20 +422,20 @@ int main(int argc, char **argv)
                     i_wall_direction = 2;
                     if (exploring_direction == "left")
                     {
-                        x_2 = x_1 - SPLINE_STEP_X / 2;
-                        y_2 = y_1 - SPLINE_STEP_Y / 2;
+                        x_2 = x_1 - SPLINE_STEP_X;
+                        y_2 = y_1;
                         z_2 = z_1;
-                        x_3 = x_2 - SPLINE_STEP_X / 2;
-                        y_3 = y_2 - SPLINE_STEP_Y / 2;
+                        x_3 = x_2;
+                        y_3 = y_2 - SPLINE_STEP_Y;
                         z_3 = z_1;
                     }
                     else if (exploring_direction == "right")
                     {
-                        x_2 = x_1 + SPLINE_STEP_X / 2;
-                        y_2 = y_1 - SPLINE_STEP_Y / 2;
+                        x_2 = x_1 + SPLINE_STEP_X;
+                        y_2 = y_1;
                         z_2 = z_1;
-                        x_3 = x_2 + SPLINE_STEP_X / 2;
-                        y_3 = y_2 - SPLINE_STEP_Y / 2;
+                        x_3 = x_2;
+                        y_3 = y_2 - SPLINE_STEP_Y;
                         z_3 = z_1;
                     }
                 }
@@ -431,20 +445,20 @@ int main(int argc, char **argv)
                     i_wall_direction = 0;
                     if (exploring_direction == "left")
                     {
-                        x_2 = x_1 - SPLINE_STEP_X / 2;
-                        y_2 = y_1 + SPLINE_STEP_Y / 2;
+                        x_2 = x_1 - SPLINE_STEP_X;
+                        y_2 = y_1;
                         z_2 = z_1;
-                        x_3 = x_2 - SPLINE_STEP_X / 2;
-                        y_3 = y_2 + SPLINE_STEP_Y / 2;
+                        x_3 = x_2;
+                        y_3 = y_2 + SPLINE_STEP_Y;
                         z_3 = z_1;
                     }
                     else if (exploring_direction == "right")
                     {
-                        x_2 = x_1 + SPLINE_STEP_X / 2;
-                        y_2 = y_1 + SPLINE_STEP_Y / 2;
+                        x_2 = x_1 + SPLINE_STEP_X;
+                        y_2 = y_1;
                         z_2 = z_1;
-                        x_3 = x_2 + SPLINE_STEP_X / 2;
-                        y_3 = y_2 + SPLINE_STEP_Y / 2;
+                        x_3 = x_2;
+                        y_3 = y_2 + SPLINE_STEP_Y;
                         z_3 = z_1;
                     }
                 }
@@ -454,20 +468,20 @@ int main(int argc, char **argv)
                     i_wall_direction = 1;
                     if (exploring_direction == "up")
                     {
-                        x_2 = x_1 + SPLINE_STEP_X / 2;
-                        y_2 = y_1 + SPLINE_STEP_Y / 2;
+                        x_2 = x_1;
+                        y_2 = y_1 + SPLINE_STEP_Y;
                         z_2 = z_1;
-                        x_3 = x_2 + SPLINE_STEP_X / 2;
-                        y_3 = y_2 + SPLINE_STEP_Y / 2;
+                        x_3 = x_2 + SPLINE_STEP_X;
+                        y_3 = y_2;
                         z_3 = z_1;
                     }
                     else if (exploring_direction == "down")
                     {
-                        x_2 = x_1 + SPLINE_STEP_X / 2;
-                        y_2 = y_1 - SPLINE_STEP_Y / 2;
+                        x_2 = x_1;
+                        y_2 = y_1 - SPLINE_STEP_Y;
                         z_2 = z_1;
-                        x_3 = x_2 + SPLINE_STEP_X / 2;
-                        y_3 = y_2 - SPLINE_STEP_Y / 2;
+                        x_3 = x_2 + SPLINE_STEP_X;
+                        y_3 = y_2;
                         z_3 = z_1;
                     }
                 }
@@ -477,20 +491,20 @@ int main(int argc, char **argv)
                     i_wall_direction = 3;
                     if (exploring_direction == "up")
                     {
-                        x_2 = x_1 - SPLINE_STEP_X / 2;
-                        y_2 = y_1 + SPLINE_STEP_Y / 2;
+                        x_2 = x_1;
+                        y_2 = y_1 + SPLINE_STEP_Y;
                         z_2 = z_1;
-                        x_3 = x_2 - SPLINE_STEP_X / 2;
-                        y_3 = y_2 + SPLINE_STEP_Y / 2;
+                        x_3 = x_2 - SPLINE_STEP_X;
+                        y_3 = y_2;
                         z_3 = z_1;
                     }
                     else if (exploring_direction == "down")
                     {
-                        x_2 = x_1 - SPLINE_STEP_X / 2;
-                        y_2 = y_1 - SPLINE_STEP_Y / 2;
+                        x_2 = x_1;
+                        y_2 = y_1 - SPLINE_STEP_Y;
                         z_2 = z_1;
-                        x_3 = x_2 - SPLINE_STEP_X / 2;
-                        y_3 = y_2 - SPLINE_STEP_Y / 2;
+                        x_3 = x_2 - SPLINE_STEP_X;
+                        y_3 = y_2;
                         z_3 = z_1;
                     }
                 }
@@ -522,8 +536,6 @@ int main(int argc, char **argv)
                         start_time = ros::Time::now().toSec();
                         end_time = start_time + 60.0 * 40;
                         timer_init = false;
-                        ROS_WARN("START: %f", start_time);
-                        ROS_WARN("END: %f", end_time);
                     }
 
                     flag_start_mission = false;
@@ -688,43 +700,66 @@ int main(int argc, char **argv)
                             }
                             else
                             {
-                                z_2 = z_1;
+                                if (z_1 < 2.35 || z_1 > 2.65)
+                                {
+                                    z_2 = 2.5;
+                                    double error = 2.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                    w = (error) / abs(error) * 0.1;
+                                }
+                                else
+                                {
+                                    z_2 = z_1;
+                                    w = 0.0;
+                                }
                                 z_3 = 2.5;
-                                w = 0.0;
                             }
 
                             if (z_2 > 4.25)
                             {
                                 z_2 = 4.25;
                                 z_3 = 2.5;
+                                w = -0.4;
                             }
                         }
                         else
                         {
                             is_first_spline = !is_first_spline;
 
-                            if(is_Spline_xy){
+                            if (is_Spline_xy)
+                            {
                                 x_2 = x_1 - SPLINE_STEP_X / 2;
                                 y_2 = y_1 + SPLINE_STEP_Y / 2;
                                 x_3 = x_1;
                                 y_3 = y_2 + SPLINE_STEP_Y / 2;
                             }
-                            else{
+                            else
+                            {
                                 x_2 = x_1;
                                 y_2 = y_1 + SPLINE_STEP_Y / 2;
                                 x_3 = x_1;
                                 y_3 = y_2 + SPLINE_STEP_Y / 2;
                             }
-                            
-                            if(is_Spline_z){
+
+                            if (is_Spline_z)
+                            {
                                 z_2 = z_1 - SPLINE_STEP_Z / 2;
                                 z_3 = 2.5;
                                 w = -0.4;
                             }
-                            else{
-                                z_2 = z_1;
+                            else
+                            {
+                                if (z_1 < 2.35 || z_1 > 2.65)
+                                {
+                                    z_2 = 2.5;
+                                    double error = 2.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                    w = (error) / abs(error) * 0.1;
+                                }
+                                else
+                                {
+                                    z_2 = z_1;
+                                    w = 0.0;
+                                }
                                 z_3 = 2.5;
-                                w = 0.0;
                             }
 
                             if (z_2 < 0.75)
@@ -739,14 +774,16 @@ int main(int argc, char **argv)
                         if (is_first_spline)
                         {
                             is_first_spline = !is_first_spline;
-                            
-                            if(is_Spline_xy){
+
+                            if (is_Spline_xy)
+                            {
                                 x_2 = x_1 - SPLINE_STEP_X / 2;
                                 y_2 = y_1 - SPLINE_STEP_Y / 2;
                                 x_3 = x_1;
                                 y_3 = y_2 - SPLINE_STEP_Y / 2;
                             }
-                            else{
+                            else
+                            {
                                 x_2 = x_1;
                                 y_2 = y_1 - SPLINE_STEP_Y / 2;
                                 x_3 = x_1;
@@ -761,11 +798,20 @@ int main(int argc, char **argv)
                             }
                             else
                             {
-                                z_2 = z_1;
+                                if (z_1 < 2.35 || z_1 > 2.65)
+                                {
+                                    z_2 = 2.5;
+                                    double error = 2.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                    w = (error) / abs(error) * 0.1;
+                                }
+                                else
+                                {
+                                    z_2 = z_1;
+                                    w = 0.0;
+                                }
                                 z_3 = 2.5;
-                                w = 0.0;
                             }
-                            
+
                             if (z_2 > 4.25)
                             {
                                 z_2 = 4.25;
@@ -776,13 +822,15 @@ int main(int argc, char **argv)
                         {
                             is_first_spline = !is_first_spline;
 
-                            if(is_Spline_xy){
+                            if (is_Spline_xy)
+                            {
                                 x_2 = x_1 + SPLINE_STEP_X / 2;
                                 y_2 = y_1 - SPLINE_STEP_Y / 2;
                                 x_3 = x_1;
                                 y_3 = y_2 - SPLINE_STEP_Y / 2;
                             }
-                            else{
+                            else
+                            {
                                 x_2 = x_1;
                                 y_2 = y_1 - SPLINE_STEP_Y / 2;
                                 x_3 = x_1;
@@ -797,9 +845,18 @@ int main(int argc, char **argv)
                             }
                             else
                             {
-                                z_2 = z_1;
+                                if (z_1 < 2.35 || z_1 > 2.65)
+                                {
+                                    z_2 = 2.5;
+                                    double error = 2.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                    w = (error) / abs(error) * 0.1;
+                                }
+                                else
+                                {
+                                    z_2 = z_1;
+                                    w = 0.0;
+                                }
                                 z_3 = 2.5;
-                                w = 0.0;
                             }
 
                             if (z_2 < 0.75)
@@ -829,18 +886,29 @@ int main(int argc, char **argv)
                                 x_3 = x_2 - SPLINE_STEP_X / 2;
                                 y_3 = y_1;
                             }
-                            
-                            if(is_Spline_z){
+
+                            if (is_Spline_z)
+                            {
                                 z_2 = z_1 + SPLINE_STEP_Z / 2;
                                 z_3 = 2.5;
                                 w = 0.4;
                             }
-                            else{
-                                z_2 = z_1;
+                            else
+                            {
+                                if (z_1 < 2.35 || z_1 > 2.65)
+                                {
+                                    z_2 = 2.5;
+                                    double error = 2.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                    w = (error)/abs(error) * 0.1;
+                                }
+                                else
+                                {
+                                    z_2 = z_1;
+                                    w = 0.0;
+                                }
                                 z_3 = 2.5;
-                                w = 0.0;
                             }
-                            
+
                             if (z_2 > 4.25)
                             {
                                 z_2 = 4.25;
@@ -874,9 +942,18 @@ int main(int argc, char **argv)
                             }
                             else
                             {
-                                z_2 = z_1;
+                                if (z_1 < 2.35 || z_1 > 2.65)
+                                {
+                                    z_2 = 2.5;
+                                    double error = 2.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                    w = (error)/abs(error) * 0.1;
+                                }
+                                else
+                                {
+                                    z_2 = z_1;
+                                    w = 0.0;
+                                }
                                 z_3 = 2.5;
-                                w = 0.0;
                             }
 
                             if (z_2 < 0.75)
@@ -915,9 +992,18 @@ int main(int argc, char **argv)
                             }
                             else
                             {
-                                z_2 = z_1;
+                                if (z_1 < 2.35 || z_1 > 2.65)
+                                {
+                                    z_2 = 2.5;
+                                    double error = 2.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                    w = (error)/abs(error) * 0.1;
+                                }
+                                else
+                                {
+                                    z_2 = z_1;
+                                    w = 0.0;
+                                }
                                 z_3 = 2.5;
-                                w = 0.0;
                             }
 
                             if (z_2 > 4.25)
@@ -953,11 +1039,20 @@ int main(int argc, char **argv)
                             }
                             else
                             {
-                                z_2 = z_1;
+                                if (z_1 < 2.35 || z_1 > 2.65)
+                                {
+                                    z_2 = 2.5;
+                                    double error = 2.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                    w = (error)/abs(error) * 0.1;
+                                }
+                                else
+                                {
+                                    z_2 = z_1;
+                                    w = 0.0;
+                                }
                                 z_3 = 2.5;
-                                w = 0.0;
                             }
-                            
+
                             if (z_2 < 0.75)
                             {
                                 z_2 = 0.75;
@@ -982,13 +1077,13 @@ int main(int argc, char **argv)
         }
 
         // CASO DI EMERGENZA (se il robot si trova troppo vicino al muro)
-        else if (mission_status == "RUNNING" && dist_wall[i_wall_direction] <= SAFE_DIST && !inversion)
+        else if (mission_status == "RUNNING" && dist_wall[i_wall_direction] <= SAFE_DIST && !inversion && !to_target)
         {
+            // Se il robot ha finito di esplorare la direzione in cui stava andando, allora si ferma e va verso il target
             if (dist_wall[i_wall_direc_expl] <= 2 * SPLINE_STEP_X)
             {
-                ROS_WARN("I_WALL_DIRECTION: %d I_WALL_DIRECTION_EXP %d", i_wall_direction, i_wall_direc_expl);
                 status_req = "PAUSED";
-                flag_start_mission = true;
+                to_target = true;
                 // Publish the message
                 std_msgs::String status_req_msg;
                 status_req_msg.data = status_req;
@@ -997,7 +1092,6 @@ int main(int argc, char **argv)
             }
             else
             {
-                ROS_WARN("SONO NELL'ELSE DI INVERSION");
                 inversion = true;
                 status_req = "PAUSED";
 
@@ -1023,8 +1117,6 @@ int main(int argc, char **argv)
             ros::Duration(0.5).sleep(); // sleep for half a second
         }
         // Process any incoming messages
-        bool tmp = mission_status == "RUNNING" && buoy_seen && waypoint_msg.strategy == "Spline" && condition_to_run;
-        ROS_WARN("POSSO ANDARE A FARE UP_DOWN: %d", tmp);
         ros::spinOnce();
 
         // Sleep to maintain the loop rate

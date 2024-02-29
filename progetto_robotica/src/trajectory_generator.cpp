@@ -276,7 +276,7 @@ int main(int argc, char **argv)
                 z_d = z[i_dist_min];
                 psi_d = psi[i_dist_min];
 
-                if (i_dist_min > n_waypoints - 3) // poco prima della fine della traiettoria annulliamo le velocità per dare il tempo
+                if (i_dist_min > n_waypoints - 2) // poco prima della fine della traiettoria annulliamo le velocità per dare il tempo
                                                   // al robot di fermarsi
                 {
                     u_d = 0.0;
