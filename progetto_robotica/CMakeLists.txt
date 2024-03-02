@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   message_generation
   gazebo_msgs
+  rosbag
 )
 
 find_package(gazebo REQUIRED)
@@ -112,7 +113,7 @@ generate_messages(
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES progetto_robotica
-  CATKIN_DEPENDS roscpp rospy std_msgs message_runtime
+  CATKIN_DEPENDS roscpp rospy std_msgs message_runtime rosbag
 #  DEPENDS system_lib
 )
 

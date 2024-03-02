@@ -18,22 +18,22 @@ selection = input("Enter the number of the trajectory: ")
 # Load the bag file
 
 if selection == "1":
-    backstepping_tau_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/backstepping test/linear/backstepping_tau_linear.bag')
-    backstepping_state_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/backstepping test/linear/state_backstepping_linear.bag')
-    MPC_tau_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/MPC test/linear/MPC_tau_linear.bag')
-    MPC_state_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/MPC test/linear/state_MPC_linear.bag')
+    backstepping_tau_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/backstepping/linear/tau.bag')
+    backstepping_state_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/backstepping/linear/state.bag')
+    MPC_tau_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/MPC/linear/tau.bag')
+    MPC_state_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/MPC/linear/state.bag')
 
 elif selection == "2":
-    backstepping_tau_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/backstepping test/sinz/backstepping_tau_sinz.bag')
-    backstepping_state_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/backstepping test/sinz/state_backstepping_sinz.bag')
-    MPC_tau_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/MPC test/sinz/MPC_tau_sinz.bag')
-    MPC_state_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/MPC test/sinz/state_MPC_sinz.bag')
+    backstepping_tau_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/backstepping/sinz/tau.bag')
+    backstepping_state_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/backstepping/sinz/state.bag')
+    MPC_tau_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/MPC/sinz/tau.bag')
+    MPC_state_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/MPC/sinz/state.bag')
 
 else:
-    backstepping_tau_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/backstepping test/sinxyz/backstepping_tau_sinxyz.bag')
-    backstepping_state_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/backstepping test/sinxyz/state_backstepping_sinxyz.bag')
-    MPC_tau_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/MPC test/sinxyz/MPC_tau_sinxyz.bag')
-    MPC_state_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/MPC test/sinxyz/state_MPC_sinxyz.bag')
+    backstepping_tau_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/backstepping/sinxyz/tau.bag')
+    backstepping_state_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/backstepping/sinxyz/state.bag')
+    MPC_tau_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/MPC/sinxyz/tau.bag')
+    MPC_state_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/MPC/sinxyz/state.bag')
 
 
 # Read the bag file
@@ -237,7 +237,7 @@ axes[1].set_ylabel('tau_v [N]')
 axes[2].set_ylabel('tau_w [N]')
 axes[3].set_ylabel('tau_r [N*m]')
 
-dt_backstepping = 0.001
+dt_backstepping = 0.01
 
 power_consumed = 0
 for i in range(len(backstepping_tau_t)):
@@ -298,7 +298,7 @@ axes[1].set_ylabel('tau_v [N]')
 axes[2].set_ylabel('tau_w [N]')
 axes[3].set_ylabel('tau_r [N*m]')
 
-dt_MPC = 0.1
+dt_MPC = 0.01
 
 power_consumed_MPC = 0
 for i in range(len(MPC_tau_t)):

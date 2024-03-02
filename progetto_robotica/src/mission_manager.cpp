@@ -51,7 +51,7 @@ int main(int argc, char **argv)
             {
                 if (first_time)
                 {
-                    ROS_WARN("You are already PAUSED");
+                    //ROS_WARN("You are already PAUSED");
                     first_time = false;
                 }
             }
@@ -62,7 +62,7 @@ int main(int argc, char **argv)
             {
                 if (first_time)
                 {
-                    ROS_WARN("You are already RUNNING");
+                    //ROS_WARN("You are already RUNNING");
                     first_time = false;
                 }
             }
@@ -83,15 +83,15 @@ int main(int argc, char **argv)
         {
             if (status_req == "RUNNING")
             {
-                ROS_WARN("Mission already COMPLETED");
+                //ROS_WARN("Mission already COMPLETED");
             }
             else if (status_req == "COMPLETED")
             {
-                ROS_WARN("Mission already COMPLETED");
+                //ROS_WARN("Mission already COMPLETED");
             }
             else if (status_req == "PAUSED")
             {
-                ROS_WARN("Mission already COMPLETED");
+                //ROS_WARN("Mission already COMPLETED");
             }
         }
 

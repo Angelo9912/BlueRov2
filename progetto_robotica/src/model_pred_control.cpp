@@ -1,4 +1,5 @@
 #include "ros/ros.h"
+#include <rosbag/bag.h>
 #include "std_msgs/String.h"
 #include <sstream>
 #include <ros/console.h>
@@ -81,11 +82,13 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "model_pred_control");
     ros::NodeHandle n;
+    rosbag::Bag tau_bag;
+    tau_bag.open("/home/antonio/catkin_ws/src/progetto_robotica/bag/MPC/tau.bag", rosbag::bagmode::Write);
     ros::Publisher chatter_pub = n.advertise<progetto_robotica::Floats>("tau_topic", 1);
     ros::Subscriber sub_des_state = n.subscribe("desired_state_topic", 1, desStateCallback);
     ros::Subscriber sub_est_state = n.subscribe("state_topic", 1, estStateCallback);
     double freq = 100;
-    double dt = 1/freq;
+    double dt = 1 / freq;
     ros::Rate loop_rate(freq);
     // Import parameters from YAML file
     double m = 0.0;
@@ -116,8 +119,23 @@ int main(int argc, char **argv)
     n.getParam("Z_w", Z_w);
     n.getParam("N_v", N_v);
 
+    double init_time;
+    bool is_init = true;
+
     while (ros::ok())
-    {
+    {   
+        
+        // Calcolo il tempo iniziale in maniera periodica fino a che non diventa maggiore di 0 in modo tale da non avere falsi positivi nella
+        // condizione sulla differenza temporale di 5 secondi
+        if(is_init){
+            init_time = ros::Time::now().toSec();
+            if(init_time > 0.0)
+            {
+                is_init = false;
+            }
+            
+        }
+
         // Computing the control law
         Eigen::Matrix<double, 8, 8> A_cont;
         A_cont << 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -171,22 +189,23 @@ int main(int argc, char **argv)
             C * A * A,
             C * A * A * A;
 
-        
-        Eigen::Matrix<double, 4,4> Zero_4;
+        Eigen::Matrix<double, 4, 4> Zero_4;
         Eigen::Matrix<double, 12, 12> Rc = 0.01 * Eigen::Matrix<double, 12, 12>::Identity();
+        
 
+        Eigen::Matrix<double, 24, 24> Qc = 10.0 * Eigen::Matrix<double, 24, 24>::Identity();
 
-        Eigen::Matrix<double, 24,24> Qc = 10.0*Eigen::Matrix<double, 24,24>::Identity();
 
         // Coefficienti per la z
-        Qc(4,4) = 1000.0;
-        Qc(12,12) = 1000.0;
-        Qc(20,20) = 1000.0;
-        
+        Qc(4, 4) = 500.0;
+        Qc(12, 12) = 500.0;
+        Qc(20, 20) = 500.0;
+
         // Coefficienti per la psi
-        Qc(6,6) = 1000.0;
-        Qc(14,14) = 1000.0;
-        Qc(22,22) = 1000.0;
+        Qc(6, 6) = 1000.0;
+        Qc(14, 14) = 1000.0;
+        Qc(22, 22) = 1000.0;
+
 
         // Estrazione valori desired state
 
@@ -322,12 +341,20 @@ int main(int argc, char **argv)
         progetto_robotica::Floats torques_msg;
         torques_msg.data = torques;
 
-        chatter_pub.publish(torques_msg);
+        // Pubblico i dati solo dopo 5 secondi e se il tempo iniziale è stato calcolato correttamente
+        if(ros::Time::now().toSec() - init_time > 5.0 && !is_init){
+            chatter_pub.publish(torques_msg);
+
+            if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
+            {
+                tau_bag.write("tau_topic", ros::Time::now(), torques_msg);
+            }
+        }
 
         ros::spinOnce();
 
         loop_rate.sleep();
     }
-
+    tau_bag.close();
     return 0;
 }

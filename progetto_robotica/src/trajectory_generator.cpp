@@ -195,7 +195,7 @@ int main(int argc, char **argv)
     // int i_min = 0;
     while (ros::ok())
     {
-        if (mission_status == "PAUSED" || mission_status == "COMPLETED")
+        if (mission_status == "COMPLETED")
         {
             // Vogliamo stare fermi nella posizione in cui ci troviamo
             x_d = x_hat;
@@ -249,6 +249,7 @@ int main(int argc, char **argv)
                     y[i - 1] = y_1 + i * dy;
                     z[i - 1] = z_1 + i * dz;
                     psi[i - 1] = atan2(dy, dx);
+
                 }
                 int i_dist_min = 0; // indice che mi dice qual è il waypoint intermedio a distanza minima
                 // la strategia consiste nel dividere la retta in tanti segmentini delimitati dai waypoint e inseguire sempre
@@ -316,11 +317,10 @@ int main(int argc, char **argv)
                 double step = 0.1;
 
                 int n_waypoints = (int)(dist_to_targ / step);
-                ROS_WARN("n_waypoints : %d", n_waypoints);
+                //ROS_WARN("n_waypoints : %d", n_waypoints);
                 double dx = pos_rel_x / n_waypoints;
                 double dy = pos_rel_y / n_waypoints;
                 double dz = pos_rel_z / n_waypoints;
-                ROS_WARN("[dx dy dz] : [%f %f %f]", dx, dy, dz);
 
                 double x[n_waypoints];
                 double y[n_waypoints];
@@ -484,9 +484,9 @@ int main(int argc, char **argv)
                 {
                     w_d = -w;
                 }
-                else if (i_dist_min > 296)
+                else if (i_dist_min > 290)
                 {
-                    u_d = 0.0;
+                    u_d = 0.5;
                     v_d = 0.0;
                     w_d = 0.0;
                     r_d = 0.0;
@@ -551,7 +551,7 @@ int main(int argc, char **argv)
 
                 if (CIRCUMFERENCE_phase == 1)
                 {
-                    ROS_WARN("RETTA");
+                    //ROS_WARN("RETTA");
                     i_dist_min = 0;
                     for (int i = 0; i < 99; i++)
                     {
@@ -576,7 +576,7 @@ int main(int argc, char **argv)
                 }
                 else if (CIRCUMFERENCE_phase == 2)
                 {
-                    ROS_WARN("CIRCONFERENZA 1");
+                    //ROS_WARN("CIRCONFERENZA 1");
                     i_dist_min = 99;
                     for (int i = 99; i < 149; i++)
                     {
@@ -601,7 +601,7 @@ int main(int argc, char **argv)
                 }
                 else
                 {
-                    ROS_WARN("CIRCONFERENZA 2");
+                    //ROS_WARN("CIRCONFERENZA 2");
 
                     i_dist_min = 149;
                     for (int i = 149; i < 199; i++)
@@ -626,7 +626,7 @@ int main(int argc, char **argv)
                 y_d = y[i_dist_min];
                 z_d = z[i_dist_min];
                 psi_d = psi[i_dist_min];
-                ROS_WARN("i_dist_min: %d", i_dist_min);
+                //ROS_WARN("i_dist_min: %d", i_dist_min);
 
                 if (i_dist_min > 99 && i_dist_min <= 196)
                 {
@@ -724,7 +724,7 @@ int main(int argc, char **argv)
                 }
                 else
                 {
-                    ROS_WARN("z: %f", z_hat);
+                    //ROS_WARN("z: %f", z_hat);
                     i_dist_min = 99;
 
                     // Scelta del waypoint più vicino

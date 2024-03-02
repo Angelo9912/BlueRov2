@@ -1,4 +1,5 @@
 #include "ros/ros.h"
+#include <rosbag/bag.h>
 #include "std_msgs/String.h"
 #include <sstream>
 #include <ros/console.h>
@@ -6,6 +7,7 @@
 #include "progetto_robotica/Floats.h" // for accessing -- progetto_robotica Floats()
 #include <vector>
 #include "yaml-cpp/yaml.h" // for yaml
+#include <math.h>
 
 // Declare callback variables
 double x_d = 0.0;
@@ -81,6 +83,9 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "backstepping");
     ros::NodeHandle n;
+    rosbag::Bag tau_bag;
+    tau_bag.open("/home/antonio/catkin_ws/src/progetto_robotica/bag/backstepping/tau.bag", rosbag::bagmode::Write);
+
     ros::Publisher chatter_pub = n.advertise<progetto_robotica::Floats>("tau_topic", 1);
     ros::Subscriber sub_des_state = n.subscribe("desired_state_topic", 1, desStateCallback);
     ros::Subscriber sub_est_state = n.subscribe("state_topic", 1, estStateCallback);
@@ -115,9 +120,22 @@ int main(int argc, char **argv)
     n.getParam("N_r_r", N_r_r);
     n.getParam("Z_w", Z_w);
     n.getParam("N_v", N_v);
+    bool is_init = true;
+    double init_time;
 
     while (ros::ok())
     {
+        // Calcolo il tempo iniziale in maniera periodica fino a che non diventa maggiore di 0 in modo tale da non avere falsi positivi nella
+        // condizione sulla differenza temporale di 5 secondi
+        if(is_init){
+            init_time = ros::Time::now().toSec();
+            if(init_time > 0.0)
+            {
+                is_init = false;
+            }
+            
+        }
+        
         // Define the desired state and the estimated state vectors
         Eigen::Matrix<double, 4, 1> des_pose;
         des_pose << x_d, y_d, z_d, psi_d;
@@ -127,27 +145,32 @@ int main(int argc, char **argv)
         des_pos_2dot.setZero();
         Eigen::Matrix<double, 4, 1> est_pose;
         est_pose << x_hat, y_hat, z_hat, psi_hat;
-        // Eigen::Matrix<double, 4, 1> est_vel;
-        // est_vel << u_hat, v_hat, w_hat, r_hat;
+
 
         // Define error vector
         Eigen::Matrix<double, 4, 1> error;
         error = des_pose - est_pose;
         double angle_tmp = error(3);
-        if(angle_tmp>0){
-            if(angle_tmp>2*M_PI-angle_tmp){
-                error(3) = angle_tmp-2*M_PI;
+        if (angle_tmp > 0)
+        {
+            if (angle_tmp > 2 * M_PI - angle_tmp)
+            {
+                error(3) = angle_tmp - 2 * M_PI;
             }
-            else{
+            else
+            {
                 error(3) = angle_tmp;
             }
         }
-        else{
+        else
+        {
             angle_tmp = -angle_tmp;
-            if(angle_tmp>2*M_PI-angle_tmp){
-                error(3) = 2*M_PI-angle_tmp;
+            if (angle_tmp > 2 * M_PI - angle_tmp)
+            {
+                error(3) = 2 * M_PI - angle_tmp;
             }
-            else{
+            else
+            {
                 error(3) = -angle_tmp;
             }
         }
@@ -166,9 +189,10 @@ int main(int argc, char **argv)
         est_pose_dot = J * nu;
 
         Eigen::Matrix<double, 4, 4> LAMBDA;
-        LAMBDA << Eigen::Matrix<double,4,4>::Identity();
+        LAMBDA << 3*Eigen::Matrix<double, 4, 4>::Identity();
 
-        LAMBDA(3,3) = 10;  
+        LAMBDA(2, 2) = 1.0;
+        LAMBDA(3, 3) = 10.0;
 
         Eigen::Matrix<double, 4, 1> q_r_dot;
         q_r_dot = J.inverse() * (des_pos_dot + LAMBDA * error);
@@ -212,7 +236,7 @@ int main(int argc, char **argv)
             0.0, 0.0, 0.0, I;
 
         Eigen::Matrix<double, 4, 4> K_d;
-        K_d << Eigen::Matrix<double,4,4>::Identity();
+        K_d << Eigen::Matrix<double, 4, 4>::Identity();
 
         // Define the torques vector
         Eigen::Matrix<double, 4, 1> torques_vec;
@@ -224,12 +248,20 @@ int main(int argc, char **argv)
         progetto_robotica::Floats torques_msg;
         torques_msg.data = torques;
 
-        chatter_pub.publish(torques_msg);
+        // Pubblico i dati solo dopo 5 secondi e se il tempo iniziale è stato calcolato correttamente
+        if(ros::Time::now().toSec() - init_time > 5.0 && !is_init){
+            chatter_pub.publish(torques_msg);
+
+            if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
+            {
+                tau_bag.write("tau_topic", ros::Time::now(), torques_msg);
+            }
+        }
 
         ros::spinOnce();
 
         loop_rate.sleep();
     }
-
+    tau_bag.close();
     return 0;
 }

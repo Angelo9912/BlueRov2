@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
     <rosparam file="$(find progetto_robotica)/yaml/params.yaml" />
-    <arg name="flag" default="back" />
+    <arg name="flag" default="MPC" />
     <include file="$(find gazebo_ros)/launch/empty_world.launch">
         <!-- <arg name="world_name" value="$(find progetto_robotica)/src/mondo_bluerov2.world" /> -->
         <arg name="world_name" value="$(find progetto_robotica)/src/mondo_bluerov2_wall.world" />

@@ -424,19 +424,19 @@ int main(int argc, char **argv)
                     {
                         x_2 = x_1 - SPLINE_STEP_X;
                         y_2 = y_1;
-                        z_2 = z_1;
+                        z_2 = 2.5;
                         x_3 = x_2;
                         y_3 = y_2 - SPLINE_STEP_Y;
-                        z_3 = z_1;
+                        z_3 = 2.5;
                     }
                     else if (exploring_direction == "right")
                     {
                         x_2 = x_1 + SPLINE_STEP_X;
                         y_2 = y_1;
-                        z_2 = z_1;
+                        z_2 = 2.5;
                         x_3 = x_2;
                         y_3 = y_2 - SPLINE_STEP_Y;
-                        z_3 = z_1;
+                        z_3 = 2.5;
                     }
                 }
                 else if (direction == "down")
@@ -447,19 +447,19 @@ int main(int argc, char **argv)
                     {
                         x_2 = x_1 - SPLINE_STEP_X;
                         y_2 = y_1;
-                        z_2 = z_1;
+                        z_2 = 2.5;
                         x_3 = x_2;
                         y_3 = y_2 + SPLINE_STEP_Y;
-                        z_3 = z_1;
+                        z_3 = 2.5;
                     }
                     else if (exploring_direction == "right")
                     {
                         x_2 = x_1 + SPLINE_STEP_X;
                         y_2 = y_1;
-                        z_2 = z_1;
+                        z_2 = 2.5;
                         x_3 = x_2;
                         y_3 = y_2 + SPLINE_STEP_Y;
-                        z_3 = z_1;
+                        z_3 = 2.5;
                     }
                 }
                 else if (direction == "left")
@@ -470,19 +470,19 @@ int main(int argc, char **argv)
                     {
                         x_2 = x_1;
                         y_2 = y_1 + SPLINE_STEP_Y;
-                        z_2 = z_1;
+                        z_2 = 2.5;
                         x_3 = x_2 + SPLINE_STEP_X;
                         y_3 = y_2;
-                        z_3 = z_1;
+                        z_3 = 2.5;
                     }
                     else if (exploring_direction == "down")
                     {
                         x_2 = x_1;
                         y_2 = y_1 - SPLINE_STEP_Y;
-                        z_2 = z_1;
+                        z_2 = 2.5;
                         x_3 = x_2 + SPLINE_STEP_X;
                         y_3 = y_2;
-                        z_3 = z_1;
+                        z_3 = 2.5;
                     }
                 }
                 else if (direction == "right")
@@ -493,19 +493,19 @@ int main(int argc, char **argv)
                     {
                         x_2 = x_1;
                         y_2 = y_1 + SPLINE_STEP_Y;
-                        z_2 = z_1;
+                        z_2 = 2.5;
                         x_3 = x_2 - SPLINE_STEP_X;
                         y_3 = y_2;
-                        z_3 = z_1;
+                        z_3 = 2.5;
                     }
                     else if (exploring_direction == "down")
                     {
                         x_2 = x_1;
                         y_2 = y_1 - SPLINE_STEP_Y;
-                        z_2 = z_1;
+                        z_2 = 2.5;
                         x_3 = x_2 - SPLINE_STEP_X;
                         y_3 = y_2;
-                        z_3 = z_1;
+                        z_3 = 2.5;
                     }
                 }
 
@@ -519,18 +519,19 @@ int main(int argc, char **argv)
                 publisher_status.publish(status_req_msg);
                 inversion = false;
                 publisher.publish(waypoint_msg);
-                ros::Duration(1.5).sleep(); // sleep for half a second
+                ros::Duration(0.5).sleep(); // sleep for half a second
             }
             else
             {
                 //////////////////////////////////////////////////////////////////////////////////////////////////////
-                /////////////////////////////////// INIZIALIZZAZIONE DELLA MISSIONE///////////////////////////////////
+                /////////////////////////////////// INIZIALIZZAZIONE DELLA MISSIONE //////////////////////////////////
                 //////////////////////////////////////////////////////////////////////////////////////////////////////
                 ////////// Si decide la direzione iniziale di esplorazione in base alla posizione del robot //////////
                 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
                 if (flag_start_mission)
                 {
+                    ros::Duration(2.0).sleep(); // sleep for half a second
                     if (timer_init)
                     {
                         start_time = ros::Time::now().toSec();
@@ -551,7 +552,7 @@ int main(int argc, char **argv)
 
                         x_2 = x_1;
                         y_2 = y_1 - SPLINE_STEP_Y / 2 - SAFE_DIST / 2;
-                        z_2 = z_1;
+                        z_2 = 2.5;
                         x_3 = x_1;
                         y_3 = y_2 - SPLINE_STEP_Y / 2 - SAFE_DIST / 2;
                         z_3 = z_1;
@@ -567,7 +568,7 @@ int main(int argc, char **argv)
 
                         x_2 = x_1 - SPLINE_STEP_X / 2 - SAFE_DIST / 2;
                         y_2 = y_1;
-                        z_2 = z_1;
+                        z_2 = 2.5;
                         x_3 = x_2 - SPLINE_STEP_X / 2 - SAFE_DIST / 2;
                         y_3 = y_1;
                         z_3 = z_1;
@@ -583,7 +584,7 @@ int main(int argc, char **argv)
 
                         x_2 = x_1;
                         y_2 = y_1 + SPLINE_STEP_Y / 2 + SAFE_DIST / 2;
-                        z_2 = z_1;
+                        z_2 = 2.5;
                         x_3 = x_1;
                         y_3 = y_2 + SPLINE_STEP_Y / 2 + SAFE_DIST / 2;
                         z_3 = z_1;
@@ -599,7 +600,7 @@ int main(int argc, char **argv)
 
                         x_2 = x_1 + SPLINE_STEP_X / 2 + SAFE_DIST / 2;
                         y_2 = y_1;
-                        z_2 = z_1;
+                        z_2 = 2.5;
                         x_3 = x_2 + SPLINE_STEP_X / 2 + SAFE_DIST / 2;
                         y_3 = y_1;
                         z_3 = z_1;
@@ -614,8 +615,8 @@ int main(int argc, char **argv)
                         i_wall_direction = 3;
                         i_wall_direc_expl = 2;
 
-                        x_2 = x_1 - SPLINE_STEP_X - SAFE_DIST;
-                        y_2 = y_1 - SPLINE_STEP_Y - SAFE_DIST;
+                        x_2 = x_1 - SAFE_DIST;
+                        y_2 = y_1 - SAFE_DIST;
                     }
                     else if (dist_wall[1] <= SAFE_DIST && dist_wall[2] <= SAFE_DIST)
                     {
@@ -626,8 +627,8 @@ int main(int argc, char **argv)
                         i_wall_direction = 0;
                         i_wall_direc_expl = 3;
 
-                        x_2 = x_1 - SPLINE_STEP_X - SAFE_DIST;
-                        y_2 = y_1 + SPLINE_STEP_Y + SAFE_DIST;
+                        x_2 = x_1 - SAFE_DIST;
+                        y_2 = y_1 + SAFE_DIST;
                     }
                     else if (dist_wall[2] <= SAFE_DIST && dist_wall[3] <= SAFE_DIST)
                     {
@@ -638,8 +639,8 @@ int main(int argc, char **argv)
                         i_wall_direction = 1;
                         i_wall_direc_expl = 0;
 
-                        x_2 = x_1 + SPLINE_STEP_X + SAFE_DIST;
-                        y_2 = y_1 + SPLINE_STEP_Y + SAFE_DIST;
+                        x_2 = x_1 + SAFE_DIST;
+                        y_2 = y_1 + SAFE_DIST;
                     }
                     else if (dist_wall[3] <= SAFE_DIST && dist_wall[0] <= SAFE_DIST)
                     {
@@ -650,12 +651,12 @@ int main(int argc, char **argv)
                         i_wall_direction = 2;
                         i_wall_direc_expl = 1;
 
-                        x_2 = x_1 + SPLINE_STEP_X + SAFE_DIST;
-                        y_2 = y_1 - SPLINE_STEP_Y - SAFE_DIST;
+                        x_2 = x_1 + SAFE_DIST;
+                        y_2 = y_1 - SAFE_DIST;
                     }
                     z_2 = 2.5;
 
-                    ROS_WARN("ALLONTANAMENTO DAL MURO");
+                    ROS_WARN("AWAY FROM THE WALL");
                     waypoint_msg.strategy = "Initial";
                     std::vector<double> waypoint_pos = {x_2, y_2, z_2};
                     waypoint_msg.data = waypoint_pos;
@@ -694,7 +695,7 @@ int main(int argc, char **argv)
 
                             if (is_Spline_z)
                             {
-                                z_2 = z_1 + SPLINE_STEP_Z / 2;
+                                z_2 = 2.5 + SPLINE_STEP_Z / 2;
                                 z_3 = 2.5;
                                 w = 0.4;
                             }
@@ -712,13 +713,6 @@ int main(int argc, char **argv)
                                     w = 0.0;
                                 }
                                 z_3 = 2.5;
-                            }
-
-                            if (z_2 > 4.25)
-                            {
-                                z_2 = 4.25;
-                                z_3 = 2.5;
-                                w = -0.4;
                             }
                         }
                         else
@@ -742,7 +736,7 @@ int main(int argc, char **argv)
 
                             if (is_Spline_z)
                             {
-                                z_2 = z_1 - SPLINE_STEP_Z / 2;
+                                z_2 = 2.5 - SPLINE_STEP_Z / 2;
                                 z_3 = 2.5;
                                 w = -0.4;
                             }
@@ -759,12 +753,6 @@ int main(int argc, char **argv)
                                     z_2 = z_1;
                                     w = 0.0;
                                 }
-                                z_3 = 2.5;
-                            }
-
-                            if (z_2 < 0.75)
-                            {
-                                z_2 = 0.75;
                                 z_3 = 2.5;
                             }
                         }
@@ -792,9 +780,9 @@ int main(int argc, char **argv)
 
                             if (is_Spline_z)
                             {
-                                z_2 = z_1 + SPLINE_STEP_Z / 2;
+                                z_2 = 2.5 + SPLINE_STEP_Z / 2;
                                 z_3 = 2.5;
-                                w = 0.4;
+                                w = +0.4;
                             }
                             else
                             {
@@ -809,12 +797,6 @@ int main(int argc, char **argv)
                                     z_2 = z_1;
                                     w = 0.0;
                                 }
-                                z_3 = 2.5;
-                            }
-
-                            if (z_2 > 4.25)
-                            {
-                                z_2 = 4.25;
                                 z_3 = 2.5;
                             }
                         }
@@ -839,7 +821,7 @@ int main(int argc, char **argv)
 
                             if (is_Spline_z)
                             {
-                                z_2 = z_1 - SPLINE_STEP_Z / 2;
+                                z_2 = 2.5 - SPLINE_STEP_Z / 2;
                                 z_3 = 2.5;
                                 w = -0.4;
                             }
@@ -856,12 +838,6 @@ int main(int argc, char **argv)
                                     z_2 = z_1;
                                     w = 0.0;
                                 }
-                                z_3 = 2.5;
-                            }
-
-                            if (z_2 < 0.75)
-                            {
-                                z_2 = 0.75;
                                 z_3 = 2.5;
                             }
                         }
@@ -889,9 +865,9 @@ int main(int argc, char **argv)
 
                             if (is_Spline_z)
                             {
-                                z_2 = z_1 + SPLINE_STEP_Z / 2;
+                                z_2 = 2.5 + SPLINE_STEP_Z / 2;
                                 z_3 = 2.5;
-                                w = 0.4;
+                                w = +0.4;
                             }
                             else
                             {
@@ -899,19 +875,13 @@ int main(int argc, char **argv)
                                 {
                                     z_2 = 2.5;
                                     double error = 2.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
-                                    w = (error)/abs(error) * 0.1;
+                                    w = (error) / abs(error) * 0.1;
                                 }
                                 else
                                 {
                                     z_2 = z_1;
                                     w = 0.0;
                                 }
-                                z_3 = 2.5;
-                            }
-
-                            if (z_2 > 4.25)
-                            {
-                                z_2 = 4.25;
                                 z_3 = 2.5;
                             }
                         }
@@ -936,7 +906,7 @@ int main(int argc, char **argv)
 
                             if (is_Spline_z)
                             {
-                                z_2 = z_1 - SPLINE_STEP_Z / 2;
+                                z_2 = 2.5 - SPLINE_STEP_Z / 2;
                                 z_3 = 2.5;
                                 w = -0.4;
                             }
@@ -946,19 +916,13 @@ int main(int argc, char **argv)
                                 {
                                     z_2 = 2.5;
                                     double error = 2.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
-                                    w = (error)/abs(error) * 0.1;
+                                    w = (error) / abs(error) * 0.1;
                                 }
                                 else
                                 {
                                     z_2 = z_1;
                                     w = 0.0;
                                 }
-                                z_3 = 2.5;
-                            }
-
-                            if (z_2 < 0.75)
-                            {
-                                z_2 = 0.75;
                                 z_3 = 2.5;
                             }
                         }
@@ -986,9 +950,9 @@ int main(int argc, char **argv)
 
                             if (is_Spline_z)
                             {
-                                z_2 = z_1 + SPLINE_STEP_Z / 2;
+                                z_2 = 2.5 + SPLINE_STEP_Z / 2;
                                 z_3 = 2.5;
-                                w = 0.4;
+                                w = +0.4;
                             }
                             else
                             {
@@ -996,19 +960,13 @@ int main(int argc, char **argv)
                                 {
                                     z_2 = 2.5;
                                     double error = 2.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
-                                    w = (error)/abs(error) * 0.1;
+                                    w = (error) / abs(error) * 0.1;
                                 }
                                 else
                                 {
                                     z_2 = z_1;
                                     w = 0.0;
                                 }
-                                z_3 = 2.5;
-                            }
-
-                            if (z_2 > 4.25)
-                            {
-                                z_2 = 4.25;
                                 z_3 = 2.5;
                             }
                         }
@@ -1033,7 +991,7 @@ int main(int argc, char **argv)
 
                             if (is_Spline_z)
                             {
-                                z_2 = z_1 - SPLINE_STEP_Z / 2;
+                                z_2 = 2.5 - SPLINE_STEP_Z / 2;
                                 z_3 = 2.5;
                                 w = -0.4;
                             }
@@ -1043,19 +1001,13 @@ int main(int argc, char **argv)
                                 {
                                     z_2 = 2.5;
                                     double error = 2.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
-                                    w = (error)/abs(error) * 0.1;
+                                    w = (error) / abs(error) * 0.1;
                                 }
                                 else
                                 {
                                     z_2 = z_1;
                                     w = 0.0;
                                 }
-                                z_3 = 2.5;
-                            }
-
-                            if (z_2 < 0.75)
-                            {
-                                z_2 = 0.75;
                                 z_3 = 2.5;
                             }
                         }

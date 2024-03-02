@@ -1,4 +1,5 @@
 #include "ros/ros.h"
+#include <rosbag/bag.h>
 #include "std_msgs/String.h"
 #include <sstream>
 #include <ros/console.h>
@@ -12,7 +13,7 @@ double tau_v = 0.0;
 double tau_w = 0.0;
 double tau_r = 0.0;
 
-double x = +17.0;
+double x = +16.5;
 double y = +17.0;
 double z = 5.0;
 double psi = 0.0;
@@ -47,6 +48,10 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "dynamics");
     ros::NodeHandle n;
+
+    rosbag::Bag state_bag;
+
+    state_bag.open("/home/antonio/catkin_ws/src/progetto_robotica/bag/state.bag", rosbag::bagmode::Write);
 
     // Import parameters from YAML file
     double m = 0.0;
@@ -153,10 +158,16 @@ int main(int argc, char **argv)
         // // ROS_WARN("%f",stampa);
         eta = eta_k1;
         nu = nu_k1;
+
+        if(ros::Time::now().toSec() > ros::TIME_MIN.toSec()){
+            state_bag.write("state_topic", ros::Time::now(), state_msg);
+        }
+        
         ros::spinOnce();
 
         loop_rate.sleep();
     }
 
+    state_bag.close();
     return 0;
 }
