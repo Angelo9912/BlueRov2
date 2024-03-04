@@ -83,7 +83,7 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "model_pred_control");
     ros::NodeHandle n;
     rosbag::Bag tau_bag;
-    tau_bag.open("/home/antonio/catkin_ws/src/progetto_robotica/bag/MPC/tau.bag", rosbag::bagmode::Write);
+    tau_bag.open("/home/angelo/catkin_ws/src/progetto_robotica/bag/MPC/tau.bag", rosbag::bagmode::Write);
     ros::Publisher chatter_pub = n.advertise<progetto_robotica::Floats>("tau_topic", 1);
     ros::Subscriber sub_des_state = n.subscribe("desired_state_topic", 1, desStateCallback);
     ros::Subscriber sub_est_state = n.subscribe("state_topic", 1, estStateCallback);
