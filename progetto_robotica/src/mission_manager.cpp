@@ -69,7 +69,7 @@ int main(int argc, char **argv)
             else if (status_req == "COMPLETED")
             {
                 status_true = "COMPLETED";
-                ROS_WARN("MISSION COMPLETED");
+                ROS_WARN("MISSION COMPLETED \a");
                 first_time = true;
             }
             else if (status_req == "PAUSED")

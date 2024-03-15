@@ -14,7 +14,7 @@ double tau_w = 0.0;
 double tau_r = 0.0;
 
 double x = +16.5;
-double y = +17.0;
+double y = +19.0;
 double z = 5.0;
 double psi = 0.0;
 double u = 0.0;
@@ -51,7 +51,7 @@ int main(int argc, char **argv)
 
     rosbag::Bag state_bag;
 
-    state_bag.open("/home/angelo/catkin_ws/src/progetto_robotica/bag/state.bag", rosbag::bagmode::Write);
+    state_bag.open("/home/antonio/catkin_ws/src/progetto_robotica/bag/state.bag", rosbag::bagmode::Write);
 
     // Import parameters from YAML file
     double m = 0.0;
@@ -100,10 +100,6 @@ int main(int argc, char **argv)
 
         // MATRICE DI CORIOLIS
         Eigen::Matrix<double, 4, 4> C;
-        // C << 0.0, 0.0, 0.0, Y_v_dot * nu(1) + Y_r * nu(3),
-        //     0.0, 0.0, 0.0, -X_u_dot * nu(0),
-        //     0.0, 0.0, 0.0, 0.0,
-        //     -Y_v_dot * nu(1) - Y_r * nu(3), X_u_dot * nu(0), 0.0, 0.0;
 
         C << 0.0, 0.0, 0.0, -m * nu(1),
             0.0, 0.0, 0.0, m * nu(0),
@@ -112,7 +108,7 @@ int main(int argc, char **argv)
 
         // MATRICE DI DAMPING
         Eigen::Matrix<double, 4, 4> D;
-        // D.diagonal() << -X_u, -Y_v, -Z_w, -N_r - N_r_r * nu(3);
+
         D << -X_u, 0.0, 0.0, 0.0,
             0.0, -Y_v, 0.0, -Y_r,
             0.0, 0.0, -Z_w, 0.0,
@@ -153,9 +149,7 @@ int main(int argc, char **argv)
         state_msg.data = state;
 
         chatter_pub.publish(state_msg);
-        // double stampa = eta(3);
-        // //ROS_INFO("%f", stampa);
-        // // ROS_WARN("%f",stampa);
+
         eta = eta_k1;
         nu = nu_k1;
 

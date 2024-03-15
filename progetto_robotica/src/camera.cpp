@@ -61,7 +61,7 @@ int main(int argc, char **argv)
     // buoy_positions << sphere1, box1, sphere2, box2;
 
     Eigen::Matrix<double, 1, 3> sphere1;
-    sphere1 << 10.0, 10.0, 2.5;
+    sphere1 << 10.0, 10.0, 3.0;
     Eigen::Matrix<double, 1, 3> sphere2;
     sphere2 << -8.0, -12.0, 2.0;
     Eigen::Matrix<double, 1, 3> box1;

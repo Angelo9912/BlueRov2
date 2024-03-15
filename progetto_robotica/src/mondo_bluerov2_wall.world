@@ -85,7 +85,7 @@
     <state world_name='default'>
       <sim_time>596 916000000</sim_time>
       <real_time>0 0</real_time>
-      <wall_time>1708709257 237991499</wall_time>
+      <wall_time>1710177552 848464564</wall_time>
       <iterations>0</iterations>
       <model name='bluerov2'>
         <pose>0 0 0 0 -0 0</pose>
@@ -128,10 +128,10 @@
         </link>
       </model>
       <model name='unit_sphere'>
-        <pose>10 10 2.5 0 -0 0</pose>
+        <pose>10 10 3 0 -0 0</pose>
         <scale>0.173168 0.173168 0.173168</scale>
         <link name='link'>
-          <pose>10 10 2.5 0 -0 0</pose>
+          <pose>10 10 3 0 -0 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
@@ -181,7 +181,7 @@
     </state>
     <gui fullscreen='0'>
       <camera name='user_camera'>
-        <pose>15.7481 -10.3611 8.57442 0 0.234204 1.63949</pose>
+        <pose>5.67028 -62.7827 40.966 0 0.510204 1.59549</pose>
         <view_controller>orbit</view_controller>
         <projection_type>perspective</projection_type>
       </camera>
@@ -231,7 +231,7 @@
           <cast_shadows>1</cast_shadows>
           <geometry>
             <mesh>
-              <uri>/home/angelo/catkin_ws/src/progetto_robotica/BlueRov2.dae</uri>
+              <uri>/home/antonio/catkin_ws/src/progetto_robotica/BlueRov2.dae</uri>
             </mesh>
           </geometry>
         </visual>

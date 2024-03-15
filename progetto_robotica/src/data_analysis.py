@@ -5,9 +5,15 @@ from mpl_toolkits import mplot3d
 import numpy as np
 import pandas as pd
 import rosbag
+import os
+import pathlib
+
+dir = os.path.join(os.path.dirname(__file__), os.path.pardir)
+os.chdir(dir)
+
 
 print("Hello from data_analysis.py!")
-print("This script will read the bag file and plot the data")
+print("This script will read the bag file and plot the data\n")
 print("Select the trajectory to analyze:")
 print("1) Linear trajectory")
 print("2) Linear trajectory with spline in the z-axis")
@@ -18,22 +24,22 @@ selection = input("Enter the number of the trajectory: ")
 # Load the bag file
 
 if selection == "1":
-    backstepping_tau_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/backstepping/linear/tau.bag')
-    backstepping_state_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/backstepping/linear/state.bag')
-    MPC_tau_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/MPC/linear/tau.bag')
-    MPC_state_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/MPC/linear/state.bag')
+    backstepping_tau_bag = rosbag.Bag(os.getcwd() + '/bag/backstepping/linear/tau.bag')
+    backstepping_state_bag = rosbag.Bag(os.getcwd() +'/bag/backstepping/linear/state.bag')
+    MPC_tau_bag = rosbag.Bag(os.getcwd() +'/bag/MPC/linear/tau.bag')
+    MPC_state_bag = rosbag.Bag(os.getcwd() +'/bag/MPC/linear/state.bag')
 
 elif selection == "2":
-    backstepping_tau_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/backstepping/sinz/tau.bag')
-    backstepping_state_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/backstepping/sinz/state.bag')
-    MPC_tau_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/MPC/sinz/tau.bag')
-    MPC_state_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/MPC/sinz/state.bag')
+    backstepping_tau_bag = rosbag.Bag(os.getcwd() + '/bag/backstepping/sinz/tau.bag')
+    backstepping_state_bag = rosbag.Bag(os.getcwd() +'/bag/backstepping/sinz/state.bag')
+    MPC_tau_bag = rosbag.Bag(os.getcwd() + '/bag/MPC/sinz/tau.bag')
+    MPC_state_bag = rosbag.Bag(os.getcwd() + '/bag/MPC/sinz/state.bag')
 
 else:
-    backstepping_tau_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/backstepping/sinxyz/tau.bag')
-    backstepping_state_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/backstepping/sinxyz/state.bag')
-    MPC_tau_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/MPC/sinxyz/tau.bag')
-    MPC_state_bag = rosbag.Bag('/home/antonio/catkin_ws/src/progetto_robotica/bag/MPC/sinxyz/state.bag')
+    backstepping_tau_bag = rosbag.Bag(os.getcwd() + '/bag/backstepping/sinxyz/tau.bag')
+    backstepping_state_bag = rosbag.Bag(os.getcwd() + '/bag/backstepping/sinxyz/state.bag')
+    MPC_tau_bag = rosbag.Bag(os.getcwd() + '/bag/MPC/sinxyz/tau.bag')
+    MPC_state_bag = rosbag.Bag(os.getcwd() + '/bag/MPC/sinxyz/state.bag')
 
 
 # Read the bag file
@@ -186,14 +192,46 @@ MPC_tau_bag.close()
 #############################PLOT THE DATA################################
 ##########################################################################
 
+sphere1_x = 10.0
+sphere1_y = 10.0
+sphere1_z = 3.0
+sphere2_x = -8.0
+sphere2_y = -12.0
+sphere2_z = 2.0
+box1_x = 14.0
+box1_y = 10.0
+box1_z = 1.0
+box2_x = 10.0
+box2_y = -10.0
+box2_z = 1.5
+
+
 # Plot 3D trajectory (Backstepping)
 
-ax1 = plt.axes(projection='3d')
-ax1.plot3D(backstepping_state_x, backstepping_state_y, backstepping_state_z, 'blue', label='Backstepping')
+ax1_3D = plt.axes(projection='3d')
+ax1_3D.plot3D(backstepping_state_x, backstepping_state_y, backstepping_state_z, 'blue', label='Backstepping3D')
+ax1_3D.scatter(sphere1_x, sphere1_y, sphere1_z, 'red', label='boa1')
+ax1_3D.scatter(sphere2_x, sphere2_y, sphere2_z, 'red', label='boa2')
+ax1_3D.scatter(box1_x, box1_y, box1_z, 'green', label='boa3')
+ax1_3D.scatter(box2_x, box2_y, box2_z, 'green', label='boa4')
+
 plt.title('Backstepping control trajectory')
-ax1.set_xlabel('x [m]')
-ax1.set_ylabel('y [m]')
-ax1.set_zlabel('z [m]')
+ax1_3D.set_xlabel('x [m]')
+ax1_3D.set_ylabel('y [m]')
+ax1_3D.set_zlabel('z [m]')
+
+# Plot 2D trajectory (Backstepping)
+
+fig = plt.figure()
+ax1_2D = plt.axes()
+ax1_2D.plot(backstepping_state_x, backstepping_state_y, 'blue', label='Backstepping2D')
+ax1_2D.scatter(sphere1_x, sphere1_y, edgecolors='red',linewidths=2, label='boa1')
+ax1_2D.scatter(sphere2_x, sphere2_y,  edgecolors='red',linewidths=2, label='boa2')
+ax1_2D.scatter(box1_x, box1_y,  edgecolors='green',linewidths=2, label='boa3')
+ax1_2D.scatter(box2_x, box2_y,  edgecolors='green',linewidths=2, label='boa4')
+plt.title('Backstepping control trajectory (x-y)')
+ax1_2D.set_xlabel('x [m]')
+ax1_2D.set_ylabel('y [m]')
 
 
 # Plot global-frame coordinates (Backstepping)
@@ -249,13 +287,30 @@ plt.show()
 
 # Plot 3D trajectory (MPC)
 
-ax2 = plt.axes(projection='3d')
-ax2.plot3D(MPC_state_x, MPC_state_y, MPC_state_z, 'red', label='MPC')
-plt.title('MPC control trajectory')
-ax2.set_xlabel('x [m]')
-ax2.set_ylabel('y [m]')
-ax2.set_zlabel('z [m]')
+ax2_3D = plt.axes(projection='3d')
+ax2_3D.plot3D(MPC_state_x, MPC_state_y, MPC_state_z, 'blue', label='MPC3D')
+ax2_3D.scatter(sphere1_x, sphere1_y, sphere1_z, 'red', label='boa1')
+ax2_3D.scatter(sphere2_x, sphere2_y, sphere2_z, 'red', label='boa2')
+ax2_3D.scatter(box1_x, box1_y, box1_z, 'green', label='boa3')
+ax2_3D.scatter(box2_x, box2_y, box2_z, 'green', label='boa4')
 
+plt.title('MPC control trajectory')
+ax2_3D.set_xlabel('x [m]')
+ax2_3D.set_ylabel('y [m]')
+ax2_3D.set_zlabel('z [m]')
+
+# Plot 2D trajectory (MPC)
+
+fig = plt.figure()
+ax2_2D = plt.axes()
+ax2_2D.plot(MPC_state_x, MPC_state_y, 'blue', label='MPC2D')
+ax2_2D.scatter(sphere1_x, sphere1_y, edgecolors='red',linewidths=2, label='boa1')
+ax2_2D.scatter(sphere2_x, sphere2_y,  edgecolors='red',linewidths=2, label='boa2')
+ax2_2D.scatter(box1_x, box1_y,  edgecolors='green',linewidths=2, label='boa3')
+ax2_2D.scatter(box2_x, box2_y,  edgecolors='green',linewidths=2, label='boa4')
+plt.title('Backstepping control trajectory (x-y)')
+ax2_2D.set_xlabel('x [m]')
+ax2_2D.set_ylabel('y [m]')
 
 # Plot global-frame coordinates (MPC)
 fig, axes = plt.subplots(4)

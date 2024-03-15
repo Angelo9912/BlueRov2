@@ -1,0 +1,107 @@
+# Termini associati alla dinamica del sistema
+m: 15.3   # massa in [kg]
+d: 0.338  # larghezza
+l: 0.457  # lunghezza 
+h: 0.52   # altezza
+
+# Posizione (relativa) del centro di massa
+x_g : 0.0
+y_g : 0.0
+z_g : 0.0
+
+# Coefficienti di Damping e Masse aggiunte
+
+I_x : 0.49
+I_y : 0.61
+I_z : 0.41
+I_xy : 0.0
+I_xz : 0.0
+I_yz : 0.0
+I_yx : 0.0
+I_zx : 0.0
+I_zy : 0.0
+A_x : 0.1174
+A_y : 0.2294
+A_z : 0.1545
+A_p : 0.0
+A_q : 0.0
+A_r : 0.07
+X_u_dot : -1.53
+X_v_dot : 0.0
+X_w_dot : 0.0
+X_p_dot : 0.0
+X_q_dot : 0.0
+X_r_dot : 0.0
+Y_u_dot : 0.0
+Y_v_dot : -1.53
+Y_w_dot : 0.0
+Y_p_dot : 0.0
+Y_q_dot : 0.0
+Y_r_dot : 0.0
+Z_u_dot : 0.0
+Z_v_dot : 0.0
+Z_w_dot : -1.53
+Z_p_dot : 0.0
+Z_q_dot : 0.0
+Z_r_dot : 0.0
+K_u_dot : 0.0
+K_v_dot : 0.0
+K_w_dot : 0.0
+K_p_dot : -0.049
+K_q_dot : 0.0
+K_r_dot : 0.0
+M_u_dot : 0.0
+M_v_dot : 0.0
+M_w_dot : 0.0
+M_p_dot : 0.0
+M_q_dot : -0.061
+M_r_dot : 0.0
+N_u_dot : 0.0
+N_v_dot : 0.0
+N_w_dot : 0.0
+N_p_dot : 0.0
+N_q_dot : 0.0
+N_r_dot : -0.041
+
+target_x : 15
+target_y : 15
+target_z : 5
+
+# Varianze del rumore di misura
+var_x_GPS : 1
+var_y_GPS : 1
+var_x_scanner : 0.0004
+var_y_scanner : 0.0004
+var_z_depth_sensor : 1
+var_phi_IMU : 0.01
+var_theta_IMU : 0.01
+var_psi_IMU : 0.01
+var_u_DVL : 0.0189375
+var_v_DVL : 0.0189375
+var_w_DVL : 0.0189375
+var_p_IMU : 0.0007
+var_q_IMU : 0.0007
+var_r_IMU : 0.0007
+
+# Varianze del rumore di processo
+var_tau_u : 0.1
+var_tau_v : 0.1
+var_tau_w : 0.1
+var_tau_p : 0.1
+var_tau_q : 0.1
+var_tau_r : 0.1
+
+
+MAP_NE_x: 20 #vertice nord est mappa, coordinata x
+MAP_NE_y: 20 #vertice nord est mappa, coordinata y
+MAP_NW_x: -20 #vertice nord ovest mappa, coordinata x
+MAP_NW_y: 20 #vertice nord ovest mappa, coordinata y
+MAP_SW_x: -20 #vertice sud ovest mappa, coordinata x
+MAP_SW_y: -20 #vertice sud ovest mappa, coordinata y
+MAP_SE_x: 20 #vertice sud est mappa, coordinata x
+MAP_SE_y: -20 #vertice sud est mappa, coordinata y
+
+is_Spline_xy: False  # Linear: False, Spline: True
+is_Spline_z: False  # Linear: False, Spline: True
+
+

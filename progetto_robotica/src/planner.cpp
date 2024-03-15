@@ -39,13 +39,26 @@ double MAP_NW_y = 0.0;
 double MAP_SE_x = 0.0;
 double MAP_SE_y = 0.0;
 
+double const camera_range = 1.5;
+// Angoli di visione della camera
+double const camera_angle_vertical = 70 * M_PI / 180;    // Angolo verticale della camera
+double const camera_angle_horizontal = 120 * M_PI / 180; // Angolo orizzontale della camera
+
+// Range di visione della camera
+
+double const camera_range_lateral = sqrt((camera_range / cos(camera_angle_horizontal / 2)) * (camera_range / cos(camera_angle_horizontal / 2)) - (1.5 * 1.5));
+double const camera_range_vertical = sqrt((camera_range / cos(camera_angle_vertical / 2)) * (camera_range / cos(camera_angle_vertical / 2)) - (1.5 * 1.5));
+
+double const total_range = sqrt(camera_range * camera_range + camera_range_lateral * camera_range_lateral + camera_range_vertical * camera_range_vertical);
+
 bool is_Spline_xy = false;
 bool is_Spline_z = false;
 
 Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic> buoys_pos(1, 3);
 Eigen::Matrix<bool, Eigen::Dynamic, Eigen::Dynamic> is_used(1, 1);
 int n_buoys = 0;              // numero boe indiviudate, verrà utilizzato per scartarae le boe già visitate
-double const SAFE_DIST = 3.0; // distanza di sicurezza che deve essere mantenuta dalle boe
+double const SAFE_DIST = 2.6; // distanza di sicurezza che deve essere mantenuta dalle boe = Range di visione della camera
+bool buoy_seen_prec = false;  // variabile di stato per capire se la camera ha visto una boa nella scorsa iterazione
 
 ////////////////////////////////////// Subscriber callback function //////////////////////////////////////
 
@@ -101,10 +114,15 @@ void buoyCallback(const progetto_robotica::Floats_String::ConstPtr &msg)
         z_b = msg->data[2];
         strategy = msg->strategy;
         bool flag_new_buoy = true;
-        bool is_in_range = sqrt(pow(x_b - x_hat, 2) + pow(y_b - y_hat, 2) + pow(z_b - z_hat, 2)) < 3.0; // se la boa è a meno di 3 metri
-                                                                                                        // dal robot, la consideriamo
-                                                                                                        // valida (altrimenti potrebbe
-                                                                                                        // essere un falso positivo)
+
+        // Calcolo delle coordinate della boa in terna body
+        double pos_rel_x = cos(psi_hat) * (x_b - x_hat) + sin(psi_hat) * (y_b - y_hat);
+        double pos_rel_y = -sin(psi_hat) * (x_b - x_hat) + cos(psi_hat) * (y_b - y_hat);
+        double pos_rel_z = z_b - z_hat;
+
+        // Condizione che deve essere rispettata per considerare la boa all'interno del range di visione della camera
+        bool is_in_range = (pos_rel_x <= camera_range) && (pos_rel_y <= tan(camera_angle_horizontal / 2) * pos_rel_x) && (pos_rel_y >= -tan(camera_angle_horizontal / 2) * pos_rel_x) && (pos_rel_z <= tan(camera_angle_vertical / 2) * pos_rel_x) && (pos_rel_z >= -tan(camera_angle_vertical / 2));
+
         // valutiamo la prima boa avvistata
         if (n_buoys == 0 && is_in_range)
         {
@@ -178,6 +196,7 @@ int main(int argc, char **argv)
     bool inversion = false;                            // flag per fare l'inversione evitando collisioni con i muri
     bool timer_init = true;                            // flag per avviare il timer
     bool to_target = false;                            // flag che ci dice quando puntare al target di fine missione
+    bool is_second_expl = false;
 
     bool is_first_spline = true; // la spline è divisa in due "sotto-spline", con questo flag passiamo da una all'altra
 
@@ -216,6 +235,15 @@ int main(int argc, char **argv)
     double start_time;
     double end_time;
 
+    // Angoli di visione della camera
+    double camera_angle_vertical = 70 * M_PI / 180;    // Angolo verticale della camera
+    double camera_angle_horizontal = 120 * M_PI / 180; // Angolo orizzontale della camera
+
+    // Range di visione della camera
+
+    double const camera_range_lateral = sqrt((camera_range / cos(camera_angle_horizontal / 2)) * (camera_range / cos(camera_angle_horizontal / 2)) - (1.5 * 1.5));
+    double const camera_range_vertical = sqrt((camera_range / cos(camera_angle_vertical / 2)) * (camera_range / cos(camera_angle_vertical / 2)) - (1.5 * 1.5));
+
     // Set the loop rate (in Hz)
     ros::Rate loop_rate(5);
     // Main loop
@@ -226,9 +254,13 @@ int main(int argc, char **argv)
         y_1 = y_hat;
         z_1 = z_hat;
 
-        // Compute distance from nearest buoy
-        double dist2buoy = sqrt(pow(x_b - x_hat, 2) + pow(y_b - y_hat, 2) + pow(z_b - z_hat, 2));
-        buoy_seen = dist2buoy < 3.0;
+        // Calcolo delle coordinate della boa in terna body
+        double pos_rel_x = cos(psi_hat) * (x_b - x_hat) + sin(psi_hat) * (y_b - y_hat);
+        double pos_rel_y = -sin(psi_hat) * (x_b - x_hat) + cos(psi_hat) * (y_b - y_hat);
+        double pos_rel_z = z_b - z_hat;
+
+        // Condizione che deve essere rispettata per considerare la boa all'interno del range di visione della camera
+        bool buoy_seen = (pos_rel_x <= camera_range) && (pos_rel_y <= tan(camera_angle_horizontal / 2) * pos_rel_x) && (pos_rel_y >= -tan(camera_angle_horizontal / 2) * pos_rel_x) && (pos_rel_z <= tan(camera_angle_vertical / 2) * pos_rel_x) && (pos_rel_z >= -tan(camera_angle_vertical / 2));
 
         // Compute distance from walls
         dist_wall_up = abs(MAP_NE_y - y_hat);
@@ -316,8 +348,9 @@ int main(int argc, char **argv)
 
                 ros::Duration(0.5).sleep(); // sleep
             }
-            else if (strategy == "Circumference" && buoy_seen && condition_to_run)
+            else if (strategy == "Circumference" && buoy_seen_prec && condition_to_run)
             {
+                buoy_seen_prec = false;
                 ROS_WARN("CIRCUMFERENCE");
                 is_used(n_buoys - 1, 0) = true;
                 waypoint_msg.strategy = "Circumference";
@@ -363,8 +396,9 @@ int main(int argc, char **argv)
                 publisher.publish(waypoint_msg);
                 ros::Duration(0.5).sleep(); // sleep
             }
-            else if (strategy == "UP_DOWN" && buoy_seen && condition_to_run)
+            else if (strategy == "UP_DOWN" && buoy_seen_prec && condition_to_run)
             {
+                buoy_seen_prec = false;
                 ROS_WARN("UP_DOWN");
                 is_used(n_buoys - 1, 0) = true;
                 waypoint_msg.strategy = "UP_DOWN";
@@ -422,21 +456,17 @@ int main(int argc, char **argv)
                     i_wall_direction = 2;
                     if (exploring_direction == "left")
                     {
-                        x_2 = x_1 - SPLINE_STEP_X;
+                        x_2 = x_1 - 2 * camera_range_lateral;
                         y_2 = y_1;
-                        z_2 = 2.5;
                         x_3 = x_2;
-                        y_3 = y_2 - SPLINE_STEP_Y;
-                        z_3 = 2.5;
+                        y_3 = y_2 - 0.5;
                     }
                     else if (exploring_direction == "right")
                     {
-                        x_2 = x_1 + SPLINE_STEP_X;
+                        x_2 = x_1 + 2 * camera_range_lateral;
                         y_2 = y_1;
-                        z_2 = 2.5;
                         x_3 = x_2;
-                        y_3 = y_2 - SPLINE_STEP_Y;
-                        z_3 = 2.5;
+                        y_3 = y_2 - 0.5;
                     }
                 }
                 else if (direction == "down")
@@ -445,21 +475,17 @@ int main(int argc, char **argv)
                     i_wall_direction = 0;
                     if (exploring_direction == "left")
                     {
-                        x_2 = x_1 - SPLINE_STEP_X;
+                        x_2 = x_1 - 2 * camera_range_lateral;
                         y_2 = y_1;
-                        z_2 = 2.5;
                         x_3 = x_2;
-                        y_3 = y_2 + SPLINE_STEP_Y;
-                        z_3 = 2.5;
+                        y_3 = y_2 + 0.5;
                     }
                     else if (exploring_direction == "right")
                     {
-                        x_2 = x_1 + SPLINE_STEP_X;
+                        x_2 = x_1 + 2 * camera_range_lateral;
                         y_2 = y_1;
-                        z_2 = 2.5;
                         x_3 = x_2;
-                        y_3 = y_2 + SPLINE_STEP_Y;
-                        z_3 = 2.5;
+                        y_3 = y_2 + 0.5;
                     }
                 }
                 else if (direction == "left")
@@ -469,20 +495,16 @@ int main(int argc, char **argv)
                     if (exploring_direction == "up")
                     {
                         x_2 = x_1;
-                        y_2 = y_1 + SPLINE_STEP_Y;
-                        z_2 = 2.5;
-                        x_3 = x_2 + SPLINE_STEP_X;
+                        y_2 = y_1 + 2 * camera_angle_horizontal;
+                        x_3 = x_2 + 0.5;
                         y_3 = y_2;
-                        z_3 = 2.5;
                     }
                     else if (exploring_direction == "down")
                     {
                         x_2 = x_1;
-                        y_2 = y_1 - SPLINE_STEP_Y;
-                        z_2 = 2.5;
-                        x_3 = x_2 + SPLINE_STEP_X;
+                        y_2 = y_1 - 2 * camera_angle_horizontal;
+                        x_3 = x_2 + 0.5;
                         y_3 = y_2;
-                        z_3 = 2.5;
                     }
                 }
                 else if (direction == "right")
@@ -492,22 +514,27 @@ int main(int argc, char **argv)
                     if (exploring_direction == "up")
                     {
                         x_2 = x_1;
-                        y_2 = y_1 + SPLINE_STEP_Y;
-                        z_2 = 2.5;
-                        x_3 = x_2 - SPLINE_STEP_X;
+                        y_2 = y_1 + 2 * camera_angle_horizontal;
+                        x_3 = x_2 - 0.5;
                         y_3 = y_2;
-                        z_3 = 2.5;
                     }
                     else if (exploring_direction == "down")
                     {
                         x_2 = x_1;
-                        y_2 = y_1 - SPLINE_STEP_Y;
-                        z_2 = 2.5;
-                        x_3 = x_2 - SPLINE_STEP_X;
+                        y_2 = y_1 - 2 * camera_angle_horizontal;
+                        x_3 = x_2 - 0.5;
                         y_3 = y_2;
-                        z_3 = 2.5;
                     }
                 }
+
+                if (!is_second_expl && !is_Spline_z)
+                    z_2 = 1.5;
+                else if (is_second_expl && !is_Spline_z)
+                    z_2 = 3.5;
+                else
+                    z_2 = 2.5;
+
+                z_3 = z_2;
 
                 std::vector<double> waypoint_pos = {x_2, y_2, z_2, x_3, y_3, z_3};
                 waypoint_msg.data = waypoint_pos;
@@ -543,67 +570,95 @@ int main(int argc, char **argv)
 
                     if (i_wall_min == 0)
                     {
-                        direction = "left";
-                        exploring_direction = "down";
+                        if (x_hat >= 0)
+                        {
+                            direction = "left";
+                            i_wall_direction = 3;
+                        }
+                        else
+                        {
+                            direction = "right";
+                            i_wall_direction = 1;
+                        }
 
-                        // Muro a sinistra
-                        i_wall_direction = 3;
+                        exploring_direction = "down";
                         i_wall_direc_expl = 2;
 
                         x_2 = x_1;
-                        y_2 = y_1 - SPLINE_STEP_Y / 2 - SAFE_DIST / 2;
-                        z_2 = 2.5;
-                        x_3 = x_1;
-                        y_3 = y_2 - SPLINE_STEP_Y / 2 - SAFE_DIST / 2;
-                        z_3 = z_1;
+
+                        if (is_Spline_xy)
+                            y_2 = 20 - SPLINE_STEP_Y - SAFE_DIST;
+                        else
+                            y_2 = 20 - SAFE_DIST;
                     }
                     else if (i_wall_min == 1)
                     {
-                        direction = "up";
-                        exploring_direction = "left";
+                        if (y_hat >= 0)
+                        {
+                            direction = "down";
+                            i_wall_direction = 2;
+                        }
+                        else
+                        {
+                            direction = "up";
+                            i_wall_direction = 0;
+                        }
 
-                        // Muro sopra
-                        i_wall_direction = 0;
+                        exploring_direction = "left";
                         i_wall_direc_expl = 3;
 
-                        x_2 = x_1 - SPLINE_STEP_X / 2 - SAFE_DIST / 2;
+                        if (is_Spline_xy)
+                            x_2 = 20 - SPLINE_STEP_X - SAFE_DIST;
+                        else
+                            x_2 = 20 - SAFE_DIST;
+
                         y_2 = y_1;
-                        z_2 = 2.5;
-                        x_3 = x_2 - SPLINE_STEP_X / 2 - SAFE_DIST / 2;
-                        y_3 = y_1;
-                        z_3 = z_1;
                     }
                     else if (i_wall_min == 2)
                     {
-                        direction = "right";
-                        exploring_direction = "up";
+                        if (x_hat >= 0)
+                        {
+                            direction = "left";
+                            i_wall_direction = 3;
+                        }
+                        else
+                        {
+                            direction = "right";
+                            i_wall_direction = 1;
+                        }
 
-                        // Muro a destra
-                        i_wall_direction = 1;
+                        exploring_direction = "up";
                         i_wall_direc_expl = 0;
 
                         x_2 = x_1;
-                        y_2 = y_1 + SPLINE_STEP_Y / 2 + SAFE_DIST / 2;
-                        z_2 = 2.5;
-                        x_3 = x_1;
-                        y_3 = y_2 + SPLINE_STEP_Y / 2 + SAFE_DIST / 2;
-                        z_3 = z_1;
+
+                        if (is_Spline_xy)
+                            y_2 = -20 + SPLINE_STEP_Y + SAFE_DIST;
+                        else
+                            y_2 = -20 + SAFE_DIST;
                     }
                     else if (i_wall_min == 3)
                     {
-                        direction = "down";
-                        exploring_direction = "right";
+                        if (y_hat >= 0)
+                        {
+                            direction = "down";
+                            i_wall_direction = 2;
+                        }
+                        else
+                        {
+                            direction = "up";
+                            i_wall_direction = 0;
+                        }
 
-                        // Muro sotto
-                        i_wall_direction = 2;
+                        exploring_direction = "right";
                         i_wall_direc_expl = 1;
 
-                        x_2 = x_1 + SPLINE_STEP_X / 2 + SAFE_DIST / 2;
+                        if (is_Spline_xy)
+                            x_2 = -20 + SPLINE_STEP_X / 2 + SAFE_DIST / 2;
+                        else
+                            x_2 = -20 + SAFE_DIST / 2;
+
                         y_2 = y_1;
-                        z_2 = 2.5;
-                        x_3 = x_2 + SPLINE_STEP_X / 2 + SAFE_DIST / 2;
-                        y_3 = y_1;
-                        z_3 = z_1;
                     }
 
                     if (dist_wall[0] <= SAFE_DIST && dist_wall[1] <= SAFE_DIST)
@@ -615,8 +670,8 @@ int main(int argc, char **argv)
                         i_wall_direction = 3;
                         i_wall_direc_expl = 2;
 
-                        x_2 = x_1 - SAFE_DIST;
-                        y_2 = y_1 - SAFE_DIST;
+                        x_2 = 20 - SAFE_DIST;
+                        y_2 = 20 - SAFE_DIST;
                     }
                     else if (dist_wall[1] <= SAFE_DIST && dist_wall[2] <= SAFE_DIST)
                     {
@@ -627,8 +682,8 @@ int main(int argc, char **argv)
                         i_wall_direction = 0;
                         i_wall_direc_expl = 3;
 
-                        x_2 = x_1 - SAFE_DIST;
-                        y_2 = y_1 + SAFE_DIST;
+                        x_2 = 20 - SAFE_DIST;
+                        y_2 = -20 + SAFE_DIST;
                     }
                     else if (dist_wall[2] <= SAFE_DIST && dist_wall[3] <= SAFE_DIST)
                     {
@@ -639,8 +694,8 @@ int main(int argc, char **argv)
                         i_wall_direction = 1;
                         i_wall_direc_expl = 0;
 
-                        x_2 = x_1 + SAFE_DIST;
-                        y_2 = y_1 + SAFE_DIST;
+                        x_2 = -20 + SAFE_DIST;
+                        y_2 = -20 + SAFE_DIST;
                     }
                     else if (dist_wall[3] <= SAFE_DIST && dist_wall[0] <= SAFE_DIST)
                     {
@@ -651,10 +706,13 @@ int main(int argc, char **argv)
                         i_wall_direction = 2;
                         i_wall_direc_expl = 1;
 
-                        x_2 = x_1 + SAFE_DIST;
-                        y_2 = y_1 - SAFE_DIST;
+                        x_2 = -20 + SAFE_DIST;
+                        y_2 = 20 - SAFE_DIST;
                     }
-                    z_2 = 2.5;
+                    if (!is_second_expl)
+                        z_2 = 1.5;
+                    else
+                        z_2 = 3.5;
 
                     ROS_WARN("AWAY FROM THE WALL");
                     waypoint_msg.strategy = "Initial";
@@ -701,18 +759,35 @@ int main(int argc, char **argv)
                             }
                             else
                             {
-                                if (z_1 < 2.35 || z_1 > 2.65)
+                                if (!is_second_expl)
                                 {
-                                    z_2 = 2.5;
-                                    double error = 2.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
-                                    w = (error) / abs(error) * 0.1;
+                                    z_2 = 1.5;
+
+                                    if (z_1 < 1.35 || z_1 > 1.65)
+                                    {
+                                        double error = 1.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                        w = (error) / abs(error) * 0.1;
+                                    }
+                                    else
+                                    {
+                                        w = 0.0;
+                                    }
                                 }
                                 else
                                 {
-                                    z_2 = z_1;
-                                    w = 0.0;
+                                    z_2 = 3.5;
+
+                                    if (z_1 < 3.35 || z_1 > 3.65)
+                                    {
+                                        double error = 3.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                        w = (error) / abs(error) * 0.1;
+                                    }
+                                    else
+                                    {
+                                        w = 0.0;
+                                    }
                                 }
-                                z_3 = 2.5;
+                                z_3 = z_2;
                             }
                         }
                         else
@@ -742,18 +817,35 @@ int main(int argc, char **argv)
                             }
                             else
                             {
-                                if (z_1 < 2.35 || z_1 > 2.65)
+                                if (!is_second_expl)
                                 {
-                                    z_2 = 2.5;
-                                    double error = 2.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
-                                    w = (error) / abs(error) * 0.1;
+                                    z_2 = 1.5;
+
+                                    if (z_1 < 1.35 || z_1 > 1.65)
+                                    {
+                                        double error = 1.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                        w = (error) / abs(error) * 0.1;
+                                    }
+                                    else
+                                    {
+                                        w = 0.0;
+                                    }
                                 }
                                 else
                                 {
-                                    z_2 = z_1;
-                                    w = 0.0;
+                                    z_2 = 3.5;
+
+                                    if (z_1 < 3.35 || z_1 > 3.65)
+                                    {
+                                        double error = 3.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                        w = (error) / abs(error) * 0.1;
+                                    }
+                                    else
+                                    {
+                                        w = 0.0;
+                                    }
                                 }
-                                z_3 = 2.5;
+                                z_3 = z_2;
                             }
                         }
                     }
@@ -786,18 +878,35 @@ int main(int argc, char **argv)
                             }
                             else
                             {
-                                if (z_1 < 2.35 || z_1 > 2.65)
+                                if (!is_second_expl)
                                 {
-                                    z_2 = 2.5;
-                                    double error = 2.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
-                                    w = (error) / abs(error) * 0.1;
+                                    z_2 = 1.5;
+
+                                    if (z_1 < 1.35 || z_1 > 1.65)
+                                    {
+                                        double error = 1.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                        w = (error) / abs(error) * 0.1;
+                                    }
+                                    else
+                                    {
+                                        w = 0.0;
+                                    }
                                 }
                                 else
                                 {
-                                    z_2 = z_1;
-                                    w = 0.0;
+                                    z_2 = 3.5;
+
+                                    if (z_1 < 3.35 || z_1 > 3.65)
+                                    {
+                                        double error = 3.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                        w = (error) / abs(error) * 0.1;
+                                    }
+                                    else
+                                    {
+                                        w = 0.0;
+                                    }
                                 }
-                                z_3 = 2.5;
+                                z_3 = z_2;
                             }
                         }
                         else
@@ -827,18 +936,35 @@ int main(int argc, char **argv)
                             }
                             else
                             {
-                                if (z_1 < 2.35 || z_1 > 2.65)
+                                if (!is_second_expl)
                                 {
-                                    z_2 = 2.5;
-                                    double error = 2.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
-                                    w = (error) / abs(error) * 0.1;
+                                    z_2 = 1.5;
+
+                                    if (z_1 < 1.35 || z_1 > 1.65)
+                                    {
+                                        double error = 1.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                        w = (error) / abs(error) * 0.1;
+                                    }
+                                    else
+                                    {
+                                        w = 0.0;
+                                    }
                                 }
                                 else
                                 {
-                                    z_2 = z_1;
-                                    w = 0.0;
+                                    z_2 = 3.5;
+
+                                    if (z_1 < 3.35 || z_1 > 3.65)
+                                    {
+                                        double error = 3.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                        w = (error) / abs(error) * 0.1;
+                                    }
+                                    else
+                                    {
+                                        w = 0.0;
+                                    }
                                 }
-                                z_3 = 2.5;
+                                z_3 = z_2;
                             }
                         }
                     }
@@ -871,18 +997,35 @@ int main(int argc, char **argv)
                             }
                             else
                             {
-                                if (z_1 < 2.35 || z_1 > 2.65)
+                                if (!is_second_expl)
                                 {
-                                    z_2 = 2.5;
-                                    double error = 2.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
-                                    w = (error) / abs(error) * 0.1;
+                                    z_2 = 1.5;
+
+                                    if (z_1 < 1.35 || z_1 > 1.65)
+                                    {
+                                        double error = 1.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                        w = (error) / abs(error) * 0.1;
+                                    }
+                                    else
+                                    {
+                                        w = 0.0;
+                                    }
                                 }
                                 else
                                 {
-                                    z_2 = z_1;
-                                    w = 0.0;
+                                    z_2 = 3.5;
+
+                                    if (z_1 < 3.35 || z_1 > 3.65)
+                                    {
+                                        double error = 3.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                        w = (error) / abs(error) * 0.1;
+                                    }
+                                    else
+                                    {
+                                        w = 0.0;
+                                    }
                                 }
-                                z_3 = 2.5;
+                                z_3 = z_2;
                             }
                         }
                         else
@@ -912,18 +1055,35 @@ int main(int argc, char **argv)
                             }
                             else
                             {
-                                if (z_1 < 2.35 || z_1 > 2.65)
+                                if (!is_second_expl)
                                 {
-                                    z_2 = 2.5;
-                                    double error = 2.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
-                                    w = (error) / abs(error) * 0.1;
+                                    z_2 = 1.5;
+
+                                    if (z_1 < 1.35 || z_1 > 1.65)
+                                    {
+                                        double error = 1.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                        w = (error) / abs(error) * 0.1;
+                                    }
+                                    else
+                                    {
+                                        w = 0.0;
+                                    }
                                 }
                                 else
                                 {
-                                    z_2 = z_1;
-                                    w = 0.0;
+                                    z_2 = 3.5;
+
+                                    if (z_1 < 3.35 || z_1 > 3.65)
+                                    {
+                                        double error = 3.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                        w = (error) / abs(error) * 0.1;
+                                    }
+                                    else
+                                    {
+                                        w = 0.0;
+                                    }
                                 }
-                                z_3 = 2.5;
+                                z_3 = z_2;
                             }
                         }
                     }
@@ -956,18 +1116,35 @@ int main(int argc, char **argv)
                             }
                             else
                             {
-                                if (z_1 < 2.35 || z_1 > 2.65)
+                                if (!is_second_expl)
                                 {
-                                    z_2 = 2.5;
-                                    double error = 2.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
-                                    w = (error) / abs(error) * 0.1;
+                                    z_2 = 1.5;
+
+                                    if (z_1 < 1.35 || z_1 > 1.65)
+                                    {
+                                        double error = 1.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                        w = (error) / abs(error) * 0.1;
+                                    }
+                                    else
+                                    {
+                                        w = 0.0;
+                                    }
                                 }
                                 else
                                 {
-                                    z_2 = z_1;
-                                    w = 0.0;
+                                    z_2 = 3.5;
+
+                                    if (z_1 < 3.35 || z_1 > 3.65)
+                                    {
+                                        double error = 3.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                        w = (error) / abs(error) * 0.1;
+                                    }
+                                    else
+                                    {
+                                        w = 0.0;
+                                    }
                                 }
-                                z_3 = 2.5;
+                                z_3 = z_2;
                             }
                         }
                         else
@@ -997,18 +1174,35 @@ int main(int argc, char **argv)
                             }
                             else
                             {
-                                if (z_1 < 2.35 || z_1 > 2.65)
+                                if (!is_second_expl)
                                 {
-                                    z_2 = 2.5;
-                                    double error = 2.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
-                                    w = (error) / abs(error) * 0.1;
+                                    z_2 = 1.5;
+
+                                    if (z_1 < 1.35 || z_1 > 1.65)
+                                    {
+                                        double error = 1.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                        w = (error) / abs(error) * 0.1;
+                                    }
+                                    else
+                                    {
+                                        w = 0.0;
+                                    }
                                 }
                                 else
                                 {
-                                    z_2 = z_1;
-                                    w = 0.0;
+                                    z_2 = 3.5;
+
+                                    if (z_1 < 3.35 || z_1 > 3.65)
+                                    {
+                                        double error = 3.5 - z_1; // errore di posizione nelle z (rispetto alla posizione nominale 2.5m)
+                                        w = (error) / abs(error) * 0.1;
+                                    }
+                                    else
+                                    {
+                                        w = 0.0;
+                                    }
                                 }
-                                z_3 = 2.5;
+                                z_3 = z_2;
                             }
                         }
                     }
@@ -1032,10 +1226,17 @@ int main(int argc, char **argv)
         else if (mission_status == "RUNNING" && dist_wall[i_wall_direction] <= SAFE_DIST && !inversion && !to_target)
         {
             // Se il robot ha finito di esplorare la direzione in cui stava andando, allora si ferma e va verso il target
-            if (dist_wall[i_wall_direc_expl] <= 2 * SPLINE_STEP_X)
+            if (dist_wall[i_wall_direc_expl] <= 2*SAFE_DIST)
             {
                 status_req = "PAUSED";
-                to_target = true;
+                if (!is_second_expl)
+                {
+                    is_second_expl = !is_second_expl;
+                    flag_start_mission = true;
+                }
+                else
+                    to_target = true;
+
                 // Publish the message
                 std_msgs::String status_req_msg;
                 status_req_msg.data = status_req;
@@ -1061,6 +1262,7 @@ int main(int argc, char **argv)
         {
             status_req = "PAUSED";
             ROS_WARN("BUOY SEEN");
+            buoy_seen_prec = true;
             // Publish the message
             std_msgs::String status_req_msg;
             status_req_msg.data = status_req;

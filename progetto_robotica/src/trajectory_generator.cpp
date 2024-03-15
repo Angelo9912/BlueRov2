@@ -212,15 +212,17 @@ int main(int argc, char **argv)
             if (strategy == "Initial")
             {
                 // inizio missione
-                double u_d = 0.5; // velocità di surge
-                double v_d = 0.0; // velocità di sway
-                double w_d = 0.0; // velocità di heave
-                double r_d = 0.0; // velocità angolare di yaw
 
                 // definisco la posizione relativa tra i primi due waypoint
                 double pos_rel_x = x_2 - x_1; // posizione relativa nelle x
                 double pos_rel_y = y_2 - y_1; // posizione relativa nelle y
                 double pos_rel_z = z_2 - z_1; // posizione relativa nelle z
+
+                double u_d = 0.0; // velocità di surge
+                double v_d = 0.0; // velocità di sway
+                double w_d = 0.0; // velocità di heave
+                double r_d = 0.0; // velocità angolare di yaw
+
 
                 // il secondo waypoint è il nostro target, definiamo la distanza da esso e vogliamo spezzare questo segmento in
                 // tanti segmentini, con un passo di 10 cm
@@ -233,8 +235,9 @@ int main(int argc, char **argv)
                 double dy = pos_rel_y / n_waypoints; // spostamento nelle y
                 double dz = pos_rel_z / n_waypoints; // spostamento nelle z
 
-                w_d = 0.3 * dz / abs(dz); // VELOCITA' DI HEAVE COSTANTE CON SEGNO DIPENDENTE DAL SEGNO DI dz
-
+                u_d = 0.2;                                   // VELOCITA' DI SURGE COSTANTE PROPORZIONALE AL MODULO DI dx,dy
+                w_d = 0.3 * dz / abs(dz);                    // VELOCITA' DI HEAVE COSTANTE CON SEGNO DIPENDENTE DAL SEGNO DI dz
+                
                 // definiamo dei vettori di x,y,z di dimensione pari al numero di waypoint
                 double x[n_waypoints];
                 double y[n_waypoints];
@@ -277,6 +280,11 @@ int main(int argc, char **argv)
                 z_d = z[i_dist_min];
                 psi_d = psi[i_dist_min];
 
+                if(z_hat > z_2 - 0.3 && z_hat < z_2 + 0.3)
+                {
+                    w_d = 0.0;
+                }
+                
                 if (i_dist_min > n_waypoints - 2) // poco prima della fine della traiettoria annulliamo le velocità per dare il tempo
                                                   // al robot di fermarsi
                 {
@@ -286,7 +294,7 @@ int main(int argc, char **argv)
                     r_d = 0.0;
 
                     // quando arriviamo nell'intorno del punto di arrivo desiderato ci fermiamo e mandiamo in PAUSED
-                    if (x_hat > x_d - 0.2 && x_hat < x_d + 0.2 && y_hat > y_d - 0.2 && y_hat < y_d + 0.2 && z_hat > z_d - 0.2 && z_hat < z_d + 0.2)
+                    if (x_hat > x_d - 0.3 && x_hat < x_d + 0.3 && y_hat > y_d - 0.3 && y_hat < y_d + 0.3 && z_hat > z_d - 0.3 && z_hat < z_d + 0.3)
                     {
                         std::string status_req = "PAUSED";
                         std_msgs::String msg;
