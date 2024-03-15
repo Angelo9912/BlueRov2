@@ -71,5 +71,13 @@
         "bit": "cpp",
         "*.ipp": "cpp",
         "filesystem": "cpp"
-    }
+    },
+    "python.autoComplete.extraPaths": [
+        "/home/antonio/catkin_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/antonio/catkin_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages"
+    ]
 }

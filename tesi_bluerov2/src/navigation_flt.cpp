@@ -125,7 +125,7 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
 {
 
     // Il vettore utilizzato effettivamente nella trasformata
-    Eigen::VectorXd xi_prediction(xi_k.size()+tau_k.size());
+    Eigen::VectorXd xi_prediction(xi_k.size() + tau_k.size());
     Eigen::VectorXd zeros(tau_k.size());
     zeros.setZero();
     xi_prediction << xi_k, zeros; // 6 = dim(Q) zeri
@@ -140,12 +140,12 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
     // Cholesky decomposition
     Eigen::MatrixXd GAMMA(n, n); // compute the Cholesky decomposition of Sigma
 
-    Eigen::MatrixXd Zeros(xi_prediction.size(), tau_k.size());
+    Eigen::MatrixXd Zeros(xi_k.size(), tau_k.size());
     Zeros.setZero();
 
     Eigen::MatrixXd Sigma(n, n);
     Sigma << P_kk, Zeros,
-        Zeros, Q;
+        Zeros.transpose(), Q;
 
     GAMMA = Sigma.llt().matrixL();
 
@@ -219,11 +219,11 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
         Eigen::Matrix<double, 6, 6> D;
 
         D << A_x * abs(u) * u, A_x * abs(v) * v, A_x * abs(w) * w, A_x * abs(p) * p, A_x * abs(q) * q, A_x * abs(r) * r,
-        A_y *abs(u) * u, A_y *abs(v) * v, A_y *abs(w) * w, A_y *abs(p) * p, A_y *abs(q) * q, A_y *abs(r) * r,
-        A_z *abs(u) * u, A_z *abs(v) * v, A_z *abs(w) * w, A_z *abs(p) * p, A_z *abs(q) * q, A_z *abs(r) * r,
-        A_p *abs(u) * u, A_p *abs(v) * v, A_p *abs(w) * w, A_p *abs(p) * p, A_p *abs(q) * q, A_p *abs(r) * r,
-        A_q *abs(u) * u, A_q *abs(v) * v, A_q *abs(w) * w, A_q *abs(p) * p, A_q *abs(q) * q, A_q *abs(r) * r,
-        A_r *abs(u) * u, A_r *abs(v) * v, A_r *abs(w) * w, A_r *abs(p) * p, A_r *abs(q) * q, A_r *abs(r) * r;
+            A_y * abs(u) * u, A_y * abs(v) * v, A_y * abs(w) * w, A_y * abs(p) * p, A_y * abs(q) * q, A_y * abs(r) * r,
+            A_z * abs(u) * u, A_z * abs(v) * v, A_z * abs(w) * w, A_z * abs(p) * p, A_z * abs(q) * q, A_z * abs(r) * r,
+            A_p * abs(u) * u, A_p * abs(v) * v, A_p * abs(w) * w, A_p * abs(p) * p, A_p * abs(q) * q, A_p * abs(r) * r,
+            A_q * abs(u) * u, A_q * abs(v) * v, A_q * abs(w) * w, A_q * abs(p) * p, A_q * abs(q) * q, A_q * abs(r) * r,
+            A_r * abs(u) * u, A_r * abs(v) * v, A_r * abs(w) * w, A_r * abs(p) * p, A_r * abs(q) * q, A_r * abs(r) * r;
 
         // Dinamica del sistema
 
@@ -324,31 +324,12 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
     return UnscentedOutput(xi_out, SigmaX_out, SigmaXY_out);
 }
 
-UnscentedOutput UnscentedTransform_Correction(Eigen::VectorXd xi_k, Eigen::MatrixXd P_kk, Eigen::VectorXd valid, Eigen::VectorXd var_sensors)
+UnscentedOutput UnscentedTransform_Correction(Eigen::VectorXd xi_k, Eigen::MatrixXd P_kk, Eigen::VectorXd valid, Eigen::VectorXd var_used)
 {
 
-    // Definiamo i dati secondo le misure che abbiamo
+    // Definiamo i dati secondo le misure che abbiamo ricevuto
 
-    Eigen::VectorXd xi_correction(xi_k.size()+valid.size());
-
-    Eigen::VectorXd var_used(1);
-
-    for (int i = 0; i < 14; i++)
-    {
-        if (valid(i) == 1)
-        {
-            if (var_used.size() == 1)
-            {
-                var_used(i) = var_sensors(i);
-            }
-            else
-            {
-                var_used.conservativeResize(var_used.size() + 1);
-                var_used(var_used.size() - 1) = var_sensors(i);
-            }
-        }
-    }
-
+    Eigen::VectorXd xi_correction(xi_k.size() + var_used.size());
     Eigen::MatrixXd R(var_used.size(), var_used.size());
     R.diagonal() = var_used;
 
@@ -363,7 +344,7 @@ UnscentedOutput UnscentedTransform_Correction(Eigen::VectorXd xi_k, Eigen::Matri
 
     Eigen::MatrixXd Sigma(n, n);
     Sigma << P_kk, Zeros,
-        Zeros, R;
+        Zeros.transpose(), R;
 
     // Cholesky decomposition
     int n_sigma = 2 * n + 1;
@@ -395,7 +376,7 @@ UnscentedOutput UnscentedTransform_Correction(Eigen::VectorXd xi_k, Eigen::Matri
     // Pesco solo i valori dello stato predetto associati a misure valide
     // in modo tale da poter calcolare l'innovazione in maniera corretta
 
-    Eigen::VectorXd sigma_points_out(var_used.size(), n_sigma);
+    Eigen::MatrixXd sigma_points_out(var_used.size(), n_sigma);
 
     for (int i = 0; i < n_sigma; i++)
     {
@@ -430,7 +411,7 @@ UnscentedOutput UnscentedTransform_Correction(Eigen::VectorXd xi_k, Eigen::Matri
 
     // Calcolo la media pesata dei sigma points per le variabili angolari
 
-    if (valid(5) == 1)
+    if (valid(5) == 1)  //dati dell'IMU validi
     {
 
         int id_phi = valid.head(5).sum();
@@ -804,20 +785,14 @@ int main(int argc, char **argv)
             Eigen::VectorXd tau(6);
             tau << tau_u, tau_v, tau_w, tau_p, tau_q, tau_r;
 
-            // // Predizione
-            // UnscentedOutput Prediction_out = UnscentedTransform_Prediction(xi_curr, tau, P_curr, Q, dt, M);
-
-            // Eigen::VectorXd xi_pred(xi_curr.size());
-            // xi_pred = Prediction_out.getX();
-            
-            // Eigen::MatrixXd P_pred(xi_curr.size(),xi_curr.size());
-            // P_pred = Prediction_out.getSigmaX();
+            // Predizione
+            UnscentedOutput Prediction_out = UnscentedTransform_Prediction(xi_curr, tau, P_curr, Q, dt, M);
 
             Eigen::VectorXd xi_pred(xi_curr.size());
-            xi_pred = xi_curr;
+            xi_pred = Prediction_out.getX();
 
-            Eigen::MatrixXd P_pred(xi_curr.size(),xi_curr.size());
-            P_pred = P_curr;
+            Eigen::MatrixXd P_pred(xi_curr.size(), xi_curr.size());
+            P_pred = Prediction_out.getSigmaX();
 
             ///////////////////////////////////////////////////////////////////////
             ///////////////////////////// CORRECTION //////////////////////////////
@@ -832,54 +807,78 @@ int main(int argc, char **argv)
 
             // Pesco le misure valide
             Eigen::VectorXd z_valid(1);
+            z_valid.setZero();
+
             for (int i = 0; i < valid.size(); i++)
             {
-                if (valid(i) == 1)
+                if (valid(i) == 1.0)
                 {
                     if (z_valid.size() == 1)
                     {
-                        z_valid(i) = z(i);
+                        z_valid(0) = z(i);
                     }
                     else
                     {
-                        z_valid.conservativeResize(z_valid.size() + 1);
-                        z_valid(z_valid.size() - 1) = z(i);
+                        int n_valid = z_valid.size();
+                        z_valid.conservativeResize(n_valid + 1);
+                        n_valid++;
+                        z_valid(n_valid - 1) = z(i);
                     }
                 }
             }
 
-            // Correzione
-            UnscentedOutput Correction_out = UnscentedTransform_Correction(xi_pred, P_pred, valid, var_sensors);
-            
-            int n_z = Correction_out.getX().size();
-            Eigen::VectorXd z_esteem(n_z);
-            z_esteem = Correction_out.getX();
-            
-            int row_s = Correction_out.getSigmaX().rows();
-            int col_s = Correction_out.getSigmaX().cols();
-            Eigen::MatrixXd S_k(row_s,col_s);
-            S_k = Correction_out.getSigmaX();
-            
-            int row_pxz = Correction_out.getSigmaXY().rows();
-            int col_pxz = Correction_out.getSigmaXY().cols();
-            Eigen::MatrixXd Pxz(row_pxz, col_pxz);
-            Pxz = Correction_out.getSigmaXY().block(0, 0, 12, 12);
+            Eigen::VectorXd var_used(z_valid.size());
+            var_used.setZero();
+            int j = 0;
+            for (int i = 0; i < valid.size(); i++)
+            {
+                if (valid(i) == 1.0)
+                {
+                    var_used(j) = var_sensors(i);
+                    j++;
+                }
+            }
 
-            // Calcolo il guadagno di Kalman
-            Eigen::MatrixXd K(row_pxz,col_s);
-            K = Pxz * S_k.inverse();
+            if (z_valid.size() == 1 && z_valid(0) == 0.0)
+            {
+                xi_curr = xi_pred;
+                P_curr = P_pred;
+            }
+            else
+            {
+                // Correzione
+                UnscentedOutput Correction_out = UnscentedTransform_Correction(xi_pred, P_pred, valid, var_used);
 
-            // Calcolo la stima corretta
-            Eigen::VectorXd xi_corr(xi_pred.size());
-            xi_corr = xi_pred + K * (z_valid - z_esteem);
+                int n_z = Correction_out.getX().size();
+                Eigen::VectorXd z_esteem(n_z);
+                z_esteem = Correction_out.getX();
 
-            // Calcolo la matrice di covarianza corretta
-            Eigen::MatrixXd P_corr(row_pxz,row_pxz);
-            P_corr = P_pred - K * S_k * K.transpose();
+                int row_s = Correction_out.getSigmaX().rows();
+                int col_s = Correction_out.getSigmaX().cols();
+                Eigen::MatrixXd S_k(row_s, col_s);
+                S_k = Correction_out.getSigmaX();
 
-            xi_curr = xi_corr;
-            P_curr = P_corr;
+                int row_pxz = Correction_out.getSigmaXY().rows();
+                int col_pxz = Correction_out.getSigmaXY().cols();
+                Eigen::MatrixXd Pxz(row_pxz, col_pxz);
+                Pxz = Correction_out.getSigmaXY(); 
 
+
+                // Calcolo il guadagno di Kalman
+                Eigen::MatrixXd K(row_pxz, col_s);
+                K = Pxz * S_k.inverse();
+
+                // Calcolo la stima corretta
+                Eigen::VectorXd xi_corr(xi_pred.size());
+                xi_corr = xi_pred + K * (z_valid - z_esteem);
+
+                // Calcolo la matrice di covarianza corretta
+                Eigen::MatrixXd P_corr(row_pxz, row_pxz);
+                P_corr = P_pred - K * S_k * K.transpose();
+
+                xi_curr = xi_corr;
+                P_curr = P_corr;
+            }
             ///////////////////////////////////////////////////////////////////////
             ///////////////////////////// PUBLISHING //////////////////////////////
             ///////////////////////////////////////////////////////////////////////
@@ -893,11 +892,11 @@ int main(int argc, char **argv)
             // Publish the message
             est_state_pub.publish(msg);
 
-            int valid_GPS = 0;
-            int valid_scanner = 0;
-            int valid_IMU = 0;
-            int valid_DVL = 0;
-            int valid_depth_sensor = 0;
+            valid_GPS = 0;
+            valid_scanner = 0;
+            valid_IMU = 0;
+            valid_DVL = 0;
+            valid_depth_sensor = 0;
         }
 
         // Let ROS handle all incoming messages in a callback function
