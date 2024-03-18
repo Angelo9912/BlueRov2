@@ -6,7 +6,7 @@
 #include "tesi_bluerov2/Floats.h" // for accessing -- tesi_bluerov2 Floats()
 #include <vector>
 #include "yaml-cpp/yaml.h" // for yaml
-#include "UnscentedOutput.h"
+// #include "UnscentedOutput.h"
 
 double tau_u = 0.0;
 double tau_v = 0.0;
@@ -120,6 +120,39 @@ double N_p_dot = 0.0;
 double N_q_dot = 0.0;
 double N_r_dot = 0.0;
 
+bool is_prima_volta = true;
+
+class UnscentedOutput
+{
+private:
+    Eigen::VectorXd x;
+    Eigen::MatrixXd SigmaX;
+    Eigen::MatrixXd SigmaXY;
+
+public:
+    UnscentedOutput(Eigen::VectorXd x, Eigen::MatrixXd SigmaX, Eigen::MatrixXd SigmaXY)
+    {
+        this->x = x;
+        this->SigmaX = SigmaX;
+        this->SigmaXY = SigmaXY;
+    }
+
+    Eigen::VectorXd getX()
+    {
+        return this->x;
+    }
+
+    Eigen::MatrixXd getSigmaX()
+    {
+        return this->SigmaX;
+    }
+
+    Eigen::MatrixXd getSigmaXY()
+    {
+        return this->SigmaXY;
+    }
+};
+
 // Trasformata unscented (predizione)
 UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::VectorXd tau_k, Eigen::MatrixXd P_kk, Eigen::MatrixXd Q, double dt, Eigen::MatrixXd M)
 {
@@ -159,6 +192,7 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
         sigma_points.col(i) = xi_prediction + sqrt(n + lambda) * GAMMA.col(i);
         sigma_points.col(i + n) = xi_prediction - sqrt(n + lambda) * GAMMA.col(i);
         weights[i] = 1 / (2 * (n + lambda));
+        weights[i + n] = 1 / (2 * (n + lambda));
     }
 
     sigma_points.col(n_sigma - 1) = xi_prediction;
@@ -192,9 +226,9 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
         C_rb << 0.0, 0.0, 0.0, m * (y_g * q + z_g * r), -m * (x_g * q - w), -m * (x_g * r + v),
             0.0, 0.0, 0.0, -m * (y_g * p + w), m * (z_g * r + x_g * p), -m * (y_g * r - u),
             0.0, 0.0, 0.0, -m * (z_g * p - v), -m * (z_g * q + u), m * (x_g * p + y_g * q),
-            -m * (y_g * q + z_g * r), m * (y_g * p + w), m * (z_g * p - v), 0.0, I_z * r - I_yz * q - I_xz * p, I_xy * p - I_yz * r - I_y * q,
-            m * (x_g * q - w), -m * (z_g * r + x_g * p), m * (z_g * q + u), I_yz * q + I_xz * p - I_z, 0.0, -I_xz * r - I_xy * q + I_x * p,
-            m * (x_g * r + v), -m * (y_g * r - u), -m * (x_g * p + y_g * q), -I_yz * r - I_xy * p + I_y * q, I_xy * q + I_xz * r - I_x * p, 0.0;
+            -m * (y_g * q + z_g * r), m * (y_g * p + w), m * (z_g * p - v), 0.0, I_z * r - I_yz * q - I_xz * p, I_xy * p + I_yz * r - I_y * q,
+            m * (x_g * q - w), -m * (z_g * r + x_g * p), m * (z_g * q + u), I_yz * q + I_xz * p - I_z * r, 0.0, -I_xz * r - I_xy * q + I_x * p,
+            m * (x_g * r + v), m * (y_g * r - u), -m * (x_g * p + y_g * q), -I_yz * r - I_xy * p + I_y * q, I_xy * q + I_xz * r - I_x * p, 0.0;
 
         Eigen::Matrix<double, 6, 6> C_a;
 
@@ -218,12 +252,14 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
         // MATRICE DI DAMPING
         Eigen::Matrix<double, 6, 6> D;
 
-        D << A_x * abs(u) * u, A_x * abs(v) * v, A_x * abs(w) * w, A_x * abs(p) * p, A_x * abs(q) * q, A_x * abs(r) * r,
-            A_y * abs(u) * u, A_y * abs(v) * v, A_y * abs(w) * w, A_y * abs(p) * p, A_y * abs(q) * q, A_y * abs(r) * r,
-            A_z * abs(u) * u, A_z * abs(v) * v, A_z * abs(w) * w, A_z * abs(p) * p, A_z * abs(q) * q, A_z * abs(r) * r,
-            A_p * abs(u) * u, A_p * abs(v) * v, A_p * abs(w) * w, A_p * abs(p) * p, A_p * abs(q) * q, A_p * abs(r) * r,
-            A_q * abs(u) * u, A_q * abs(v) * v, A_q * abs(w) * w, A_q * abs(p) * p, A_q * abs(q) * q, A_q * abs(r) * r,
-            A_r * abs(u) * u, A_r * abs(v) * v, A_r * abs(w) * w, A_r * abs(p) * p, A_r * abs(q) * q, A_r * abs(r) * r;
+        D << A_x * abs(u), 0, 0, 0, 0, 0,
+            0, A_y * abs(v), 0, 0, 0, 0,
+            0, 0, A_z * abs(w), 0, 0, 0,
+            0, 0, 0, A_p * abs(p), 0, 0,
+            0, 0, 0, 0, A_q * abs(q), 0,
+            0, 0, 0, 0, 0, A_r * abs(r);
+
+        D = 0.5 * 1000 * D;
 
         // Dinamica del sistema
 
@@ -329,13 +365,13 @@ UnscentedOutput UnscentedTransform_Correction(Eigen::VectorXd xi_k, Eigen::Matri
 
     // Definiamo i dati secondo le misure che abbiamo ricevuto
 
-    Eigen::VectorXd xi_correction(xi_k.size() + var_used.size());
+    Eigen::VectorXd xi_correction(xi_k.size());
     Eigen::MatrixXd R(var_used.size(), var_used.size());
     R.diagonal() = var_used;
 
     Eigen::VectorXd zeros(var_used.size());
     zeros.setZero();
-    xi_correction << xi_k, zeros;
+    xi_correction << xi_k;
 
     int n = xi_correction.size();
 
@@ -343,8 +379,7 @@ UnscentedOutput UnscentedTransform_Correction(Eigen::VectorXd xi_k, Eigen::Matri
     Zeros.setZero();
 
     Eigen::MatrixXd Sigma(n, n);
-    Sigma << P_kk, Zeros,
-        Zeros.transpose(), R;
+    Sigma << P_kk;
 
     // Cholesky decomposition
     int n_sigma = 2 * n + 1;
@@ -368,11 +403,11 @@ UnscentedOutput UnscentedTransform_Correction(Eigen::VectorXd xi_k, Eigen::Matri
         sigma_points.col(i) = xi_correction + sqrt(n + lambda) * GAMMA.col(i);
         sigma_points.col(i + n) = xi_correction - sqrt(n + lambda) * GAMMA.col(i);
         weights[i] = 1 / (2 * (n + lambda));
+        weights[i + n] = 1 / (2 * (n + lambda));
     }
 
     sigma_points.col(n_sigma - 1) = xi_correction;
     weights[n_sigma - 1] = lambda / (n + lambda);
-
     // Pesco solo i valori dello stato predetto associati a misure valide
     // in modo tale da poter calcolare l'innovazione in maniera corretta
 
@@ -411,7 +446,7 @@ UnscentedOutput UnscentedTransform_Correction(Eigen::VectorXd xi_k, Eigen::Matri
 
     // Calcolo la media pesata dei sigma points per le variabili angolari
 
-    if (valid(5) == 1)  //dati dell'IMU validi
+    if (valid(5) == 1) // dati dell'IMU validi
     {
 
         int id_phi = valid.head(5).sum();
@@ -452,7 +487,7 @@ UnscentedOutput UnscentedTransform_Correction(Eigen::VectorXd xi_k, Eigen::Matri
 
     // Calcolo la matrice di covarianza incrociata
 
-    Eigen::MatrixXd Pxz_out(xi_k.size(), var_used.size());
+    Eigen::MatrixXd Pxz_out(n, var_used.size());
     Pxz_out.setZero();
 
     for (int i = 1; i < n_sigma; i++)
@@ -460,7 +495,7 @@ UnscentedOutput UnscentedTransform_Correction(Eigen::VectorXd xi_k, Eigen::Matri
         Pxz_out += weights[i] * (sigma_points.col(i) - xi_correction) * (sigma_points_out.col(i) - z_out).transpose();
     }
 
-    return UnscentedOutput(z_out, Pzz_out, Pxz_out);
+    return UnscentedOutput(z_out, Pzz_out + R, Pxz_out);
 }
 
 // Callback function for the subscriber
@@ -581,7 +616,6 @@ int main(int argc, char **argv)
 
     // Create a ROS node handle
     ros::NodeHandle n;
-
     n.getParam("m", m);
     n.getParam("x_g", x_g);
     n.getParam("y_g", y_g);
@@ -665,7 +699,18 @@ int main(int argc, char **argv)
 
     // Matrice MMSE
     Eigen::Matrix<double, 12, 12> P_curr;
-    P_curr.diagonal() << 1 / 4 * (var_x_GPS + var_x_scanner), 1 / 4 * (var_y_GPS + var_y_scanner), var_z_depth_sensor, var_phi_IMU, var_theta_IMU, var_psi_IMU, var_u_DVL, var_v_DVL, var_w_DVL, var_p_IMU, var_q_IMU, var_r_IMU;
+    P_curr << (1.0 / 4.0) * (var_x_GPS + var_x_scanner), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, (1.0 / 4.0) * (var_y_GPS + var_y_scanner), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, var_z_depth_sensor, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, var_phi_IMU, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, var_theta_IMU, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, var_psi_IMU, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, var_u_DVL, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, var_v_DVL, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, var_w_DVL, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, var_p_IMU, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, var_q_IMU, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, var_r_IMU;
 
     // MATRICE DI MASSA
 
@@ -774,16 +819,29 @@ int main(int argc, char **argv)
             xi_curr(10) = 0.0;
             xi_curr(11) = 0.0;
 
-            is_not_init = !(is_GPS_init || is_scanner_init) && is_depth_init && is_IMU_init;
+            is_not_init = !((is_GPS_init || is_scanner_init) && is_depth_init && is_IMU_init);
         }
         ///////////////////////////////////////////////////////////////////////
         ///////////////////////////// PREDICTION //////////////////////////////
         ///////////////////////////////////////////////////////////////////////
         else
         {
+            if (is_prima_volta)
+            {
+                is_prima_volta = false;
+                ROS_WARN_STREAM("xi_curr: \n"
+                                << xi_curr);
+            }
+            is_not_init = true;
             // VETTORE DI FORZE E MOMENTI
             Eigen::VectorXd tau(6);
             tau << tau_u, tau_v, tau_w, tau_p, tau_q, tau_r;
+
+            // if (is_prima_volta)
+            // {
+            //     is_prima_volta = false;
+            //     ROS_WARN_STREAM("SIGMA: \n"<< P_curr);
+            // }
 
             // Predizione
             UnscentedOutput Prediction_out = UnscentedTransform_Prediction(xi_curr, tau, P_curr, Q, dt, M);
@@ -793,6 +851,8 @@ int main(int argc, char **argv)
 
             Eigen::MatrixXd P_pred(xi_curr.size(), xi_curr.size());
             P_pred = Prediction_out.getSigmaX();
+
+            // ROS_WARN("PREDICTION: %f %f %f %f %f %f %f %f %f %f %f %f", xi_pred(0), xi_pred(1), xi_pred(2), xi_pred(3), xi_pred(4), xi_pred(5), xi_pred(6), xi_pred(7), xi_pred(8), xi_pred(9), xi_pred(10), xi_pred(11));
 
             ///////////////////////////////////////////////////////////////////////
             ///////////////////////////// CORRECTION //////////////////////////////
@@ -808,18 +868,21 @@ int main(int argc, char **argv)
             // Pesco le misure valide
             Eigen::VectorXd z_valid(1);
             z_valid.setZero();
+            bool is_first_element = true;
+            int n_valid = 0;
 
             for (int i = 0; i < valid.size(); i++)
             {
                 if (valid(i) == 1.0)
                 {
-                    if (z_valid.size() == 1)
+                    if (z_valid.size() == 1 && is_first_element)
                     {
                         z_valid(0) = z(i);
+                        is_first_element = false;
                     }
                     else
                     {
-                        int n_valid = z_valid.size();
+                        n_valid = z_valid.size();
                         z_valid.conservativeResize(n_valid + 1);
                         n_valid++;
                         z_valid(n_valid - 1) = z(i);
@@ -848,7 +911,6 @@ int main(int argc, char **argv)
             {
                 // Correzione
                 UnscentedOutput Correction_out = UnscentedTransform_Correction(xi_pred, P_pred, valid, var_used);
-
                 int n_z = Correction_out.getX().size();
                 Eigen::VectorXd z_esteem(n_z);
                 z_esteem = Correction_out.getX();
@@ -860,14 +922,16 @@ int main(int argc, char **argv)
 
                 int row_pxz = Correction_out.getSigmaXY().rows();
                 int col_pxz = Correction_out.getSigmaXY().cols();
-                Eigen::MatrixXd Pxz(row_pxz, col_pxz);
-                Pxz = Correction_out.getSigmaXY(); 
-
+                Eigen::MatrixXd P_xz(row_pxz, col_pxz);
+                P_xz = Correction_out.getSigmaXY();
 
                 // Calcolo il guadagno di Kalman
                 Eigen::MatrixXd K(row_pxz, col_s);
-                K = Pxz * S_k.inverse();
+                K = P_xz * S_k.completeOrthogonalDecomposition().pseudoInverse();
+                // K = P_xz * S_k.inverse();
 
+                ROS_WARN_STREAM("K: \n"
+                                << K);
                 // Calcolo la stima corretta
                 Eigen::VectorXd xi_corr(xi_pred.size());
                 xi_corr = xi_pred + K * (z_valid - z_esteem);
@@ -885,10 +949,11 @@ int main(int argc, char **argv)
 
             // Create a message object
             tesi_bluerov2::Floats msg;
-
             // Set the message data
+            // ROS_WARN_STREAM("ESTIMATION: \n"
+            //                 << xi_curr);
             msg.data = {xi_curr(0), xi_curr(1), xi_curr(2), xi_curr(3), xi_curr(4), xi_curr(5), xi_curr(6), xi_curr(7), xi_curr(8), xi_curr(9), xi_curr(10), xi_curr(11)};
-
+            // ROS_WARN("ESTIMATION: %f %f %f %f %f %f %f %f %f %f %f %f", xi_curr(0), xi_curr(1), xi_curr(2), xi_curr(3), xi_curr(4), xi_curr(5), xi_curr(6), xi_curr(7), xi_curr(8), xi_curr(9), xi_curr(10), xi_curr(11));
             // Publish the message
             est_state_pub.publish(msg);
 
@@ -900,6 +965,7 @@ int main(int argc, char **argv)
         }
 
         // Let ROS handle all incoming messages in a callback function
+
         ros::spinOnce();
 
         // Sleep for the remaining time to hit our 10Hz target

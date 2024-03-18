@@ -31,11 +31,9 @@ double p_hat = 0.0;
 double q_hat = 0.0;
 double r_hat = 0.0;
 
-
-
-void state_callback(const tesi_bluerov2::Floats::ConstPtr& msg)
+void state_callback(const tesi_bluerov2::Floats::ConstPtr &msg)
 {
-    if(msg->data[0] != msg->data[0])
+    if (msg->data[0] != msg->data[0])
     {
         x = 0.0;
         y = 0.0;
@@ -67,9 +65,9 @@ void state_callback(const tesi_bluerov2::Floats::ConstPtr& msg)
     }
 }
 
-void est_state_callback(const tesi_bluerov2::Floats::ConstPtr& msg)
+void est_state_callback(const tesi_bluerov2::Floats::ConstPtr &msg)
 {
-    if(msg->data[0] != msg->data[0])
+    if (msg->data[0] != msg->data[0])
     {
         x_hat = 0.0;
         y_hat = 0.0;
@@ -83,6 +81,7 @@ void est_state_callback(const tesi_bluerov2::Floats::ConstPtr& msg)
         p_hat = 0.0;
         q_hat = 0.0;
         r_hat = 0.0;
+        ROS_WARN("SONO NAN PORCO CAZZO!");
     }
     else
     {
@@ -116,7 +115,8 @@ int main(int argc, char **argv)
     std::string path = ros::package::getPath("tesi_bluerov2");
     bag.open(path + "/bag/test.bag", rosbag::bagmode::Write);
 
-    while(ros::ok()){
+    while (ros::ok())
+    {
         double err_x = x - x_hat;
         double err_y = y - y_hat;
         double err_z = z - z_hat;
@@ -130,13 +130,15 @@ int main(int argc, char **argv)
         double err_q = q - q_hat;
         double err_r = r - r_hat;
 
+        // ROS_WARN("X VERA: %f, X STIMATA: %f", x, x_hat);
+
         std::vector<double> error = {err_x, err_y, err_z, err_phi, err_theta, err_psi, err_u, err_v, err_w, err_p, err_q, err_r};
 
         tesi_bluerov2::Floats error_msg;
         error_msg.data = error;
         pub.publish(error_msg);
 
-        std::vector<double> tau = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        std::vector<double> tau = {0.2, 0.0, 0.0, 0.0, 0.0, 0.0};
         tesi_bluerov2::Floats tau_msg;
         tau_msg.data = tau;
         pub2.publish(tau_msg);
@@ -145,10 +147,9 @@ int main(int argc, char **argv)
         {
             bag.write("error_topic", ros::Time::now(), error_msg);
         }
-        
+        ros::spinOnce();
+        loop_rate.sleep();
     }
-
-    ros::spinOnce();
 
     bag.close();
 

@@ -226,9 +226,9 @@ int main(int argc, char **argv)
         C_rb << 0.0, 0.0, 0.0, m * (y_g * q + z_g * r), -m * (x_g * q - w), -m * (x_g * r + v),
             0.0, 0.0, 0.0, -m * (y_g * p + w), m * (z_g * r + x_g * p), -m * (y_g * r - u),
             0.0, 0.0, 0.0, -m * (z_g * p - v), -m * (z_g * q + u), m * (x_g * p + y_g * q),
-            -m * (y_g * q + z_g * r), m * (y_g * p + w), m * (z_g * p - v), 0.0, I_z * r - I_yz * q - I_xz * p, I_xy * p - I_yz * r - I_y * q,
-            m * (x_g * q - w), -m * (z_g * r + x_g * p), m * (z_g * q + u), I_yz * q + I_xz * p - I_z, 0.0, -I_xz * r - I_xy * q + I_x * p,
-            m * (x_g * r + v), -m * (y_g * r - u), -m * (x_g * p + y_g * q), -I_yz * r - I_xy * p + I_y * q, I_xy * q + I_xz * r - I_x * p, 0.0;
+            -m * (y_g * q + z_g * r), m * (y_g * p + w), m * (z_g * p - v), 0.0, I_z * r - I_yz * q - I_xz * p, I_xy * p + I_yz * r - I_y * q,
+            m * (x_g * q - w), -m * (z_g * r + x_g * p), m * (z_g * q + u), I_yz * q + I_xz * p - I_z*r, 0.0, -I_xz * r - I_xy * q + I_x * p,
+            m * (x_g * r + v), m * (y_g * r - u), -m * (x_g * p + y_g * q), -I_yz * r - I_xy * p + I_y * q, I_xy * q + I_xz * r - I_x * p, 0.0;
 
         Eigen::Matrix<double, 6, 6> C_a;
 
@@ -252,12 +252,12 @@ int main(int argc, char **argv)
         // MATRICE DI DAMPING
         Eigen::Matrix<double, 6, 6> D;
 
-        D << A_x * abs(u) * u, A_x * abs(v) * v, A_x * abs(w) * w, A_x * abs(p) * p, A_x * abs(q) * q, A_x * abs(r) * r,
-        A_y *abs(u) * u, A_y *abs(v) * v, A_y *abs(w) * w, A_y *abs(p) * p, A_y *abs(q) * q, A_y *abs(r) * r,
-        A_z *abs(u) * u, A_z *abs(v) * v, A_z *abs(w) * w, A_z *abs(p) * p, A_z *abs(q) * q, A_z *abs(r) * r,
-        A_p *abs(u) * u, A_p *abs(v) * v, A_p *abs(w) * w, A_p *abs(p) * p, A_p *abs(q) * q, A_p *abs(r) * r,
-        A_q *abs(u) * u, A_q *abs(v) * v, A_q *abs(w) * w, A_q *abs(p) * p, A_q *abs(q) * q, A_q *abs(r) * r,
-        A_r *abs(u) * u, A_r *abs(v) * v, A_r *abs(w) * w, A_r *abs(p) * p, A_r *abs(q) * q, A_r *abs(r) * r;
+        D << A_x * abs(u), 0,0,0,0,0,
+        0, A_y *abs(v), 0,0,0,0,
+        0,0, A_z *abs(w), 0,0,0,
+        0,0,0, A_p *abs(p),0,0,
+        0,0,0,0, A_q *abs(q),0,
+        0,0,0,0,0, A_r *abs(r);
 
         D = 0.5 * 1000 * D;
 
