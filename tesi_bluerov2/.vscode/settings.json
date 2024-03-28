@@ -70,7 +70,10 @@
         "variant": "cpp",
         "bit": "cpp",
         "*.ipp": "cpp",
-        "filesystem": "cpp"
+        "filesystem": "cpp",
+        "core": "cpp",
+        "strstream": "cpp",
+        "cfenv": "cpp"
     },
     "python.autoComplete.extraPaths": [
         "/home/antonio/catkin_ws/devel/lib/python3/dist-packages",

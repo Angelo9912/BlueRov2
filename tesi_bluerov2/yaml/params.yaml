@@ -72,7 +72,7 @@ var_x_GPS : 1
 var_y_GPS : 1
 var_x_scanner : 0.0004
 var_y_scanner : 0.0004
-var_z_depth_sensor : 1
+var_z_depth_sensor : 0.0025
 var_phi_IMU : 0.01
 var_theta_IMU : 0.01
 var_psi_IMU : 0.01
@@ -87,9 +87,9 @@ var_r_IMU : 0.0007
 var_tau_u : 0.1
 var_tau_v : 0.1
 var_tau_w : 0.1
-var_tau_p : 0.1
-var_tau_q : 0.1
-var_tau_r : 0.1
+var_tau_p : 0.001
+var_tau_q : 0.001
+var_tau_r : 0.001
 
 
 MAP_NE_x: 20 #vertice nord est mappa, coordinata x

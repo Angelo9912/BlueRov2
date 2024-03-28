@@ -286,7 +286,11 @@ add_executable(ping src/Ping.cpp)
 target_link_libraries(ping ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(ping ${catkin_EXPORTED_TARGETS})
 
-add_executable(UKF src/navigation_flt.cpp)
+add_executable(EKF src/EKF.cpp)
+target_link_libraries(EKF ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(EKF ${catkin_EXPORTED_TARGETS})
+
+add_executable(UKF src/UKF.cpp)
 target_link_libraries(UKF ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(UKF ${catkin_EXPORTED_TARGETS})
 

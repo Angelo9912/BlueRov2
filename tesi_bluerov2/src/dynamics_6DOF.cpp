@@ -8,6 +8,7 @@
 #include <vector>
 #include "yaml-cpp/yaml.h" // for yaml
 #include <ros/package.h>
+#include <random>
 
 double tau_u = 0.0;
 double tau_v = 0.0;
@@ -28,6 +29,16 @@ double w = 0.0;
 double p = 0.0;
 double q = 0.0;
 double r = 0.0;
+
+// Function to generate Gaussian random number
+double gaussianNoise(double mean, double var)
+{
+    double stddev = sqrt(var);
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::normal_distribution<> d(mean, stddev);
+    return d(gen);
+}
 
 void tauCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
 {
@@ -125,6 +136,12 @@ int main(int argc, char **argv)
     double N_p_dot = 0.0;
     double N_q_dot = 0.0;
     double N_r_dot = 0.0;
+    double var_tau_u = 0.0;
+    double var_tau_v = 0.0;
+    double var_tau_w = 0.0;
+    double var_tau_p = 0.0;
+    double var_tau_q = 0.0;
+    double var_tau_r = 0.0;
 
     n.getParam("m", m);
     n.getParam("x_g", x_g);
@@ -181,6 +198,12 @@ int main(int argc, char **argv)
     n.getParam("N_p_dot", N_p_dot);
     n.getParam("N_q_dot", N_q_dot);
     n.getParam("N_r_dot", N_r_dot);
+    n.getParam("var_tau_u", var_tau_u);
+    n.getParam("var_tau_v", var_tau_v);
+    n.getParam("var_tau_w", var_tau_w);
+    n.getParam("var_tau_p", var_tau_p);
+    n.getParam("var_tau_q", var_tau_q);
+    n.getParam("var_tau_r", var_tau_r);
 
     // MATRICE DI MASSA
 
@@ -263,7 +286,7 @@ int main(int argc, char **argv)
 
         // VETTORE DI FORZE E MOMENTI
         Eigen::Matrix<double, 6, 1> tau;
-        tau << tau_u, tau_v, tau_w, tau_p, tau_q, tau_r;
+        tau << tau_u + gaussianNoise(0.0, var_tau_u), tau_v + gaussianNoise(0.0, var_tau_v), tau_w+ gaussianNoise(0.0, var_tau_w), tau_p+ gaussianNoise(0.0, var_tau_p), tau_q+ gaussianNoise(0.0, var_tau_q), tau_r+ gaussianNoise(0.0, var_tau_r);
 
         // VETTORE DELLE VELOCITA'
         Eigen::Matrix<double, 6, 1> nu_k1;
@@ -283,31 +306,10 @@ int main(int argc, char **argv)
         Eigen::Matrix<double, 6, 1> eta_k1;
         eta_k1 = dt * eta_dot + eta;
 
-        double rem;
-
-        // wrapToPi(eta_k1(phi));
-        rem = std::fmod(eta_k1(3) + M_PI, 2 * M_PI);
-        if (rem < 0)
-        {
-            rem += 2 * M_PI;
-        }
-        eta_k1(3) = rem - M_PI;
-
-        // wrapToPi(eta_k1(theta));
-        rem = std::fmod(eta_k1(4) + M_PI, 2 * M_PI);
-        if (rem < 0)
-        {
-            rem += 2 * M_PI;
-        }
-        eta_k1(4) = rem - M_PI;
-
-        // wrapToPi(eta_k1(psi));
-        rem = std::fmod(eta_k1(5) + M_PI, 2 * M_PI);
-        if (rem < 0)
-        {
-            rem += 2 * M_PI;
-        }
-        eta_k1(5) = rem - M_PI;
+        // wrap2Pi
+        eta_k1(3) = atan2(sin(eta_k1(3)), cos(eta_k1(3)));
+        eta_k1(4) = atan2(sin(eta_k1(4)), cos(eta_k1(4)));
+        eta_k1(5) = atan2(sin(eta_k1(5)), cos(eta_k1(5)));
 
         // SETTARE LA POSIZIONE DEL MODELLO
         std::vector<double> state = {eta(0), eta(1), eta(2), eta(3), eta(4), eta(5), nu(0), nu(1), nu(2), nu(3), nu(4), nu(5)};

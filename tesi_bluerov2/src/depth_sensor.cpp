@@ -1,10 +1,15 @@
 #include "ros/ros.h"
 #include "tesi_bluerov2/Floats.h" // for accessing -- tesi_bluerov2 Floats()
 #include <random>
+#include <rosbag/bag.h>
+
+rosbag::Bag bag;
 
 double z_hat = 0.0;
 
-double var_z = 1;
+//double var_z = 0.087025;
+
+double var_z = 0.0025;
 
 // Function to generate Gaussian random number
 double gaussianNoise(double mean, double var)
@@ -15,7 +20,6 @@ double gaussianNoise(double mean, double var)
     std::normal_distribution<> d(mean, stddev);
     return d(gen);
 }
-
 
 // Callback function for the state_topic subscriber
 void stateCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
@@ -47,14 +51,17 @@ int main(int argc, char **argv)
     // Seed the random number generator.
     srand(time(0));
 
+    std::string path = ros::package::getPath("tesi_bluerov2");
+    bag.open(path + "/bag/z_m.bag", rosbag::bagmode::Write);
+
     bool is_first_loop = true;
     double start_time;
 
     // Loop at 5Hz, publishing messages until this node is shut down.
-    ros::Rate rate(10);
+    ros::Rate rate(5);
     while (ros::ok())
     {
-        if(is_first_loop)
+        if (is_first_loop)
         {
             start_time = ros::Time::now().toSec();
             is_first_loop = false;
@@ -66,13 +73,16 @@ int main(int argc, char **argv)
         std::vector<double> depth_sensor_data = {z_hat + gaussianNoise(0, var_z), valid};
         msg.data = depth_sensor_data;
 
-        if(ros::Time::now().toSec() - start_time > 5)
+        if (ros::Time::now().toSec() - start_time > 5)
         {
             // Publish the message.
             pub.publish(msg);
         }
 
-        ROS_WARN("Depth sensor data: z: %f", depth_sensor_data[0]);
+        if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
+        {
+            bag.write("depth_sensor_topic", ros::Time::now(), msg);
+        }
 
         // Send any pending callbacks.
         ros::spinOnce();
@@ -80,6 +90,8 @@ int main(int argc, char **argv)
         // Wait until it's time for another iteration.
         rate.sleep();
     }
+
+    bag.close();
 
     return 0;
 }

@@ -5,8 +5,8 @@
 double x_hat = 0.0;
 double y_hat = 0.0;
 
-double var_x = 1;
-double var_y = 1;
+double var_x = 0.0004;
+double var_y = 0.0004;
 
 // Function to generate Gaussian random number
 double gaussianNoise(double mean, double var)
