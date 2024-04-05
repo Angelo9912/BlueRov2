@@ -1,6 +1,7 @@
 #include <ros/ros.h>
 #include <std_msgs/String.h>
 #include <rosbag/bag.h>
+#include <eigen3/Eigen/Dense>
 #include "tesi_bluerov2/Floats.h" // for accessing -- tesi_bluerov2 Floats()
 #include <random>
 
@@ -165,6 +166,34 @@ void est_state_UKF_callback(const tesi_bluerov2::Floats::ConstPtr &msg)
     }
 }
 
+double angleDifference(double e)
+{
+    if (e > 0)
+    {
+        if (e > 2 * M_PI - e)
+        {
+            e = -(2 * M_PI - e);
+        }
+        else
+        {
+            e = e;
+        }
+    }
+    else
+    {
+        e = -e;
+        if (e > 2 * M_PI - e)
+        {
+            e = 2 * M_PI - e;
+        }
+        else
+        {
+            e = -e;
+        }
+    }
+    return e;
+}
+
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "err_vis");
@@ -176,20 +205,38 @@ int main(int argc, char **argv)
     ros::Subscriber sub3 = n.subscribe("est_state_UKF_topic", 1000, est_state_UKF_callback);
     ros::Publisher pub = n.advertise<tesi_bluerov2::Floats>("error_topic", 1000);
     ros::Publisher pub2 = n.advertise<tesi_bluerov2::Floats>("tau_topic", 1000);
+    ros::Publisher pub3 = n.advertise<tesi_bluerov2::Floats>("desired_state_topic", 1000);
     ros::Rate loop_rate(100);
 
     bool is_first_loop = true;
-    double start_time;
+    double t1;
+
+    bool f1 = false;
+    bool f2 = false;
+    bool f3 = false;
+    bool f4 = false;
+
+    Eigen::Matrix<double, 6, 6> J;
 
     std::string path = ros::package::getPath("tesi_bluerov2");
     bag.open(path + "/bag/test.bag", rosbag::bagmode::Write);
+
+    double x_d = 0;
+    double y_d = 0;
+    double psi_d = 0;
+
+    ros::Duration(20).sleep();
+    ros::spinOnce();
+    int i = 0;
+    double dt = 0.01;
 
     while (ros::ok())
     {
         if (is_first_loop)
         {
             is_first_loop = false;
-            start_time = ros::Time::now().toSec();
+            f1 = true;
+            t1 = ros::Time::now().toSec();
         }
 
         double err_x_EKF = x - x_hat_EKF;
@@ -218,60 +265,16 @@ int main(int argc, char **argv)
         double err_q_UKF = q - q_hat_UKF;
         double err_r_UKF = r - r_hat_UKF;
 
-        std::vector<double> error = {err_x_EKF, err_y_EKF, err_z_EKF, err_phi_EKF, err_theta_EKF, err_psi_EKF, err_u_EKF, err_v_EKF, err_w_EKF, err_p_EKF, err_q_EKF, err_r_EKF,mahalanobis_EKF, err_x_UKF, err_y_UKF, err_z_UKF, err_phi_UKF, err_theta_UKF, err_psi_UKF, err_u_UKF, err_v_UKF, err_w_UKF, err_p_UKF, err_q_UKF, err_r_UKF, mahalanobis_UKF};
+        std::vector<double> error = {err_x_EKF, err_y_EKF, err_z_EKF, err_phi_EKF, err_theta_EKF, err_psi_EKF, err_u_EKF, err_v_EKF, err_w_EKF, err_p_EKF, err_q_EKF, err_r_EKF, mahalanobis_EKF, err_x_UKF, err_y_UKF, err_z_UKF, err_phi_UKF, err_theta_UKF, err_psi_UKF, err_u_UKF, err_v_UKF, err_w_UKF, err_p_UKF, err_q_UKF, err_r_UKF, mahalanobis_UKF};
 
         for (int i = 3; i < 6; i++)
         {
-            if (error[i] > 0)
-            {
-                if (error[i] > 2 * M_PI - error[i])
-                {
-                    error[i] = -(2 * M_PI - error[i]);
-                }
-                else
-                {
-                    error[i] = error[i];
-                }
-            }
-            else
-            {
-                error[i] = -error[i];
-                if (error[i] > 2 * M_PI - error[i])
-                {
-                    error[i] = 2 * M_PI - error[i];
-                }
-                else
-                {
-                    error[i] = -error[i];
-                }
-            }
+            error[i] = angleDifference(error[i]);
         }
 
-        for (int i = 15; i < 18; i++)
+        for (int i = 16; i < 19; i++)
         {
-            if (error[i] > 0)
-            {
-                if (error[i] > 2 * M_PI - error[i])
-                {
-                    error[i] = -(2 * M_PI - error[i]);
-                }
-                else
-                {
-                    error[i] = error[i];
-                }
-            }
-            else
-            {
-                error[i] = -error[i];
-                if (error[i] > 2 * M_PI - error[i])
-                {
-                    error[i] = 2 * M_PI - error[i];
-                }
-                else
-                {
-                    error[i] = -error[i];
-                }
-            }
+            error[i] = angleDifference(error[i]);
         }
 
         error[3] = error[3] * 180 / M_PI;
@@ -282,36 +285,102 @@ int main(int argc, char **argv)
         error[10] = error[10] * 180 / M_PI;
         error[11] = error[11] * 180 / M_PI;
 
-        error[15] = error[15] * 180 / M_PI;
         error[16] = error[16] * 180 / M_PI;
         error[17] = error[17] * 180 / M_PI;
+        error[18] = error[18] * 180 / M_PI;
 
-        error[21] = error[21] * 180 / M_PI;
         error[22] = error[22] * 180 / M_PI;
         error[23] = error[23] * 180 / M_PI;
+        error[24] = error[24] * 180 / M_PI;
 
         tesi_bluerov2::Floats error_msg;
         error_msg.data = error;
         pub.publish(error_msg);
-        std::vector<double> tau;
-        if (ros::Time::now().toSec() - start_time < 0.1)
-        {
-            tau = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-        }
-        else
-        {
-            tau = {1.0, 0.0, 0.0, M_PI / 180 * 0.0, M_PI / 180 * 0.0, M_PI / 180 * 0.0};
-        }
+        std::vector<double> des;
 
-        tesi_bluerov2::Floats tau_msg;
-        tau_msg.data = tau;
-        pub2.publish(tau_msg);
+        // if (f1)
+        // {
+        //     ROS_WARN("f1");
+        //     tau = {30.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+
+        //     if (ros::Time::now().toSec() - t1 > 10)
+        //     {
+        //         f1 = false;
+        //         f2 = true;
+        //         t1 = ros::Time::now().toSec();
+        //     }
+        // }
+        // else if (f2)
+        // {
+        //     ROS_WARN("f2");
+        //     tau = {0.0, 0.0, 2.0, 0.0, 0.0, 0.0};
+
+        //     if (ros::Time::now().toSec() - t1 > 10)
+        //     {
+        //         f2 = false;
+        //         f3 = true;
+        //         t1 = ros::Time::now().toSec();
+        //     }
+        // }
+        // else if (f3)
+        // {
+        //     ROS_WARN("f3");
+        //     tau = {0.0, 0.0, 0.0, 0.0, 0.0, 5};
+
+        //     if (ros::Time::now().toSec() - t1 > 10)
+        //     {
+        //         f3 = false;
+        //         f4 = true;
+        //         t1 = ros::Time::now().toSec();
+        //     }
+        // }
+        // else if (f4)
+        // {
+        //     ROS_WARN("f4");
+        //     tau = {0.0, 0.0, -2.0, 0.0, 0.0, 0.0};
+
+        //     if (ros::Time::now().toSec() - t1 > 10)
+        //     {
+        //         f4 = false;
+        //         f1 = true;
+        //         t1 = ros::Time::now().toSec();
+        //     }
+        // }
+        double u_d = 0.5;
+        double r_d = 10 * M_PI / 180;
+
+        psi_d = psi_d + r_d * dt;
+
+        psi_d = atan2(sin(psi_d), cos(psi_d));
+
+        x_d = x_d + dt * cos(psi_d);
+        y_d = y_d + dt * sin(psi_d);
+
+        // Define Jacobian Matrix
+        J << cos(psi_d) * cos(0.0), cos(psi_d) * sin(0.0) * sin(0.0) - cos(0.0) * sin(psi_d), sin(0.0) * sin(psi_d) + cos(0.0) * cos(psi_d) * sin(theta_hat_UKF), 0, 0, 0,
+            cos(theta_hat_UKF) * sin(psi_d), cos(0.0) * cos(psi_d) + sin(0.0) * sin(psi_d) * sin(theta_hat_UKF), cos(0.0) * sin(psi_d) * sin(theta_hat_UKF) - cos(psi_d) * sin(0.0), 0, 0, 0,
+            -sin(0.0), cos(0.0) * sin(0.0), cos(0.0) * cos(0.0), 0, 0, 0,
+            0, 0, 0, 1, sin(0.0) * tan(0.0), cos(0.0) * tan(0.0),
+            0, 0, 0, 0, cos(0.0), -sin(0.0),
+            0, 0, 0, 0, sin(0.0) / cos(0.0), cos(0.0) / cos(0.0);
+
+        Eigen::VectorXd nu_d(6);
+        nu_d << u_d, 0, 0, 0, 0, r_d;
+
+        Eigen::VectorXd eta_dot_d(6);
+        eta_dot_d << J * nu_d;
+
+        des = {x_d, y_d, 0.0, 0.0, 0.0, psi_d, eta_dot_d(0), eta_dot_d(1), eta_dot_d(2), eta_dot_d(3), eta_dot_d(4), eta_dot_d(5)};
+
+        tesi_bluerov2::Floats des_msg;
+        des_msg.data = des;
+        pub3.publish(des_msg);
 
         if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
         {
             bag.write("error_topic", ros::Time::now(), error_msg);
         }
-        
+
         ros::spinOnce();
         loop_rate.sleep();
     }

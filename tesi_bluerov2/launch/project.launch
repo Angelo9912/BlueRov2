@@ -2,11 +2,10 @@
 <launch>
     <rosparam file="$(find tesi_bluerov2)/yaml/params.yaml" />
     <arg name="flag" default="back" />
-    <!-- <include file="$(find gazebo_ros)/launch/empty_world.launch"> -->
-        <!-- <arg name="world_name" value="$(find tesi_bluerov2)/src/mondo_bluerov2.world" /> -->
-       <!-- <arg name="world_name" value="$(find tesi_bluerov2)/src/mondo_bluerov2_wall.world" />
+    <include file="$(find gazebo_ros)/launch/empty_world.launch"> -->
+        <arg name="world_name" value="$(find tesi_bluerov2)/src/mondo_bluerov2_wall.world" />
         <arg name="paused" value="true" />
-    </include>-->
+    </include>
 
     <!-- <group
     if="$(eval flag == 'MPC')">
@@ -14,16 +13,15 @@
     </group>
 
     <group
-    if="$(eval flag == 'back')">
-        <node name="backstepping" pkg="tesi_bluerov2" type="backstepping" />
-    </group> -->
+    if="$(eval flag == 'back')" -->
+    <node name="backstepping_6DOF" pkg="tesi_bluerov2" type="backstepping_6DOF" />
+    <!--</group> -->
 
     <node name="dynamics" pkg="tesi_bluerov2" type="dynamics6DOF" />
 
-    <node name="traj_generator" pkg="tesi_bluerov2" type="traj_generator" />
-    <!-- <node name="sim_visualization" pkg="tesi_bluerov2" type="sim_visualization" />
-    <node name="planning" pkg="tesi_bluerov2" type="planning" />
-    <node name="stereocamera" pkg="tesi_bluerov2" type="stereocamera" />-->
+    <!-- node name="traj_generator" pkg="tesi_bluerov2" type="traj_generator" / -->
+    <!--node name="planning" pkg="tesi_bluerov2" type="planning" /-->
+    <!-- node name="stereocamera" pkg="tesi_bluerov2" type="stereocamera" / -->
     <node name="imu" pkg="tesi_bluerov2" type="imu" />
     <node name="depth" pkg="tesi_bluerov2" type="depth" />
     <node name="gps" pkg="tesi_bluerov2" type="gps" />
@@ -33,4 +31,5 @@
     <node name="UKF" pkg="tesi_bluerov2" type="UKF" />
     <node name="manager" pkg="tesi_bluerov2" type="manager" />
     <node name="err_vis" pkg="tesi_bluerov2" type="err_vis" />
+    <node name="sim_visualization_6DOF" pkg="tesi_bluerov2" type="sim_visualization_6DOF" />
 </launch>

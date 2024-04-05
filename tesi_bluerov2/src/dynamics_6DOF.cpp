@@ -17,9 +17,9 @@ double tau_p = 0.0;
 double tau_q = 0.0;
 double tau_r = 0.0;
 
-double x = +16.5;
-double y = +17.0;
-double z = 5.0;
+double x = +0;
+double y = +0;
+double z = 0;
 double phi = 0;
 double theta = 0;
 double psi = 0.0;
@@ -71,7 +71,6 @@ int main(int argc, char **argv)
     std::string path = ros::package::getPath("tesi_bluerov2");
     state_bag.open(path + "/bag/state.bag", rosbag::bagmode::Write);
 
-
     Eigen::Matrix<double, 6, 1> eta;
     eta << x, y, z, phi, theta, psi;
 
@@ -85,6 +84,9 @@ int main(int argc, char **argv)
     double x_g = 0.0;
     double y_g = 0.0;
     double z_g = 0.0;
+    double x_b = 0.0;
+    double y_b = 0.0;
+    double z_b = 0.0;
     double I_x = 0.0;
     double I_y = 0.0;
     double I_z = 0.0;
@@ -147,6 +149,9 @@ int main(int argc, char **argv)
     n.getParam("x_g", x_g);
     n.getParam("y_g", y_g);
     n.getParam("z_g", z_g);
+    n.getParam("x_b", x_b);
+    n.getParam("y_b", y_b);
+    n.getParam("z_b", z_b);
     n.getParam("I_x", I_x);
     n.getParam("I_y", I_y);
     n.getParam("I_z", I_z);
@@ -243,13 +248,17 @@ int main(int argc, char **argv)
         q = nu(4);
         r = nu(5);
 
+        phi = eta(3);
+        theta = eta(4);
+        psi = eta(5);
+
         // MATRICE DI CORIOLIS
         Eigen::Matrix<double, 6, 6> C_rb;
 
         C_rb << 0.0, 0.0, 0.0, m * (y_g * q + z_g * r), -m * (x_g * q - w), -m * (x_g * r + v),
             0.0, 0.0, 0.0, -m * (y_g * p + w), m * (z_g * r + x_g * p), -m * (y_g * r - u),
             0.0, 0.0, 0.0, -m * (z_g * p - v), -m * (z_g * q + u), m * (x_g * p + y_g * q),
-            -m * (y_g * q + z_g * r), m * (y_g * p + w), m * (z_g * p - v), 0.0, I_z * r - I_yz * q - I_xz * p, I_xy * p + I_yz * r - I_y * q,
+            -m * (y_g * q + z_g * r), m * (y_g * p + w), m * (z_g * p - v), 0.0, I_z * r -I_yz * q - I_xz * p, I_xy * p + I_yz * r - I_y * q,
             m * (x_g * q - w), -m * (z_g * r + x_g * p), m * (z_g * q + u), I_yz * q + I_xz * p - I_z*r, 0.0, -I_xz * r - I_xy * q + I_x * p,
             m * (x_g * r + v), m * (y_g * r - u), -m * (x_g * p + y_g * q), -I_yz * r - I_xy * p + I_y * q, I_xy * q + I_xz * r - I_x * p, 0.0;
 
@@ -275,22 +284,33 @@ int main(int argc, char **argv)
         // MATRICE DI DAMPING
         Eigen::Matrix<double, 6, 6> D;
 
-        D << A_x * abs(u), 0,0,0,0,0,
-        0, A_y *abs(v), 0,0,0,0,
-        0,0, A_z *abs(w), 0,0,0,
-        0,0,0, A_p *abs(p),0,0,
-        0,0,0,0, A_q *abs(q),0,
-        0,0,0,0,0, A_r *abs(r);
+        D << A_x * abs(u), 0, 0, 0, 0, 0,
+            0, A_y * abs(v), 0, 0, 0, 0,
+            0, 0, A_z * abs(w), 0, 0, 0,
+            0, 0, 0, A_p * abs(p), 0, 0,
+            0, 0, 0, 0, A_q * abs(q), 0,
+            0, 0, 0, 0, 0, A_r * abs(r);
 
         D = 0.5 * 1000 * D;
 
+        // VETTORE DEI TERMINI GRAVITAZIONALI
+        Eigen::Matrix<double, 6, 1> G;
+        double W = m * 9.81;
+
+        G << 0,
+            0,
+            0,
+            -(y_g - y_b) * W * cos(phi) * cos(theta) + (z_g - z_b) * W * sin(phi) * cos(theta),
+            (z_g - z_b) * W * sin(theta) + (x_g - x_b) * W * cos(theta) * cos(phi),
+            -(x_g - x_b) * W * cos(theta) * sin(phi) - (y_g - y_b) * W * sin(theta);
+
         // VETTORE DI FORZE E MOMENTI
         Eigen::Matrix<double, 6, 1> tau;
-        tau << tau_u + gaussianNoise(0.0, var_tau_u), tau_v + gaussianNoise(0.0, var_tau_v), tau_w+ gaussianNoise(0.0, var_tau_w), tau_p+ gaussianNoise(0.0, var_tau_p), tau_q+ gaussianNoise(0.0, var_tau_q), tau_r+ gaussianNoise(0.0, var_tau_r);
+        tau << tau_u + gaussianNoise(0.0, var_tau_u), tau_v + gaussianNoise(0.0, var_tau_v), tau_w + gaussianNoise(0.0, var_tau_w), tau_p + gaussianNoise(0.0, var_tau_p), tau_q + gaussianNoise(0.0, var_tau_q), tau_r + gaussianNoise(0.0, var_tau_r);
 
         // VETTORE DELLE VELOCITA'
         Eigen::Matrix<double, 6, 1> nu_k1;
-        nu_k1 = dt * M.inverse() * (tau - C * nu - D * nu) + nu;
+        nu_k1 = dt * M.inverse() * (tau - C * nu - D * nu - G) + nu;
 
         // VETTORE DELLE POSIZIONI
         Eigen::Matrix<double, 6, 6> Jacobian;

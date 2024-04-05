@@ -297,3 +297,11 @@ add_dependencies(UKF ${catkin_EXPORTED_TARGETS})
 add_executable(err_vis src/error_visualizer.cpp)
 target_link_libraries(err_vis ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(err_vis ${catkin_EXPORTED_TARGETS})
+
+add_executable(sim_visualization_6DOF src/sim_visualization_6DOF.cpp)
+target_link_libraries(sim_visualization_6DOF ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(sim_visualization_6DOF ${catkin_EXPORTED_TARGETS})
+
+add_executable(backstepping_6DOF src/backstepping_6DOF.cpp)
+target_link_libraries(backstepping_6DOF ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(backstepping_6DOF ${catkin_EXPORTED_TARGETS})

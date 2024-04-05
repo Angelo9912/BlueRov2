@@ -82,11 +82,24 @@ int main(int argc, char **argv)
 
         double valid = 1.0;
 
+        double phi_m = phi_hat + gaussianNoise(0, var_phi);
+        phi_m = atan2(sin(phi_m), cos(phi_m));
+
+        double theta_m = theta_hat + gaussianNoise(0, var_theta);
+        theta_m = atan2(sin(theta_m), cos(theta_m));
+
+        double psi_m = psi_hat + gaussianNoise(0, var_psi);
+        psi_m = atan2(sin(psi_m), cos(psi_m));
+
+        double p_m = p_hat + gaussianNoise(0, var_p);
+        double q_m = q_hat + gaussianNoise(0, var_q);
+        double r_m = r_hat + gaussianNoise(0, var_r);
+
         // Add noise to the IMU data and fill the message
-        std::vector<double> imu_data = {phi_hat + gaussianNoise(0, var_phi), theta_hat + gaussianNoise(0, var_theta), psi_hat + gaussianNoise(0, var_psi), p_hat + gaussianNoise(0, var_p), q_hat + gaussianNoise(0, var_q), r_hat + gaussianNoise(0, var_r),valid};
+        std::vector<double> imu_data = {phi_m, theta_m, psi_m, p_m, q_m, r_m, valid};
         msg.data = imu_data;
 
-        if(ros::Time::now().toSec() - start_time > 5)
+        if (ros::Time::now().toSec() - start_time > 5)
         {
             // Publish the message.
             pub.publish(msg);

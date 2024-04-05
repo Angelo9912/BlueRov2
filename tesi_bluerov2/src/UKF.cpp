@@ -69,6 +69,9 @@ double m = 0.0;
 double x_g = 0.0;
 double y_g = 0.0;
 double z_g = 0.0;
+double x_b = 0.0;
+double y_b = 0.0;
+double z_b = 0.0;
 double I_x = 0.0;
 double I_y = 0.0;
 double I_z = 0.0;
@@ -134,6 +137,34 @@ double gaussianNoise(double mean, double var)
     return d(gen);
 }
 
+double angleDifference(double e)
+{
+    if (e > 0)
+    {
+        if (e > 2 * M_PI - e)
+        {
+            e = -(2 * M_PI - e);
+        }
+        else
+        {
+            e = e;
+        }
+    }
+    else
+    {
+        e = -e;
+        if (e > 2 * M_PI - e)
+        {
+            e = 2 * M_PI - e;
+        }
+        else
+        {
+            e = -e;
+        }
+    }
+    return e;
+}
+
 // Trasformata unscented (predizione)
 UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::VectorXd tau_k, Eigen::MatrixXd P_kk, Eigen::MatrixXd Q, double dt, Eigen::MatrixXd M)
 {
@@ -154,9 +185,12 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
     Eigen::MatrixXd Zeros(xi_k.size(), tau_k.size());
     Zeros.setZero();
 
+    Eigen::MatrixXd ZerosT(tau_k.size(), xi_k.size());
+    ZerosT.setZero();
+
     Eigen::MatrixXd Sigma(n, n);
     Sigma << P_kk, Zeros,
-        Zeros.transpose(), Q;
+        ZerosT, Q;
 
     // SVD decomposition
     Eigen::MatrixXd U(n, n); // compute the SVD decomposition of Sigma
@@ -172,12 +206,21 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
     for (int i = 0; i < n; i++)
     {
         sigma_points.col(i) = xi_prediction + sqrt(n + lambda) * U.col(i) * sqrt(Singular_values(i));
+        sigma_points.col(i)(3) = atan2(sin(sigma_points.col(i)(3)), cos(sigma_points.col(i)(3)));
+        sigma_points.col(i)(4) = atan2(sin(sigma_points.col(i)(4)), cos(sigma_points.col(i)(4)));
+        sigma_points.col(i)(5) = atan2(sin(sigma_points.col(i)(5)), cos(sigma_points.col(i)(5)));
+
         sigma_points.col(i + n) = xi_prediction - sqrt(n + lambda) * U.col(i) * sqrt(Singular_values(i));
+        sigma_points.col(i + n)(3) = atan2(sin(sigma_points.col(i + n)(3)), cos(sigma_points.col(i + n)(3)));
+        sigma_points.col(i + n)(4) = atan2(sin(sigma_points.col(i + n)(4)), cos(sigma_points.col(i + n)(4)));
+        sigma_points.col(i + n)(5) = atan2(sin(sigma_points.col(i + n)(5)), cos(sigma_points.col(i + n)(5)));
+
         weights[i] = 1 / (2 * (n + lambda));
         weights[i + n] = 1 / (2 * (n + lambda));
     }
 
     sigma_points.col(n_sigma - 1) = xi_prediction;
+
     weights[n_sigma - 1] = lambda / (n + lambda);
 
     Eigen::MatrixXd sigma_points_out(12, n_sigma);
@@ -209,14 +252,13 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
         double q = nu(4);
         double r = nu(5);
 
-        // MATRICE DI CORIOLIS
         Eigen::Matrix<double, 6, 6> C_rb;
 
         C_rb << 0.0, 0.0, 0.0, m * (y_g * q + z_g * r), -m * (x_g * q - w), -m * (x_g * r + v),
             0.0, 0.0, 0.0, -m * (y_g * p + w), m * (z_g * r + x_g * p), -m * (y_g * r - u),
             0.0, 0.0, 0.0, -m * (z_g * p - v), -m * (z_g * q + u), m * (x_g * p + y_g * q),
             -m * (y_g * q + z_g * r), m * (y_g * p + w), m * (z_g * p - v), 0.0, I_z * r - I_yz * q - I_xz * p, I_xy * p + I_yz * r - I_y * q,
-            m * (x_g * q - w), -m * (z_g * r + x_g * p), m * (z_g * q + u), I_yz * q + I_xz * p - I_z*r, 0.0, -I_xz * r - I_xy * q + I_x * p,
+            m * (x_g * q - w), -m * (z_g * r + x_g * p), m * (z_g * q + u), I_yz * q + I_xz * p - I_z * r, 0.0, -I_xz * r - I_xy * q + I_x * p,
             m * (x_g * r + v), m * (y_g * r - u), -m * (x_g * p + y_g * q), -I_yz * r - I_xy * p + I_y * q, I_xy * q + I_xz * r - I_x * p, 0.0;
 
         Eigen::Matrix<double, 6, 6> C_a;
@@ -250,10 +292,21 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
 
         D = 0.5 * 1000 * D;
 
+        // VETTORE DEI TERMINI GRAVITAZIONALI
+        Eigen::Matrix<double, 6, 1> G;
+        double W = m * 9.81;
+
+        G << 0,
+            0,
+            0,
+            -(y_g - y_b) * W * cos(phi) * cos(theta) + (z_g - z_b) * W * sin(phi) * cos(theta),
+            (z_g - z_b) * W * sin(theta) + (x_g - x_b) * W * cos(theta) * cos(phi),
+            -(x_g - x_b) * W * cos(theta) * sin(phi) - (y_g - y_b) * W * sin(theta);
+
         // Dinamica del sistema
 
         Eigen::Matrix<double, 6, 1> nu_k1;
-        nu_k1 = (dt * M.inverse() * (tau_k - C * nu - D * nu)) + nu;
+        nu_k1 = (dt * M.inverse() * (tau_k + tau_noise - C * nu - D * nu - G)) + nu;
 
         // VETTORE DELLE POSIZIONI
         Eigen::Matrix<double, 6, 6> Jacobian;
@@ -319,9 +372,16 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
     Eigen::MatrixXd SigmaX_out(xi_k.size(), xi_k.size());
     SigmaX_out.setZero();
 
+    Eigen::VectorXd Deviation(xi_k.size());
+
     for (int i = 0; i < n_sigma; i++)
     {
-        SigmaX_out += weights[i] * (sigma_points_out.col(i) - xi_out) * (sigma_points_out.col(i) - xi_out).transpose();
+        Deviation = sigma_points_out.col(i) - xi_out;
+        Deviation(3) = angleDifference(Deviation(3));
+        Deviation(4) = angleDifference(Deviation(4));
+        Deviation(5) = angleDifference(Deviation(5));
+
+        SigmaX_out += weights[i] * Deviation * Deviation.transpose();
     }
 
     // Initialize the cross-covariance matrix
@@ -368,7 +428,15 @@ UnscentedOutput UnscentedTransform_Correction(Eigen::VectorXd xi_k, Eigen::Vecto
     for (int i = 0; i < n; i++)
     {
         sigma_points.col(i) = xi_correction + sqrt(n + lambda) * U.col(i) * sqrt(Singular_values(i));
+        sigma_points.col(i)(3) = atan2(sin(sigma_points.col(i)(3)), cos(sigma_points.col(i)(3)));
+        sigma_points.col(i)(4) = atan2(sin(sigma_points.col(i)(4)), cos(sigma_points.col(i)(4)));
+        sigma_points.col(i)(5) = atan2(sin(sigma_points.col(i)(5)), cos(sigma_points.col(i)(5)));
+
         sigma_points.col(i + n) = xi_correction - sqrt(n + lambda) * U.col(i) * sqrt(Singular_values(i));
+        sigma_points.col(i + n)(3) = atan2(sin(sigma_points.col(i + n)(3)), cos(sigma_points.col(i + n)(3)));
+        sigma_points.col(i + n)(4) = atan2(sin(sigma_points.col(i + n)(4)), cos(sigma_points.col(i + n)(4)));
+        sigma_points.col(i + n)(5) = atan2(sin(sigma_points.col(i + n)(5)), cos(sigma_points.col(i + n)(5)));
+
         weights[i] = 1 / (2 * (n + lambda));
         weights[i + n] = 1 / (2 * (n + lambda));
     }
@@ -412,6 +480,7 @@ UnscentedOutput UnscentedTransform_Correction(Eigen::VectorXd xi_k, Eigen::Vecto
     // Calcoliamo la misura data dai valori predetti come media pesata dei sigma points
 
     Eigen::VectorXd z_out(var_used.size());
+
     z_out.setZero();
 
     for (int i = 0; i < n_sigma; i++)
@@ -454,29 +523,7 @@ UnscentedOutput UnscentedTransform_Correction(Eigen::VectorXd xi_k, Eigen::Vecto
     {
         for (int i = id_phi; i < id_phi + 3; i++)
         {
-            if (e_k(i) > 0)
-            {
-                if (e_k(i) > 2 * M_PI - e_k(i))
-                {
-                    e_k(i) = -(2 * M_PI - e_k(i));
-                }
-                else
-                {
-                    e_k(i) = e_k(i);
-                }
-            }
-            else
-            {
-                e_k(i) = -e_k(i);
-                if (e_k(i) > 2 * M_PI - e_k(i))
-                {
-                    e_k(i) = 2 * M_PI - e_k(i);
-                }
-                else
-                {
-                    e_k(i) = -e_k(i);
-                }
-            }
+            e_k(i) = angleDifference(e_k(i));
         }
     }
 
@@ -487,9 +534,24 @@ UnscentedOutput UnscentedTransform_Correction(Eigen::VectorXd xi_k, Eigen::Vecto
 
     weights[n_sigma - 1] = weights[n_sigma - 1] + (1 - alpha * alpha + beta);
 
+    // Calcolo lo scarto dei sigma_points_out
+    Eigen::MatrixXd sigma_points_out_diff(var_used.size(), n_sigma);
+
+    // Calcolo lo scarto dei sigma_points
+    Eigen::VectorXd DeviationZ(n);
+
     for (int i = 0; i < n_sigma; i++)
     {
-        Pzz_out += weights[i] * (sigma_points_out.col(i) - z_out) * (sigma_points_out.col(i) - z_out).transpose();
+        DeviationZ = sigma_points_out.col(i) - z_out;
+        if (id_phi >= 0)
+        {
+            for (int j = id_phi; j < id_phi + 3; j++)
+            {
+                DeviationZ(j) = angleDifference(DeviationZ(j));
+            }
+        }
+
+        Pzz_out += weights[i] * DeviationZ * DeviationZ.transpose();
     }
 
     // Calcolo la matrice di covarianza incrociata
@@ -497,9 +559,25 @@ UnscentedOutput UnscentedTransform_Correction(Eigen::VectorXd xi_k, Eigen::Vecto
     Eigen::MatrixXd Pxz_out(n, var_used.size());
     Pxz_out.setZero();
 
+    Eigen::VectorXd DeviationX(n);
+
     for (int i = 0; i < n_sigma; i++)
     {
-        Pxz_out += weights[i] * (sigma_points.col(i) - xi_correction) * (sigma_points_out.col(i) - z_out).transpose();
+        DeviationX = sigma_points.col(i) - xi_correction;
+        DeviationX(3) = angleDifference(DeviationX(3));
+        DeviationX(4) = angleDifference(DeviationX(4));
+        DeviationX(5) = angleDifference(DeviationX(5));
+
+        DeviationZ = sigma_points_out.col(i) - z_out;
+        if (id_phi >= 0)
+        {
+            for (int j = id_phi; j < id_phi + 3; j++)
+            {
+                DeviationZ(j) = angleDifference(DeviationZ(j));
+            }
+        }
+
+        Pxz_out += weights[i] * DeviationX * DeviationZ.transpose();
     }
 
     return UnscentedOutput(e_k, Pzz_out + R, Pxz_out);
@@ -627,6 +705,9 @@ int main(int argc, char **argv)
     n.getParam("x_g", x_g);
     n.getParam("y_g", y_g);
     n.getParam("z_g", z_g);
+    n.getParam("x_b", x_b);
+    n.getParam("y_b", y_b);
+    n.getParam("z_b", z_b);
     n.getParam("I_x", I_x);
     n.getParam("I_y", I_y);
     n.getParam("I_z", I_z);
@@ -823,15 +904,16 @@ int main(int argc, char **argv)
                 xi_curr(4) = theta_IMU;
                 xi_curr(5) = psi_IMU;
 
+                xi_curr(9) = p_IMU;
+                xi_curr(10) = q_IMU;
+                xi_curr(11) = r_IMU;
+
                 is_IMU_init = true;
             }
 
             xi_curr(6) = 0.0 + gaussianNoise(0, var_u_DVL);
             xi_curr(7) = 0.0 + gaussianNoise(0, var_v_DVL);
             xi_curr(8) = 0.0 + gaussianNoise(0, var_w_DVL);
-            xi_curr(9) = 0.0 + gaussianNoise(0, var_p_IMU);
-            xi_curr(10) = 0.0 + gaussianNoise(0, var_q_IMU);
-            xi_curr(11) = 0.0 + gaussianNoise(0, var_r_IMU);
 
             P_curr << var_x, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, var_y, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -852,7 +934,7 @@ int main(int argc, char **argv)
             {
                 ROS_WARN_STREAM("INITIALIZATION COMPLETED\n");
 
-                msg.data = {xi_curr(0), xi_curr(1), xi_curr(2), xi_curr(3), xi_curr(4), xi_curr(5), xi_curr(6), xi_curr(7), xi_curr(8), xi_curr(9), xi_curr(10), xi_curr(11),mahalanobis_distance};
+                msg.data = {xi_curr(0), xi_curr(1), xi_curr(2), xi_curr(3), xi_curr(4), xi_curr(5), xi_curr(6), xi_curr(7), xi_curr(8), xi_curr(9), xi_curr(10), xi_curr(11), mahalanobis_distance};
                 est_state_pub.publish(msg);
 
                 ////////////////////////////////////////////////////////////////////
@@ -920,15 +1002,6 @@ int main(int argc, char **argv)
                 }
             }
 
-            if(j == z_valid.size())
-            {
-                ROS_WARN_STREAM("GIUSTO");
-            }
-            else
-            {
-                ROS_WARN_STREAM("SBAGLIATO");
-            }
-
             if (z_valid.size() == 1 && z_valid(0) == 0.0) // Nessuna misura valida
             {
                 ROS_WARN("NO VALID MEASURES");
@@ -959,7 +1032,6 @@ int main(int argc, char **argv)
 
                 // Calcolo il guadagno di Kalman
                 Eigen::MatrixXd K(row_pxz, col_s);
-                // K = P_xz * S_k.completeOrthogonalDecomposition().pseudoInverse();
                 K = P_xz * S_k.inverse();
 
                 // Calcolo la stima corretta
@@ -968,12 +1040,13 @@ int main(int argc, char **argv)
 
                 xi_corr = xi_pred + K * e_k;
 
+                xi_corr(3) = atan2(sin(xi_corr(3)), cos(xi_corr(3)));
+                xi_corr(4) = atan2(sin(xi_corr(4)), cos(xi_corr(4)));
+                xi_corr(5) = atan2(sin(xi_corr(5)), cos(xi_corr(5)));
+
                 // Calcolo la matrice di covarianza corretta
                 Eigen::MatrixXd P_corr(row_pxz, row_pxz);
                 P_corr = P_pred - K * S_k * K.transpose();
-
-                // ROS_WARN_STREAM("eigs: \n"
-                //                 << P_corr.eigenvalues().real().minCoeff() << " , " << P_corr.eigenvalues().real().maxCoeff());
 
                 xi_curr = xi_corr;
                 P_curr = P_corr;

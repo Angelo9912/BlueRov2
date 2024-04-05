@@ -9,6 +9,11 @@ x_g : 0.0
 y_g : 0.0
 z_g : 0.0
 
+# Posizione (relativa) del centro di galleggiamento
+x_b : 0.0
+y_b : 0.0
+z_b : -0.05
+
 # Coefficienti di Damping e Masse aggiunte
 
 I_x : 0.49
@@ -23,8 +28,8 @@ I_zy : 0.0
 A_x : 0.1174
 A_y : 0.2294
 A_z : 0.1545
-A_p : 0.0
-A_q : 0.0
+A_p : 0.001
+A_q : 0.001
 A_r : 0.07
 X_u_dot : -1.53
 X_v_dot : 0.0
@@ -84,12 +89,12 @@ var_q_IMU : 0.0007
 var_r_IMU : 0.0007
 
 # Varianze del rumore di processo
-var_tau_u : 0.1
-var_tau_v : 0.1
-var_tau_w : 0.1
-var_tau_p : 0.001
-var_tau_q : 0.001
-var_tau_r : 0.001
+var_tau_u : 0.5
+var_tau_v : 0.5
+var_tau_w : 0.5
+var_tau_p : 0.1
+var_tau_q : 0.1
+var_tau_r : 0.1
 
 
 MAP_NE_x: 20 #vertice nord est mappa, coordinata x

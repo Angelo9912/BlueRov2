@@ -155,6 +155,34 @@ int sign(double x)
     }
 }
 
+double angleDifference(double e)
+{
+    if (e > 0)
+    {
+        if (e > 2 * M_PI - e)
+        {
+            e = -(2 * M_PI - e);
+        }
+        else
+        {
+            e = e;
+        }
+    }
+    else
+    {
+        e = -e;
+        if (e > 2 * M_PI - e)
+        {
+            e = 2 * M_PI - e;
+        }
+        else
+        {
+            e = -e;
+        }
+    }
+    return e;
+}
+
 // Function to generate Gaussian random number
 double gaussianNoise(double mean, double var)
 {
@@ -483,15 +511,16 @@ int main(int argc, char **argv)
                 xi_curr(4) = theta_IMU;
                 xi_curr(5) = psi_IMU;
 
+                xi_curr(9) = p_IMU;
+                xi_curr(10) = q_IMU;
+                xi_curr(11) = r_IMU;
+
                 is_IMU_init = true;
             }
 
             xi_curr(6) = 0.0 + gaussianNoise(0, var_u_DVL);
             xi_curr(7) = 0.0 + gaussianNoise(0, var_v_DVL);
             xi_curr(8) = 0.0 + gaussianNoise(0, var_w_DVL);
-            xi_curr(9) = 0.0 + gaussianNoise(0, var_p_IMU);
-            xi_curr(10) = 0.0 + gaussianNoise(0, var_q_IMU);
-            xi_curr(11) = 0.0 + gaussianNoise(0, var_r_IMU);
 
             P_curr << var_x, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, var_y, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -572,7 +601,7 @@ int main(int argc, char **argv)
 
                 xi_pred = F * xi_curr + D * tau;
 
-                // wrap2Pi
+                // wrapToPi
                 xi_pred(3) = atan2(sin(xi_pred(3)), cos(xi_pred(3)));
                 xi_pred(4) = atan2(sin(xi_pred(4)), cos(xi_pred(4)));
                 xi_pred(5) = atan2(sin(xi_pred(5)), cos(xi_pred(5)));
@@ -670,9 +699,6 @@ int main(int argc, char **argv)
                 ROS_WARN("NO VALID MEASURES");
                 xi_curr = xi_pred;
                 P_curr = P_pred;
-                //  ROS_WARN_STREAM("eigs: \n"
-                //                << P_curr.eigenvalues().real().minCoeff() << " , " << P_curr.eigenvalues().real().maxCoeff());
-
                 mahalanobis_distance = 0.0;
             }
             else
@@ -689,7 +715,6 @@ int main(int argc, char **argv)
 
                 // Calcolo il guadagno di Kalman
                 Eigen::MatrixXd K(12, n_z);
-                // K = P_xz * S_k.completeOrthogonalDecomposition().pseudoInverse();
                 K = P_pred * H.transpose() * S_k.inverse();
 
                 // Calcolo la predizione corretta
@@ -700,47 +725,23 @@ int main(int argc, char **argv)
                 {
                     for (int i = id_phi; i < id_phi + 3; i++)
                     {
-                        if (e_k(i) > 0)
-                        {
-                            if (e_k(i) > 2 * M_PI - e_k(i))
-                            {
-                                e_k(i) = -(2 * M_PI - e_k(i));
-                            }
-                            else
-                            {
-                                e_k(i) = e_k(i);
-                            }
-                        }
-                        else
-                        {
-                            e_k(i) = -e_k(i);
-                            if (e_k(i) > 2 * M_PI - e_k(i))
-                            {
-                                e_k(i) = 2 * M_PI - e_k(i);
-                            }
-                            else
-                            {
-                                e_k(i) = -e_k(i);
-                            }
-                        }
+                        e_k(i) = angleDifference(e_k(i));
                     }
                 }
 
-                // ROS_WARN_STREAM("e_k EKF: \n"
-                //                 << e_k.transpose());
                 // Calcolo la stima corretta
 
                 Eigen::VectorXd xi_corr(xi_pred.size());
 
                 xi_corr = xi_pred + K * e_k;
 
+                xi_corr(3) = atan2(sin(xi_corr(3)), cos(xi_corr(3)));
+                xi_corr(4) = atan2(sin(xi_corr(4)), cos(xi_corr(4)));
+                xi_corr(5) = atan2(sin(xi_corr(5)), cos(xi_corr(5)));
+
                 // Calcolo la matrice di covarianza corretta
                 Eigen::MatrixXd P_corr(12, 12);
                 P_corr = (Eigen::MatrixXd::Identity(12, 12) - K * H) * P_pred * (Eigen::MatrixXd::Identity(12, 12) - K * H).transpose() + K * R * K.transpose();
-
-                //  ROS_WARN_STREAM("CORRECTION COMPLETED\n");
-                // ROS_WARN_STREAM("eigs: \n"
-                //                << P_corr.eigenvalues().real().minCoeff() << " , " << P_corr.eigenvalues().real().maxCoeff());
 
                 xi_curr = xi_corr;
                 P_curr = P_corr;
