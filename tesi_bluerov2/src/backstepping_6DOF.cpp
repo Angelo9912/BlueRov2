@@ -142,12 +142,12 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "backstepping_6DOF");
     ros::NodeHandle n;
     rosbag::Bag tau_bag;
-    // tau_bag.open("/home/antonio/catkin_ws/src/tesi_bluerov2/bag/backstepping/tau.bag", rosbag::bagmode::Write);
+    tau_bag.open("/home/antonio/catkin_ws/src/tesi_bluerov2/bag/tau.bag", rosbag::bagmode::Write);
 
     ros::Publisher chatter_pub = n.advertise<tesi_bluerov2::Floats>("tau_topic", 1);
     ros::Subscriber sub_des_state = n.subscribe("desired_state_topic", 1, desStateCallback);
-    // ros::Subscriber sub_est_state = n.subscribe("est_state_UKF_topic", 1, estStateCallback);
-    ros::Subscriber sub_est_state = n.subscribe("state_topic", 1, estStateCallback);
+    ros::Subscriber sub_est_state = n.subscribe("est_state_UKF_topic", 1, estStateCallback);
+    // ros::Subscriber sub_est_state = n.subscribe("state_topic", 1, estStateCallback);
 
     double freq = 200;
     double dt = 1 / freq;
@@ -358,11 +358,8 @@ int main(int argc, char **argv)
         theta_hat_dot = est_pose_dot(4);
         psi_hat_dot = est_pose_dot(5);
 
-        LAMBDA << 0.2 * Eigen::Matrix<double, 6, 6>::Identity();
-        LAMBDA(0, 0) = 0.5;
-        LAMBDA(1, 1) = 0.5;
-        LAMBDA(2, 2) = 0.5;
-        LAMBDA(5, 5) = 1;
+        LAMBDA << 1.0 * Eigen::Matrix<double, 6, 6>::Identity();
+        LAMBDA(5, 5) = 10.0;
 
         q_r_dot = J.inverse() * (des_pos_dot + LAMBDA * error);
 
@@ -455,6 +452,9 @@ int main(int argc, char **argv)
         Eigen::Matrix<double, 6, 6> K_d;
         K_d << Eigen::Matrix<double, 6, 6>::Identity();
 
+        K_d(0, 0) = 1;
+        K_d(1, 1) = 5;
+        K_d(2, 2) = 0.5;
         K_d(5, 5) = 2;
 
         Eigen::Matrix<double, 6, 4> B;
@@ -470,29 +470,64 @@ int main(int argc, char **argv)
         Eigen::Matrix<double, 4, 1> torques_vec;
         torques_vec = B_pinv * (M * q_r_2dot + K_d * s + C * q_r_dot + G + J.transpose() * error + D * nu);
 
+        if (torques_vec(3) > 37.471)
+        {
+            torques_vec(3) = 37.471;
+        }
+        else if (torques_vec(3) < -37.471)
+        {
+            torques_vec(3) = -37.471;
+        }
+
+        if (torques_vec(0) > 141.42)
+        {
+            torques_vec(0) = 141.42;
+        }
+        else if (torques_vec(0) < -141.42)
+        {
+            torques_vec(0) = -141.42;
+        }
+
+        if (torques_vec(1) > 141.42)
+        {
+            torques_vec(1) = 141.42;
+        }
+        else if (torques_vec(1) < -141.42)
+        {
+            torques_vec(1) = -141.42;
+        }
+
+        if (torques_vec(2) > 70.71)
+        {
+            torques_vec(2) = 70.71;
+        }
+        else if (torques_vec(2) < -70.71)
+        {
+            torques_vec(2) = -70.71;
+        }
+
+
         std::vector<double> torques = {torques_vec(0), torques_vec(1), torques_vec(2), 0.0, 0.0, torques_vec(3)};
 
         // Publishing the torques
         tesi_bluerov2::Floats torques_msg;
         torques_msg.data = torques;
 
-        chatter_pub.publish(torques_msg);
+        // Pubblico i dati solo dopo 5 secondi e se il tempo iniziale è stato calcolato correttamente
+        if (ros::Time::now().toSec() - init_time > 5.0 && !is_init)
+        {
+            chatter_pub.publish(torques_msg);
 
-        // // Pubblico i dati solo dopo 5 secondi e se il tempo iniziale è stato calcolato correttamente
-        // if (ros::Time::now().toSec() - init_time > 5.0 && !is_init)
-        // {
-        //     chatter_pub.publish(torques_msg);
-
-        //     if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
-        //     {
-        //         tau_bag.write("tau_topic", ros::Time::now(), torques_msg);
-        //     }
-        // }
+            if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
+            {
+                tau_bag.write("tau_topic", ros::Time::now(), torques_msg);
+            }
+        }
 
         ros::spinOnce();
 
         loop_rate.sleep();
     }
-    // tau_bag.close();
+    tau_bag.close();
     return 0;
 }

@@ -544,7 +544,7 @@ int main(int argc, char **argv)
                 // ROS_WARN_STREAM("eigs: \n"
                 //               << P_curr.eigenvalues().real().minCoeff() << " , " << P_curr.eigenvalues().real().maxCoeff());
 
-                msg.data = {xi_curr(0), xi_curr(1), xi_curr(2), xi_curr(3), xi_curr(4), xi_curr(5), xi_curr(6), xi_curr(7), xi_curr(8), xi_curr(9), xi_curr(10), xi_curr(11),mahalanobis_distance};
+                msg.data = {xi_curr(0), xi_curr(1), xi_curr(2), xi_curr(3), xi_curr(4), xi_curr(5), xi_curr(6), xi_curr(7), xi_curr(8), xi_curr(9), xi_curr(10), xi_curr(11), mahalanobis_distance};
                 est_state_pub.publish(msg);
 
                 ////////////////////////////////////////////////////////////////////

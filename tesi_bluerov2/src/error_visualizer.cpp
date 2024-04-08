@@ -49,6 +49,9 @@ double r_hat_UKF = 0.0;
 double mahalanobis_EKF = 0.0;
 double mahalanobis_UKF = 0.0;
 
+double DELTA = 20;
+double w_d = -0.1;
+
 // Function to generate Gaussian random number
 double gaussianNoise(double mean, double var)
 {
@@ -223,6 +226,7 @@ int main(int argc, char **argv)
 
     double x_d = 0;
     double y_d = 0;
+    double z_d = 0;
     double psi_d = 0;
 
     ros::Duration(20).sleep();
@@ -349,28 +353,36 @@ int main(int argc, char **argv)
         double u_d = 0.5;
         double r_d = 10 * M_PI / 180;
 
+        if (i / 100 >= DELTA)
+        {
+            w_d = -w_d;
+            DELTA = DELTA + 20;
+        }
+
+        i++;
         psi_d = psi_d + r_d * dt;
 
         psi_d = atan2(sin(psi_d), cos(psi_d));
 
-        x_d = x_d + dt * cos(psi_d);
-        y_d = y_d + dt * sin(psi_d);
+        x_d = x_d + dt * u_d * cos(psi_d);
+        y_d = y_d + dt * u_d * sin(psi_d);
+        z_d = z_d + dt * w_d;
 
         // Define Jacobian Matrix
         J << cos(psi_d) * cos(0.0), cos(psi_d) * sin(0.0) * sin(0.0) - cos(0.0) * sin(psi_d), sin(0.0) * sin(psi_d) + cos(0.0) * cos(psi_d) * sin(theta_hat_UKF), 0, 0, 0,
-            cos(theta_hat_UKF) * sin(psi_d), cos(0.0) * cos(psi_d) + sin(0.0) * sin(psi_d) * sin(theta_hat_UKF), cos(0.0) * sin(psi_d) * sin(theta_hat_UKF) - cos(psi_d) * sin(0.0), 0, 0, 0,
+            cos(0.0) * sin(psi_d), cos(0.0) * cos(psi_d) + sin(0.0) * sin(psi_d) * sin(0.0), cos(0.0) * sin(psi_d) * sin(0.0) - cos(psi_d) * sin(0.0), 0, 0, 0,
             -sin(0.0), cos(0.0) * sin(0.0), cos(0.0) * cos(0.0), 0, 0, 0,
             0, 0, 0, 1, sin(0.0) * tan(0.0), cos(0.0) * tan(0.0),
             0, 0, 0, 0, cos(0.0), -sin(0.0),
             0, 0, 0, 0, sin(0.0) / cos(0.0), cos(0.0) / cos(0.0);
 
         Eigen::VectorXd nu_d(6);
-        nu_d << u_d, 0, 0, 0, 0, r_d;
+        nu_d << u_d, 0, w_d, 0, 0, r_d;
 
         Eigen::VectorXd eta_dot_d(6);
         eta_dot_d << J * nu_d;
 
-        des = {x_d, y_d, 0.0, 0.0, 0.0, psi_d, eta_dot_d(0), eta_dot_d(1), eta_dot_d(2), eta_dot_d(3), eta_dot_d(4), eta_dot_d(5)};
+        des = {x_d, y_d, z_d, 0.0, 0.0, psi_d, eta_dot_d(0), eta_dot_d(1), eta_dot_d(2), eta_dot_d(3), eta_dot_d(4), eta_dot_d(5)};
 
         tesi_bluerov2::Floats des_msg;
         des_msg.data = des;
