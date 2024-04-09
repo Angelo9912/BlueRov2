@@ -678,11 +678,8 @@ int main(int argc, char **argv)
                 double dy = (y_p - y_1) / 100;
                 double dz = (z_p - z_1) / 100;
 
-                if (dz > 0)
-                    w_d = 0.1;
-                else
-                    w_d = -0.1;
-
+                w_d = dz*10;
+                
                 // FASE DI AVVICINAMENTO
                 for (int i = 0; i < 99; i++)
                 {
@@ -725,7 +722,8 @@ int main(int argc, char **argv)
                             }
                         }
                     }
-                    if (i_dist_min >= 97)
+
+                    if (i_dist_min >= 97 && abs(z_hat - z_p) < 0.1)
                     {
                         UP_DOWN_first_phase = false;
                     }
@@ -765,26 +763,31 @@ int main(int argc, char **argv)
                     u_d = 0.1;
                     v_d = 0.0;
                     r_d = 0.0;
+                    if(i_dist_min > 70)
+                    {
+                        ROS_WARN_STREAM("AVVICINAMENTO (FINE)");
+                        u_d = 0.02;
+                        w_d = (z_p - z_hat)/abs(z_hat - z_p) * 0.05;
+                    }
                 }
-                else if (i_dist_min >= 99 && i_dist_min < 116)
+                else if (i_dist_min >= 99)
                 {
+                    ROS_WARN_STREAM("RISALITA");
                     u_d = 0.0;
                     v_d = 0.0;
-                    w_d = 0.1;
+                    w_d = 0.05;
                     r_d = 0.0;
                 }
-                else if (i_dist_min >= 116)
+                
+                if (i_dist_min >= 117)
                 {
-                    u_d = 0.0;
-                    v_d = 0.0;
-                    w_d = 0.0;
-                    r_d = 0.0;
                     std::string status_req = "PAUSED";
                     std_msgs::String msg;
                     msg.data = status_req;
                     publisher_status.publish(msg);
                     UP_DOWN_first_phase = true;
                 }
+
                 x_dot_d = u_d * cos(psi_d) - v_d * sin(psi_d);
                 y_dot_d = u_d * sin(psi_d) + v_d * cos(psi_d);
                 z_dot_d = w_d;

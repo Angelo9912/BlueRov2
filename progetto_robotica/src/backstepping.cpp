@@ -98,7 +98,6 @@ int main(int argc, char **argv)
     double l = 0.0;
     double I = 0.0;
     double X_u_dot = 0.0;
-    double Y_v_dot = 0.0;
     double X_u = 0.0;
     double Y_r = 0.0;
     double Y_v = 0.0;
@@ -112,7 +111,6 @@ int main(int argc, char **argv)
     n.getParam("l", l);
     I = 1.0 / 12.0 * m * (pow(d, 2) + pow(l, 2));
     n.getParam("X_u_dot", X_u_dot);
-    n.getParam("Y_v_dot", Y_v_dot);
     n.getParam("X_u", X_u);
     n.getParam("Y_r", Y_r);
     n.getParam("Y_v", Y_v);
@@ -151,6 +149,7 @@ int main(int argc, char **argv)
         Eigen::Matrix<double, 4, 1> error;
         error = des_pose - est_pose;
         double angle_tmp = error(3);
+
         if (angle_tmp > 0)
         {
             if (angle_tmp > 2 * M_PI - angle_tmp)
@@ -192,7 +191,7 @@ int main(int argc, char **argv)
         LAMBDA << 3*Eigen::Matrix<double, 4, 4>::Identity();
 
         LAMBDA(2, 2) = 1.0;
-        LAMBDA(3, 3) = 10.0;
+        LAMBDA(3, 3) = 1.0;
 
         Eigen::Matrix<double, 4, 1> q_r_dot;
         q_r_dot = J.inverse() * (des_pos_dot + LAMBDA * error);
@@ -222,12 +221,13 @@ int main(int argc, char **argv)
 
         // DAMPING MATRIX
         Eigen::Matrix<double, 4, 4> D;
-        // D.diagonal() << -X_u, -Y_v, -Z_w, -N_r - N_r_r * r_hat;
 
-        D << -X_u, 0.0, 0.0, 0.0,
-            0.0, -Y_v, 0.0, -Y_r,
-            0.0, 0.0, -Z_w, 0.0,
-            0.0, -N_v, 0.0, -N_r;
+        D << +X_u*abs(nu(0)), 0.0, 0.0, 0.0,
+            0.0, +Y_v*abs(nu(1)), 0.0, 0.0,
+            0.0, 0.0, +Z_w*abs(nu(2)), 0.0,
+            0.0, 0.0, 0.0, +N_r*abs(nu(3));
+
+        D = 0.5 * 1000 * D;
 
         Eigen::Matrix<double, 4, 4> M;
         M << m, 0.0, 0.0, 0.0,
@@ -237,6 +237,7 @@ int main(int argc, char **argv)
 
         Eigen::Matrix<double, 4, 4> K_d;
         K_d << Eigen::Matrix<double, 4, 4>::Identity();
+        K_d(3,3) = 10;
 
         // Define the torques vector
         Eigen::Matrix<double, 4, 1> torques_vec;

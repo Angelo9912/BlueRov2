@@ -204,16 +204,20 @@ box1_z = 1.0
 box2_x = 10.0
 box2_y = -10.0
 box2_z = 1.5
+target_x = 15.0
+target_y = 15.0
+target_z = 5.0
 
 
 # Plot 3D trajectory (Backstepping)
 
 ax1_3D = plt.axes(projection='3d')
-ax1_3D.plot3D(backstepping_state_x, backstepping_state_y, backstepping_state_z, 'blue', label='Backstepping3D')
-ax1_3D.scatter(sphere1_x, sphere1_y, sphere1_z, 'red', label='boa1')
-ax1_3D.scatter(sphere2_x, sphere2_y, sphere2_z, 'red', label='boa2')
-ax1_3D.scatter(box1_x, box1_y, box1_z, 'green', label='boa3')
-ax1_3D.scatter(box2_x, box2_y, box2_z, 'green', label='boa4')
+ax1_3D.plot3D(backstepping_state_x, backstepping_state_y, backstepping_state_z, 'blue', label='Trajectory')
+ax1_3D.plot([sphere1_x, sphere2_x], [sphere1_y, sphere2_y], [sphere1_z, sphere2_z],color='red',marker = "o", markersize = 5,linestyle = "",  label='circumference buoy')
+ax1_3D.plot([box1_x, box2_x], [box1_y, box2_y], [box1_z, box2_z], color= 'green',marker = "s", markersize = 5,linestyle = "",  label='ascend buoy')
+ax1_3D.plot([target_x], [target_y], [target_z], color='black',markerfacecolor = "yellow", marker = "*", markersize = 10,linestyle = "",label='target')
+ax1_3D.legend()
+
 
 plt.title('Backstepping control trajectory')
 ax1_3D.set_xlabel('x [m]')
@@ -224,11 +228,13 @@ ax1_3D.set_zlabel('z [m]')
 
 fig = plt.figure()
 ax1_2D = plt.axes()
-ax1_2D.plot(backstepping_state_x, backstepping_state_y, 'blue', label='Backstepping2D')
-ax1_2D.scatter(sphere1_x, sphere1_y, edgecolors='red',linewidths=2, label='boa1')
-ax1_2D.scatter(sphere2_x, sphere2_y,  edgecolors='red',linewidths=2, label='boa2')
-ax1_2D.scatter(box1_x, box1_y,  edgecolors='green',linewidths=2, label='boa3')
-ax1_2D.scatter(box2_x, box2_y,  edgecolors='green',linewidths=2, label='boa4')
+ax1_2D.plot(backstepping_state_x, backstepping_state_y, 'blue', label='Trajectory')
+ax1_2D.plot([sphere1_x, sphere2_x], [sphere1_y, sphere2_y],color='red',marker = "o", markersize = 8,linestyle = "", label='circumference buoy')
+ax1_2D.plot([box1_x, box2_x], [box1_y, box2_y], color='green',marker = "s", markersize = 8, linestyle = "",label='ascend buoy')
+ax1_2D.plot([target_x], [target_y], color='black',markerfacecolor = "yellow", marker = "*", markersize = 8, linestyle = "",label='target')
+
+ax1_2D.legend()
+
 plt.title('Backstepping control trajectory (x-y)')
 ax1_2D.set_xlabel('x [m]')
 ax1_2D.set_ylabel('y [m]')
@@ -281,19 +287,19 @@ power_consumed = 0
 for i in range(len(backstepping_tau_t)):
     power_consumed += (backstepping_tau_u[i]**2 + backstepping_tau_v[i]**2 + backstepping_tau_w[i]**2 + backstepping_tau_r[i]**2)*dt_backstepping
 
-print("Backstepping power consumed: ", power_consumed)
+mission_time_back = (dt_backstepping*len(backstepping_tau_t))
+print("Backstepping power consumed: ", power_consumed, " ", mission_time_back)
 
 plt.show()
 
 # Plot 3D trajectory (MPC)
 
 ax2_3D = plt.axes(projection='3d')
-ax2_3D.plot3D(MPC_state_x, MPC_state_y, MPC_state_z, 'blue', label='MPC3D')
-ax2_3D.scatter(sphere1_x, sphere1_y, sphere1_z, 'red', label='boa1')
-ax2_3D.scatter(sphere2_x, sphere2_y, sphere2_z, 'red', label='boa2')
-ax2_3D.scatter(box1_x, box1_y, box1_z, 'green', label='boa3')
-ax2_3D.scatter(box2_x, box2_y, box2_z, 'green', label='boa4')
-
+ax2_3D.plot3D(MPC_state_x, MPC_state_y, MPC_state_z, 'blue', label='Trajectory')
+ax2_3D.plot([sphere1_x, sphere2_x], [sphere1_y, sphere2_y], [sphere1_z, sphere2_z],color='red',marker = "o", markersize = 5,linestyle = "",  label="circumference buoy")
+ax2_3D.plot([box1_x, box2_x], [box1_y, box2_y], [box1_z,box2_z], color= 'green',marker = "s", markersize = 5,linestyle = "",  label='ascend buoy')
+ax2_3D.plot([target_x], [target_y], [target_z], color='black',markerfacecolor = "yellow", marker = "*", markersize = 10,linestyle = "", label='target')
+ax2_3D.legend()
 plt.title('MPC control trajectory')
 ax2_3D.set_xlabel('x [m]')
 ax2_3D.set_ylabel('y [m]')
@@ -304,11 +310,11 @@ ax2_3D.set_zlabel('z [m]')
 fig = plt.figure()
 ax2_2D = plt.axes()
 ax2_2D.plot(MPC_state_x, MPC_state_y, 'blue', label='MPC2D')
-ax2_2D.scatter(sphere1_x, sphere1_y, edgecolors='red',linewidths=2, label='boa1')
-ax2_2D.scatter(sphere2_x, sphere2_y,  edgecolors='red',linewidths=2, label='boa2')
-ax2_2D.scatter(box1_x, box1_y,  edgecolors='green',linewidths=2, label='boa3')
-ax2_2D.scatter(box2_x, box2_y,  edgecolors='green',linewidths=2, label='boa4')
-plt.title('Backstepping control trajectory (x-y)')
+ax2_2D.plot([sphere1_x, sphere2_x], [sphere1_y, sphere2_y],color='red',marker = "o", markersize = 8,linestyle = "", label='circumference buoy')
+ax2_2D.plot([box1_x, box2_x], [box1_y, box2_y], color='green',marker = "s", markersize = 8, linestyle = "",label='ascend buoy')
+ax2_2D.plot([target_x], [target_y], color='black',markerfacecolor = "yellow", marker = "*", markersize = 8, linestyle = "",label='target')
+ax2_2D.legend()
+plt.title('MPC control trajectory (x-y)')
 ax2_2D.set_xlabel('x [m]')
 ax2_2D.set_ylabel('y [m]')
 
@@ -358,7 +364,9 @@ dt_MPC = 0.01
 power_consumed_MPC = 0
 for i in range(len(MPC_tau_t)):
     power_consumed_MPC += (MPC_tau_u[i]**2 + MPC_tau_v[i]**2 + MPC_tau_w[i]**2 + MPC_tau_r[i]**2)*dt_MPC
+    
+mission_time_MPC = (dt_MPC*len(MPC_tau_t))
 
-print("MPC power consumed: ", power_consumed_MPC)
+print("MPC power consumed: ", power_consumed_MPC, " ", mission_time_MPC)
 
 plt.show()

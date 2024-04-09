@@ -5,15 +5,16 @@ l: 0.457
 
 # Coefficienti di Damping
 
-Y_v_dot: 0
-Y_v: 0
-Y_r: 0
+
+
 X_u_dot: 0
-X_u: 0
-Z_w: 0
-N_r: 0
-N_r_r: 0
-N_v : 0
+
+
+
+X_u : 0.1174
+Y_v : 0.2294
+Z_w : 0.1545
+N_r: 0.07
 
 target_x : 15
 target_y : 15
@@ -30,4 +31,3 @@ MAP_SE_y: -20 #vertice sud est mappa, coordinata y
 
 is_Spline_xy: False  # Linear: False, Spline: True
 is_Spline_z: False  # Linear: False, Spline: True
-
