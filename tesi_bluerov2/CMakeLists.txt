@@ -59,6 +59,7 @@ add_message_files(
  FILES
  Floats.msg
  Floats_String.msg
+ waypoints.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -235,9 +236,9 @@ add_executable(dynamics6DOF src/dynamics_6DOF.cpp)
 target_link_libraries(dynamics6DOF ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(dynamics6DOF ${catkin_EXPORTED_TARGETS})
 
-add_executable(traj_generator src/trajectory_generator.cpp)
-target_link_libraries(traj_generator ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
-add_dependencies(traj_generator ${catkin_EXPORTED_TARGETS})
+add_executable(guidance src/guidance.cpp)
+target_link_libraries(guidance ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(guidance ${catkin_EXPORTED_TARGETS})
 
 #add_executable(backstepping src/backstepping.cpp)
 #target_link_libraries(backstepping ${catkin_LIBRARIES} ${roscpp_LIBRARIES})

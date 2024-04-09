@@ -3,6 +3,7 @@
 #include <rosbag/bag.h>
 #include <eigen3/Eigen/Dense>
 #include "tesi_bluerov2/Floats.h" // for accessing -- tesi_bluerov2 Floats()
+#include "tesi_bluerov2/waypoints.h"
 #include <random>
 
 rosbag::Bag bag;
@@ -51,6 +52,8 @@ double mahalanobis_UKF = 0.0;
 
 double DELTA = 20;
 double w_d = -0.1;
+
+bool flag = true;
 
 // Function to generate Gaussian random number
 double gaussianNoise(double mean, double var)
@@ -207,8 +210,10 @@ int main(int argc, char **argv)
     ros::Subscriber sub2 = n.subscribe("est_state_topic", 1000, est_state_callback);
     ros::Subscriber sub3 = n.subscribe("est_state_UKF_topic", 1000, est_state_UKF_callback);
     ros::Publisher pub = n.advertise<tesi_bluerov2::Floats>("error_topic", 1000);
-    ros::Publisher pub2 = n.advertise<tesi_bluerov2::Floats>("tau_topic", 1000);
-    ros::Publisher pub3 = n.advertise<tesi_bluerov2::Floats>("desired_state_topic", 1000);
+    ros::Publisher pub2 = n.advertise<tesi_bluerov2::waypoints>("waypoints_topic", 1000);
+
+    // ros::Publisher pub2 = n.advertise<tesi_bluerov2::Floats>("tau_topic", 1000);
+    // ros::Publisher pub3 = n.advertise<tesi_bluerov2::Floats>("desired_state_topic", 1000);
     ros::Rate loop_rate(100);
 
     bool is_first_loop = true;
@@ -233,7 +238,7 @@ int main(int argc, char **argv)
     ros::spinOnce();
     int i = 0;
     double dt = 0.01;
-
+    std::vector<double> way = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
     while (ros::ok())
     {
         if (is_first_loop)
@@ -382,11 +387,21 @@ int main(int argc, char **argv)
         Eigen::VectorXd eta_dot_d(6);
         eta_dot_d << J * nu_d;
 
-        des = {x_d, y_d, z_d, 0.0, 0.0, psi_d, eta_dot_d(0), eta_dot_d(1), eta_dot_d(2), eta_dot_d(3), eta_dot_d(4), eta_dot_d(5)};
+        // des = {x_d, y_d, z_d, 0.0, 0.0, psi_d, eta_dot_d(0), eta_dot_d(1), eta_dot_d(2), eta_dot_d(3), eta_dot_d(4), eta_dot_d(5)};
 
-        tesi_bluerov2::Floats des_msg;
-        des_msg.data = des;
-        pub3.publish(des_msg);
+        // tesi_bluerov2::Floats des_msg;
+        // des_msg.data = des;
+        // pub3.publish(des_msg);
+        way = {0.0, 2.0, 1.0, 4.0, 4.0, 2.0, 6.0, 6.0, 1.0};
+        tesi_bluerov2::waypoints way_msg;
+        way_msg.waypoints = way;
+        way_msg.speed = 0.5;
+        way_msg.strategy = "Spline";
+        if (flag)
+        {
+            pub2.publish(way_msg);
+            flag = false;
+        }
 
         if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
         {

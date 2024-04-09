@@ -142,7 +142,7 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "backstepping_6DOF");
     ros::NodeHandle n;
     rosbag::Bag tau_bag;
-    tau_bag.open("/home/antonio/catkin_ws/src/tesi_bluerov2/bag/tau.bag", rosbag::bagmode::Write);
+    tau_bag.open("/home/angelo/catkin_ws/src/tesi_bluerov2/bag/tau.bag", rosbag::bagmode::Write);
 
     ros::Publisher chatter_pub = n.advertise<tesi_bluerov2::Floats>("tau_topic", 1);
     ros::Subscriber sub_des_state = n.subscribe("desired_state_topic", 1, desStateCallback);

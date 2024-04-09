@@ -31,5 +31,7 @@
     <node name="UKF" pkg="tesi_bluerov2" type="UKF" />
     <node name="manager" pkg="tesi_bluerov2" type="manager" />
     <node name="err_vis" pkg="tesi_bluerov2" type="err_vis" />
+    <node name="guidance" pkg="tesi_bluerov2" type="guidance" />
     <node name="sim_visualization_6DOF" pkg="tesi_bluerov2" type="sim_visualization_6DOF" />
+
 </launch>
