@@ -142,7 +142,7 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "backstepping_6DOF");
     ros::NodeHandle n;
     rosbag::Bag tau_bag;
-    tau_bag.open("/home/angelo/catkin_ws/src/tesi_bluerov2/bag/tau.bag", rosbag::bagmode::Write);
+    tau_bag.open("/home/antonio/catkin_ws/src/tesi_bluerov2/bag/tau.bag", rosbag::bagmode::Write);
 
     ros::Publisher chatter_pub = n.advertise<tesi_bluerov2::Floats>("tau_topic", 1);
     ros::Subscriber sub_des_state = n.subscribe("desired_state_topic", 1, desStateCallback);
@@ -358,8 +358,9 @@ int main(int argc, char **argv)
         theta_hat_dot = est_pose_dot(4);
         psi_hat_dot = est_pose_dot(5);
 
-        LAMBDA << 1.0 * Eigen::Matrix<double, 6, 6>::Identity();
+        LAMBDA << 3.0 * Eigen::Matrix<double, 6, 6>::Identity();
         LAMBDA(5, 5) = 10.0;
+        
 
         q_r_dot = J.inverse() * (des_pos_dot + LAMBDA * error);
 
@@ -452,10 +453,10 @@ int main(int argc, char **argv)
         Eigen::Matrix<double, 6, 6> K_d;
         K_d << Eigen::Matrix<double, 6, 6>::Identity();
 
-        K_d(0, 0) = 1;
+        K_d(0, 0) = 20;
         K_d(1, 1) = 5;
-        K_d(2, 2) = 0.5;
-        K_d(5, 5) = 2;
+        K_d(2, 2) = 20;
+        K_d(5, 5) = 10;
 
         Eigen::Matrix<double, 6, 4> B;
 

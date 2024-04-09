@@ -232,15 +232,18 @@ int main(int argc, char **argv)
                 // interpolazione mediante natural cubic spline
                 Eigen::MatrixXd A(n_waypoints - 2, n_waypoints - 2); // matrice moltiplicata al vettore M
                 A << 4 * Eigen::MatrixXd::Identity(n_waypoints - 2, n_waypoints - 2);
+                ROS_WARN_STREAM("A: " << A);
+                
                 if (A.rows() > 1 && A.cols() > 1)
                 {
-                    for (int i = 0; i < n_waypoints - 2; i++)
+                    for (int i = 1; i < n_waypoints - 2; i++)
                     {
-                        A(i, i + 1) = 1;
-                        A(i + 1, i) = 1;
+                        A(i-1, i) = 1;
+                        A(i, i-1) = 1;
                     }
                 }
-                ROS_WARN_STREAM("A: " << A);
+
+
 
                 ROS_WARN("SONO PRIMA DEI RESIZE");
                 Mx.resize(n_waypoints);
