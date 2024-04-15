@@ -25,13 +25,16 @@ double speed = 0.0;     // velocità di crociera
 
 // coordiate spline a 3 punti
 
-double x_1 = 0.0; // coordiata x del primo waypoint
-double y_1 = 0.0; // coordiata y del primo waypoint
-double z_1 = 0.0; // coordiata z del primo waypoint
+double x_1 = 0.0;   // coordiata x del primo waypoint
+double y_1 = 0.0;   // coordiata y del primo waypoint
+double z_1 = 0.0;   // coordiata z del primo waypoint
+double psi_1 = 0.0; // orientamento del primo waypoint
 
-double x_t = 0.0; // coordiata x del target da raggiungere a fine missione
-double y_t = 0.0; // coordiata y del target da raggiungere a fine missione
-double z_t = 0.0; // coordiata z del target da raggiungere a fine missione
+double x_t = 0.0;     // coordiata x del target da raggiungere a fine missione
+double y_t = 0.0;     // coordiata y del target da raggiungere a fine missione
+double z_t = 0.0;     // coordiata z del target da raggiungere a fine missione
+bool is_psi_adjusted; // flag per controllare se psi è stato aggiustato
+int way_counter = 0;  // contatore per waypoint
 
 std::string strategy = "";       // strategia di controllo
 std::string mission_status = ""; // stato di missione
@@ -53,6 +56,20 @@ void waypointCallback(const tesi_bluerov2::waypoints::ConstPtr &msg) // CALLBACK
         x_1 = x_hat;
         y_1 = y_hat;
         z_1 = z_hat;
+        psi_1 = psi_hat;
+        is_psi_adjusted = false;
+        way_spline = msg->waypoints;
+        speed = msg->speed;
+        strategy = msg->strategy;
+    }
+    else if (msg->strategy == "Rect")
+    {
+        x_1 = x_hat;
+        y_1 = y_hat;
+        z_1 = z_hat;
+        psi_1 = psi_hat;
+        way_counter = 1;
+        is_psi_adjusted = false;
         way_spline = msg->waypoints;
         speed = msg->speed;
         strategy = msg->strategy;
@@ -101,6 +118,35 @@ void estStateCallback(const tesi_bluerov2::Floats::ConstPtr &msg) // CALLBACK in
         r_hat = msg->data[11];
     }
 }
+
+double angleDifference(double e)
+{
+    if (e > 0)
+    {
+        if (e > 2 * M_PI - e)
+        {
+            e = -(2 * M_PI - e);
+        }
+        else
+        {
+            e = e;
+        }
+    }
+    else
+    {
+        e = -e;
+        if (e > 2 * M_PI - e)
+        {
+            e = 2 * M_PI - e;
+        }
+        else
+        {
+            e = -e;
+        }
+    }
+    return e;
+}
+
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "guidance");
@@ -112,9 +158,10 @@ int main(int argc, char **argv)
     ros::Subscriber sub_est_state = n.subscribe("est_state_UKF_topic", 1, estStateCallback); // sottoscrizione alla topic di stato stimato
     ros::Subscriber sub_waypoint = n.subscribe("waypoints_topic", 1, waypointCallback);      // sottoscrizione alla topic di waypoint
     ros::Subscriber sub_status = n.subscribe("manager/status_topic", 1, statusCallback);     // sottoscrizione alla topic di mission status
-    double freq = 10.0;                                                                      // frequenza di lavoro
+    double freq = 50.0;                                                                      // frequenza di lavoro
     double dt = 1 / freq;                                                                    // tempo di campionamento
     ros::Rate loop_rate(freq);
+    int i_psi = 0;
 
     // Inizializzo i valori di stato desiderato
     double x_d = 0.0;         // x desiderata
@@ -137,10 +184,11 @@ int main(int argc, char **argv)
     double r_d = 0.0;
 
     double dist_min;
+    double dist_min_psi;
+
     double waypoint_distance; // distanza tra i waypoint
     double h;                 // intervallo di tempo tra due waypoint
-    double t0;                // tempo iniziale
-    double delta_t;           // intervallo di tempo tra due punti
+    double delta_t = 0.1;     // intervallo di tempo tra due punti
     int dim;                  // dimensione del vettore
 
     // Definisco le matrici e i vettori necessari
@@ -171,12 +219,12 @@ int main(int argc, char **argv)
     Eigen::VectorXd dz(1);
     Eigen::VectorXd way_spline_x(1); // vettore che contiene le x delle spline
     Eigen::VectorXd way_spline_y(1); // vettore che contiene le y delle spline
-    Eigen::VectorXd way_spline_z(1); // vettore che contiene le z delle splineu
+    Eigen::VectorXd way_spline_z(1); // vettore che contiene le z delle spline
+    Eigen::VectorXd dist_psi(1);     // vettore che contiene le distanze tra psi desiderato e psi stimato
 
     // int i_min = 0;
     while (ros::ok())
     {
-
         if (mission_status == "COMPLETED")
         {
             // Vogliamo stare fermi nella posizione in cui ci troviamo
@@ -211,9 +259,6 @@ int main(int argc, char **argv)
                     way_spline_y(i + 1) = way_spline[i * 3 + 1];
                     way_spline_z(i + 1) = way_spline[i * 3 + 2];
                 }
-                ROS_WARN_STREAM("WAYPOINT X: " << way_spline_x);
-                ROS_WARN_STREAM("WAYPOINT Y: " << way_spline_y);
-                ROS_WARN_STREAM("WAYPOINT Z: " << way_spline_z);
 
                 u_d = 0.5;
                 v_d = 0.0;
@@ -222,57 +267,61 @@ int main(int argc, char **argv)
                 q_d = 0.0;
                 r_d = 0.0;
                 // double vel = sqrt(u_d * u_d + v_d * v_d + w_d * w_d);
-                waypoint_distance;
+                waypoint_distance = 0;
+                Eigen::VectorXd waypoint_distance_vector(n_waypoints - 1);
+                Eigen::VectorXd delta_t_vector(n_waypoints - 1);
+                // for (int i = 0; i < n_waypoints - 1; i++)
+                // {
+                //     waypoint_distance += sqrt(pow(way_spline_x(i + 1) - way_spline_x(i), 2) + pow(way_spline_y(i + 1) - way_spline_y(i), 2) + pow(way_spline_z(i + 1) - way_spline_z(i), 2)) / n_waypoints;
+                // }
                 for (int i = 0; i < n_waypoints - 1; i++)
                 {
-                    waypoint_distance += sqrt(pow(way_spline_x(i + 1) - way_spline_x(i), 2) + pow(way_spline_y(i + 1) - way_spline_y(i), 2) + pow(way_spline_z(i + 1) - way_spline_z(i), 2)) / n_waypoints;
+                    waypoint_distance_vector(i) = sqrt(pow(way_spline_x(i + 1) - way_spline_x(i), 2) + pow(way_spline_y(i + 1) - way_spline_y(i), 2) + pow(way_spline_z(i + 1) - way_spline_z(i), 2));
                 }
+                waypoint_distance = waypoint_distance_vector.sum();
                 h = waypoint_distance / speed;
-                ROS_WARN("H: %f", h);
+                dim = 0;
+                for (int i = 0; i < n_waypoints - 1; i++)
+                {
+                    delta_t_vector(i) = h * 0.05 / waypoint_distance_vector(i);
+                    dim += (int)((n_waypoints - 1) * h / delta_t_vector(i));
+                }
+                dim = dim++;
+
                 // interpolazione mediante natural cubic spline
                 Eigen::MatrixXd A(n_waypoints - 2, n_waypoints - 2); // matrice moltiplicata al vettore M
                 A << 4 * Eigen::MatrixXd::Identity(n_waypoints - 2, n_waypoints - 2);
-                ROS_WARN_STREAM("A: " << A);
-                
+
                 if (A.rows() > 1 && A.cols() > 1)
                 {
                     for (int i = 1; i < n_waypoints - 2; i++)
                     {
-                        A(i-1, i) = 1;
-                        A(i, i-1) = 1;
+                        A(i - 1, i) = 1;
+                        A(i, i - 1) = 1;
                     }
                 }
 
-
-
-                ROS_WARN("SONO PRIMA DEI RESIZE");
                 Mx.resize(n_waypoints);
                 My.resize(n_waypoints);
                 Mz.resize(n_waypoints);
                 Mx_tmp.resize(n_waypoints - 2);
                 My_tmp.resize(n_waypoints - 2);
                 Mz_tmp.resize(n_waypoints - 2);
-                ROS_WARN("M DEFINITE");
                 Sx.resize(n_waypoints - 2);
                 Sy.resize(n_waypoints - 2);
                 Sz.resize(n_waypoints - 2);
-                ROS_WARN("S DEFINITE");
                 ax.resize(n_waypoints - 1);
                 ay.resize(n_waypoints - 1);
                 az.resize(n_waypoints - 1);
-                ROS_WARN("AX DEFINITE");
                 bx.resize(n_waypoints - 1);
                 by.resize(n_waypoints - 1);
                 bz.resize(n_waypoints - 1);
-                ROS_WARN("BX DEFINITE");
                 cx.resize(n_waypoints - 1);
                 cy.resize(n_waypoints - 1);
                 cz.resize(n_waypoints - 1);
-                ROS_WARN("CX DEFINITE");
                 dx.resize(n_waypoints - 1);
                 dy.resize(n_waypoints - 1);
                 dz.resize(n_waypoints - 1);
-                ROS_WARN("SONO DOPO I RESIZE");
 
                 for (int i = 0; i < n_waypoints - 2; i++)
                 {
@@ -286,10 +335,6 @@ int main(int argc, char **argv)
                 My << 0, My_tmp, 0;
                 Mz_tmp = A.inverse() * Sz;
                 Mz << 0, Mz_tmp, 0;
-                ROS_WARN("MATRICI DEFINITE");
-                ROS_WARN_STREAM("Mx: " << Mx);
-                ROS_WARN_STREAM("My: " << My);
-                ROS_WARN_STREAM("Mz: " << Mz);
 
                 for (int i = 0; i < n_waypoints - 1; i++)
                 {
@@ -307,88 +352,142 @@ int main(int argc, char **argv)
                     dz(i) = way_spline_z(i);
                 }
 
-                t0 = 0;
-                delta_t = 0.1;
-                dim = (int)(n_waypoints * h / delta_t);
-                ROS_WARN("DIM: %d", dim);
-                Eigen::VectorXd x(dim);
-                Eigen::VectorXd y(dim);
-                Eigen::VectorXd z(dim);
-                ROS_WARN("XYZ DEFINITI");
-                Eigen::VectorXd phi(dim);
-                Eigen::VectorXd theta(dim);
-                Eigen::VectorXd psi(dim);
-                ROS_WARN("PHI THETA PSI DEFINITI");
+                Eigen::VectorXd x2(dim);
+                Eigen::VectorXd y2(dim);
+                Eigen::VectorXd z2(dim);
+                Eigen::VectorXd phi2(dim);
+                Eigen::VectorXd theta2(dim);
+                Eigen::VectorXd psi2(dim);
                 Eigen::VectorXd dist(dim);
                 int j_prec = 0;
-                for (int i = 0; i < n_waypoints; i++)
+                double h_i = h;
+                for (int i = 0; i < n_waypoints - 1; i++)
                 {
-                    ROS_WARN("SONO NEL PRIMO FOR");
-                    for (int j = j_prec; j < j_prec + h / delta_t; j++)
+                    delta_t = delta_t_vector(i);
+                    h_i = floor(h / delta_t) * delta_t;
+                    for (int j = 0; j < h_i / delta_t; j++)
                     {
-                        ROS_WARN("SONO NEL SECONDO FOR");
-                        x(j) = ax(i) * pow(t0 + j * delta_t, 3) + bx(i) * pow(t0 + j * delta_t, 2) + cx(i) * (t0 + j * delta_t) + dx(i);
-                        y(j) = ay(i) * pow(t0 + j * delta_t, 3) + by(i) * pow(t0 + j * delta_t, 2) + cy(i) * (t0 + j * delta_t) + dy(i);
-                        z(j) = az(i) * pow(t0 + j * delta_t, 3) + bz(i) * pow(t0 + j * delta_t, 2) + cz(i) * (t0 + j * delta_t) + dz(i);
-                        phi(j) = 0.0;
-                        theta(j) = 0.0;
-                        psi(j) = atan2(3 * ay(i) * pow(t0 + j * delta_t, 2) + 2 * by(i) * (t0 + j * delta_t) + cy(i), 3 * ax(i) * pow(t0 + j * delta_t, 2) + 2 * bx(i) * (t0 + j * delta_t) + cx(i));
+                        x2(j + j_prec) = ax(i) * pow(j * delta_t, 3) + bx(i) * pow(j * delta_t, 2) + cx(i) * (j * delta_t) + dx(i);
+                        y2(j + j_prec) = ay(i) * pow(j * delta_t, 3) + by(i) * pow(j * delta_t, 2) + cy(i) * (j * delta_t) + dy(i);
+                        z2(j + j_prec) = az(i) * pow(j * delta_t, 3) + bz(i) * pow(j * delta_t, 2) + cz(i) * (j * delta_t) + dz(i);
+                        phi2(j + j_prec) = 0.0;
+                        theta2(j + j_prec) = 0.0;
+                        psi2(j + j_prec) = atan2(3 * ay(i) * pow(j * delta_t, 2) + 2 * by(i) * (j * delta_t) + cy(i), 3 * ax(i) * pow(j * delta_t, 2) + 2 * bx(i) * (j * delta_t) + cx(i));
                     }
-                    j_prec = j_prec + (int)(h / delta_t);
-                    t0 = (i + 1) * h;
+                    j_prec = j_prec + (int)(h_i / delta_t);
                 }
 
-                int i_dist_min = 0;
-                for (int i = 0; i < dim - 1; i++)
-                {
-                    dist(i) = sqrt(pow(x(i + 1) - x(i), 2.0) + pow(y(i + 1) - y(i), 2.0) + pow(z(i + 1) - z(i), 2.0));
-                    if (i == 0)
-                    {
-                        dist_min = dist(i);
-                    }
-                    else
-                    {
-                        if (dist(i) < dist_min)
-                        {
-                            dist_min = dist(i);
-                            i_dist_min = i;
-                        }
-                    }
-                }
+                x2(dim - 1) = way_spline_x(n_waypoints - 1);
+                y2(dim - 1) = way_spline_y(n_waypoints - 1);
+                z2(dim - 1) = way_spline_z(n_waypoints - 1);
+                phi2(dim - 1) = 0.0;
+                theta2(dim - 1) = 0.0;
+                psi2(dim - 1) = psi2(dim - 2);
 
-                x_d = x(i_dist_min);
-                y_d = y(i_dist_min);
-                z_d = z(i_dist_min);
-                phi_d = phi(i_dist_min);
-                theta_d = theta(i_dist_min);
-                psi_d = psi(i_dist_min);
-                u_d = 0.5;
-                v_d = 0.0;
-                if (z_hat < z_d)
+                int dim1 = 0;
+                if (angleDifference(psi2(0) - psi_1) > 10 * (M_PI / 180))
                 {
-                    w_d = 0.1;
+                    dim1 = (int)(angleDifference(psi2(0) - psi_1) / (1 * (M_PI / 180)));
                 }
-                else if (z_hat == z_d)
+                else if (angleDifference(psi2(0) - psi_1) < -10 * (M_PI / 180))
                 {
-                    w_d = 0.0;
+                    dim1 = (int)(angleDifference(psi_1 - psi2(0)) / (1 * (M_PI / 180)));
                 }
                 else
                 {
-                    w_d = -0.1;
+                    is_psi_adjusted = true;
                 }
-                p_d = 0.0;
-                q_d = 0.0;
-                r_d = 0.0;
-                if (i_dist_min > dim - 10)
+
+                if (!is_psi_adjusted)
                 {
-                    // u_d = 0.0;
-                    // v_d = 0.0;
-                    // w_d = 0.0;
-                    // r_d = 0.0;
-                    std::string status_req = "PAUSED";
-                    std_msgs::String msg;
-                    msg.data = status_req;
-                    publisher_status.publish(msg);
+                    // FASE DI REGOLAZIONE DI PSI
+
+                    double delta_psi = angleDifference(psi2(0) - psi_1) / dim1;
+
+                    x_d = x_1;
+                    y_d = y_1;
+                    z_d = z_1;
+                    phi_d = 0.0;
+                    theta_d = 0.0;
+                    psi_d = psi_1 + i_psi * delta_psi;
+                    i_psi++;
+                    if (i_psi >= dim1 - 1)
+                    {
+                        is_psi_adjusted = true;
+                    }
+                    u_d = 0.0;
+                    v_d = 0.0;
+                    w_d = 0.0;
+                    p_d = 0.0;
+                    q_d = 0.0;
+                    r_d = 0.0;
+                    if (psi_d > psi_1)
+                    {
+                        r_d = 2.0 * M_PI / 180;
+                    }
+                    else if (psi_d < psi_1)
+                    {
+                        r_d = -2.0 * M_PI / 180;
+                    }
+                }
+                else
+                {
+                    // FASE DI SPLINE
+                    // Calcolo la distanza minima tra il ROV e i waypoint
+                    i_psi = 0;
+                    int i_dist_min = 0;
+
+                    for (int i = 0; i < dim; i++)
+                    {
+                        dist(i) = sqrt(pow(x2(i) - x_hat, 2.0) + pow(y2(i) - y_hat, 2.0) + pow(z2(i) - z_hat, 2.0));
+                        if (i == 0)
+                        {
+                            dist_min = dist(i);
+                        }
+                        else
+                        {
+                            if (dist(i) < dist_min)
+                            {
+                                dist_min = dist(i);
+                                i_dist_min = i;
+                            }
+                        }
+                    }
+                    x_d = x2(i_dist_min);
+                    y_d = y2(i_dist_min);
+                    z_d = z2(i_dist_min);
+                    phi_d = phi2(i_dist_min);
+                    theta_d = theta2(i_dist_min);
+                    psi_d = psi2(i_dist_min);
+                    u_d = 0.5;
+                    v_d = 0.0;
+                    if (z_hat < z_d)
+                    {
+                        w_d = 0.1;
+                    }
+                    else if (z_hat == z_d)
+                    {
+                        w_d = 0.0;
+                    }
+                    else
+                    {
+                        w_d = -0.1;
+                    }
+                    p_d = 0.0;
+                    q_d = 0.0;
+                    r_d = 0.0;
+
+                    if (i_dist_min > dim - 10)
+                    {
+                        // u_d = 0.0;
+                        // v_d = 0.0;
+                        // w_d = 0.0;
+                        // r_d = 0.0;
+                        std::string status_req = "PAUSED";
+                        std_msgs::String msg;
+                        msg.data = status_req;
+                        // publisher_status.publish(msg);
+                    }
                 }
                 // Define Jacobian Matrix
                 J << cos(psi_d) * cos(theta_d), cos(psi_d) * sin(phi_d) * sin(theta_d) - cos(phi_d) * sin(psi_d), sin(phi_d) * sin(psi_d) + cos(phi_d) * cos(psi_d) * sin(theta_d), 0, 0, 0,
@@ -401,6 +500,7 @@ int main(int argc, char **argv)
                 nu_d << u_d, v_d, w_d, p_d, q_d, r_d;
 
                 pose_d_dot = J * nu_d;
+
                 x_dot_d = pose_d_dot(0);
                 y_dot_d = pose_d_dot(1);
                 z_dot_d = pose_d_dot(2);
@@ -408,17 +508,225 @@ int main(int argc, char **argv)
                 theta_dot_d = pose_d_dot(4);
                 psi_dot_d = pose_d_dot(5);
 
-                // else if (strategy == "Target")
-                // {
-                // }
-
                 std::vector<double> des_state = {x_d, y_d, z_d, phi_d, theta_d, psi_d, x_dot_d, y_dot_d, z_dot_d, phi_dot_d, theta_dot_d, psi_dot_d};
                 tesi_bluerov2::Floats des_state_msg;
                 des_state_msg.data = des_state;
                 // Publishing the state
-
                 guidance_pub.publish(des_state_msg);
-                ROS_WARN("HO PUBBLICATO");
+            }
+            else if (strategy == "Rect")
+            {
+                n_waypoints = way_spline.size() / 3 + 1;
+                way_spline_x.resize(n_waypoints);
+                way_spline_y.resize(n_waypoints);
+                way_spline_z.resize(n_waypoints);
+                way_spline_x(0) = x_1;
+                way_spline_y(0) = y_1;
+                way_spline_z(0) = z_1;
+                for (int i = 0; i < n_waypoints - 1; i++)
+                {
+                    way_spline_x(i + 1) = way_spline[i * 3];
+                    way_spline_y(i + 1) = way_spline[i * 3 + 1];
+                    way_spline_z(i + 1) = way_spline[i * 3 + 2];
+                }
+                Eigen::VectorXd x_to_go(n_waypoints - 1);
+                Eigen::VectorXd y_to_go(n_waypoints - 1);
+                Eigen::VectorXd z_to_go(n_waypoints - 1);
+                Eigen::VectorXd psi_to_go(n_waypoints - 1);
+                Eigen::VectorXi dim1(n_waypoints - 1);
+                Eigen::VectorXd delta_psi(n_waypoints - 1);
+                // for (int i = 1; i < n_waypoints; i++)
+                // {
+
+                if (way_counter < n_waypoints)
+                {
+
+                    x_to_go(way_counter - 1) = way_spline_x(way_counter) - way_spline_x(way_counter - 1);   // distanza da percorrere in x
+                    y_to_go(way_counter - 1) = way_spline_y(way_counter) - way_spline_y(way_counter - 1);   // distanza da percorrere in y
+                    z_to_go(way_counter - 1) = way_spline_z(way_counter) - way_spline_z(way_counter - 1);   // distanza da percorrere in z
+                    psi_to_go(way_counter - 1) = atan2(y_to_go(way_counter - 1), x_to_go(way_counter - 1)); // angolo da percorrere
+                    if (angleDifference(psi_to_go(way_counter - 1) - psi_1) > 10 * (M_PI / 180))
+                    {
+                        dim1(way_counter - 1) = (int)(angleDifference(psi_to_go(way_counter - 1) - psi_1) * freq / (10 * (M_PI / 180)));
+                    }
+                    else if (angleDifference(psi_to_go(way_counter - 1) - psi_1) < -10 * (M_PI / 180))
+                    {
+                        dim1(way_counter - 1) = (int)(angleDifference(psi_1 - psi_to_go(way_counter - 1)) * freq / (10 * (M_PI / 180)));
+                    }
+
+                    if (!is_psi_adjusted)
+                    {
+                        delta_psi(way_counter - 1) = angleDifference(psi_to_go(way_counter - 1) - psi_1) / dim1(way_counter - 1);
+                        x_d = way_spline_x(way_counter - 1);
+                        y_d = way_spline_y(way_counter - 1);
+                        z_d = way_spline_z(way_counter - 1);
+                        phi_d = 0.0;
+                        theta_d = 0.0;
+                        psi_d = psi_1 + i_psi * delta_psi(way_counter - 1);
+                        psi_d = atan2(sin(psi_d), cos(psi_d));
+                        i_psi++;
+                        if (i_psi >= dim1(way_counter - 1) - 1)
+                        {
+                            is_psi_adjusted = true;
+                        }
+                        u_d = 0.0;
+                        v_d = 0.0;
+                        w_d = 0.0;
+                        p_d = 0.0;
+                        q_d = 0.0;
+                        r_d = 0.0;
+                        if (psi_d > psi_1)
+                        {
+                            r_d = 10.0 * M_PI / 180;
+                        }
+                        else if (psi_d < psi_1)
+                        {
+                            r_d = -10.0 * M_PI / 180;
+                        }
+                    }
+                    else
+                    {
+                        i_psi = 0;
+                        double u_d = speed;
+                        double v_d = 0.0;
+                        double w_d = 0.0;
+                        double r_d = 0.0;
+                        Eigen::VectorXd pos_rel_x(n_waypoints);
+                        Eigen::VectorXd pos_rel_y(n_waypoints);
+                        Eigen::VectorXd pos_rel_z(n_waypoints);
+                        Eigen::VectorXd dist_to_targ(n_waypoints);
+                        Eigen::VectorXi middle_waypoints(n_waypoints);
+                        Eigen::VectorXd dx(n_waypoints);
+                        Eigen::VectorXd dy(n_waypoints);
+                        Eigen::VectorXd dz(n_waypoints);
+
+                        pos_rel_x(way_counter - 1) = way_spline_x(way_counter) - way_spline_x(way_counter - 1);
+                        pos_rel_y(way_counter - 1) = way_spline_y(way_counter) - way_spline_y(way_counter - 1);
+                        pos_rel_z(way_counter - 1) = way_spline_z(way_counter) - way_spline_z(way_counter - 1);
+
+                        dist_to_targ(way_counter - 1) = sqrt(pow(pos_rel_x(way_counter - 1), 2) + pow(pos_rel_y(way_counter - 1), 2) + pow(pos_rel_z(way_counter - 1), 2));
+                        double step = 1.0/50.0;
+                        ROS_WARN("dist_to_targ(way_counter - 1): %f", dist_to_targ(way_counter - 1));
+                        middle_waypoints(way_counter - 1) = (int)(floor(dist_to_targ(way_counter - 1) / step)); // numero di waypoint intermedi
+                        ROS_WARN("middle_waypoints(way_counter - 1): %f", (dist_to_targ(way_counter - 1) / step));
+
+                        dx(way_counter - 1) = pos_rel_x(way_counter - 1) / middle_waypoints(way_counter - 1);
+                        dy(way_counter - 1) = pos_rel_y(way_counter - 1) / middle_waypoints(way_counter - 1);
+                        dz(way_counter - 1) = pos_rel_z(way_counter - 1) / middle_waypoints(way_counter - 1);
+
+                        // Eigen::MatrixXd x(n_waypoints, middle_waypoints(i - 1));
+                        // Eigen::MatrixXd y(n_waypoints, middle_waypoints(i - 1));
+                        // Eigen::MatrixXd z(n_waypoints, middle_waypoints(i - 1));
+                        // Eigen::MatrixXd phi(n_waypoints, middle_waypoints(i - 1));
+                        // Eigen::MatrixXd theta(n_waypoints, middle_waypoints(i - 1));
+                        // Eigen::MatrixXd psi(n_waypoints, middle_waypoints(i - 1));
+                        // Eigen::VectorXd dist(middle_waypoints(i - 1));
+
+                        Eigen::VectorXd x(middle_waypoints(way_counter - 1));
+                        Eigen::VectorXd y(middle_waypoints(way_counter - 1));
+                        Eigen::VectorXd z(middle_waypoints(way_counter - 1));
+                        Eigen::VectorXd phi(middle_waypoints(way_counter - 1));
+                        Eigen::VectorXd theta(middle_waypoints(way_counter - 1));
+                        Eigen::VectorXd psi(middle_waypoints(way_counter - 1));
+                        Eigen::VectorXd dist(middle_waypoints(way_counter - 1));
+                        int i_dist_min = 0;
+
+                        for (int j = 1; j < middle_waypoints(way_counter - 1); j++)
+                        {
+                            x(j - 1) = way_spline_x(way_counter - 1) + j * dx(way_counter - 1);
+                            y(j - 1) = way_spline_y(way_counter - 1) + j * dy(way_counter - 1);
+                            z(j - 1) = way_spline_z(way_counter - 1) + j * dz(way_counter - 1);
+                            phi(j - 1) = 0.0;
+                            theta(j - 1) = 0.0;
+                            psi(j - 1) = atan2(dy(way_counter - 1), dx(way_counter - 1));
+                            dist(j - 1) = sqrt(pow(x_hat - x(j - 1), 2.0) + pow(y_hat - y(j - 1), 2.0) + pow(z_hat - z(j - 1), 2.0));
+                            if (j == 1)
+                            {
+                                dist_min = dist(j - 1);
+                            }
+                            else
+                            {
+                                if (dist(j - 1) < dist_min)
+                                {
+                                    dist_min = dist(j - 1);
+                                    i_dist_min = j - 1;
+                                }
+                            }
+                            // x_d = x(i - 1, i_dist_min);
+                            // y_d = y(i - 1, i_dist_min);
+                            // z_d = z(i - 1, i_dist_min);
+                            // phi_d = 0.0;
+                            // theta_d = 0.0;
+                            // psi_d = psi(i - 1, i_dist_min);
+                            // if (i_dist_min == middle_waypoints(i - 1) - 1)
+                            // {
+                            //     is_psi_adjusted = false;
+                            // }
+
+                            // x(i - 1, j) = way_spline_x(i - 1) + j * dx(i - 1);
+                            // y(i - 1, j) = way_spline_y(i - 1) + j * dy(i - 1);
+                            // z(i - 1, j) = way_spline_z(i - 1) + j * dz(i - 1);
+                            // phi(i - 1, j) = 0.0;
+                            // theta(i - 1, j) = 0.0;
+                            // psi(i - 1, j) = atan2(y(i - 1, j), x(i - 1, j));
+
+                            // dist(i - 1, j) = sqrt(pow(x(i - 1, j) - x_hat, 2.0) + pow(y(i - 1, j) - y_hat, 2.0) + pow(z(i - 1, j) - z_hat, 2.0));
+                            // if (j == 0)
+                            // {
+                            //     dist_min = dist(i - 1, j);
+                            // }
+                            // else
+                            // {
+                            //     if (dist(i - 1, j) < dist_min)
+                            //     {
+                            //         dist_min = dist(i - 1, j);
+                            //         i_dist_min = j;
+                            //     }
+                            // }
+                        }
+                        x_d = x(i_dist_min);
+                        y_d = y(i_dist_min);
+                        z_d = z(i_dist_min);
+                        phi_d = 0.0;
+                        theta_d = 0.0;
+                        psi_d = psi(i_dist_min);
+                        if (i_dist_min >= middle_waypoints(way_counter - 1) - 10)
+                        {
+                            u_d = 0.0;
+                        }
+                        if (i_dist_min >= middle_waypoints(way_counter - 1) - 2)
+                        {
+                            is_psi_adjusted = false;
+                            way_counter++;
+                            psi_1 = psi_d;
+                        }
+                        ROS_WARN("i_dist_min: %d", i_dist_min);
+                        ROS_WARN("way_counter: %d", way_counter);
+                        // Define Jacobian Matrix
+                        J << cos(psi_d) * cos(theta_d), cos(psi_d) * sin(phi_d) * sin(theta_d) - cos(phi_d) * sin(psi_d), sin(phi_d) * sin(psi_d) + cos(phi_d) * cos(psi_d) * sin(theta_d), 0, 0, 0,
+                            cos(theta_d) * sin(psi_d), cos(phi_d) * cos(psi_d) + sin(phi_d) * sin(psi_d) * sin(theta_d), cos(phi_d) * sin(psi_d) * sin(theta_d) - cos(psi_d) * sin(phi_d), 0, 0, 0,
+                            -sin(theta_d), cos(theta_d) * sin(phi_d), cos(phi_d) * cos(theta_d), 0, 0, 0,
+                            0, 0, 0, 1, sin(phi_d) * tan(theta_d), cos(phi_d) * tan(theta_d),
+                            0, 0, 0, 0, cos(phi_d), -sin(phi_d),
+                            0, 0, 0, 0, sin(phi_d) / cos(theta_d), cos(phi_d) / cos(theta_d);
+
+                        nu_d << u_d, v_d, w_d, p_d, q_d, r_d;
+
+                        pose_d_dot = J * nu_d;
+
+                        x_dot_d = pose_d_dot(0);
+                        y_dot_d = pose_d_dot(1);
+                        z_dot_d = pose_d_dot(2);
+                        phi_dot_d = pose_d_dot(3);
+                        theta_dot_d = pose_d_dot(4);
+                        psi_dot_d = pose_d_dot(5);
+                    }
+                    std::vector<double> des_state = {x_d, y_d, z_d, phi_d, theta_d, psi_d, x_dot_d, y_dot_d, z_dot_d, phi_dot_d, theta_dot_d, psi_dot_d};
+                    tesi_bluerov2::Floats des_state_msg;
+                    des_state_msg.data = des_state;
+                    // Publishing the state
+                    guidance_pub.publish(des_state_msg);
+                }
             }
         }
         else if (mission_status == "PAUSED")
