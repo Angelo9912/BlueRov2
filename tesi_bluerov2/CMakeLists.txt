@@ -306,3 +306,7 @@ add_dependencies(sim_visualization_6DOF ${catkin_EXPORTED_TARGETS})
 add_executable(backstepping_6DOF src/backstepping_6DOF.cpp)
 target_link_libraries(backstepping_6DOF ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(backstepping_6DOF ${catkin_EXPORTED_TARGETS})
+
+add_executable(adaptive_backstepping_6DOF src/adaptive_backstepping_6DOF.cpp)
+target_link_libraries(adaptive_backstepping_6DOF ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(adaptive_backstepping_6DOF ${catkin_EXPORTED_TARGETS})

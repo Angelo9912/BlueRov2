@@ -1,21 +1,26 @@
 <?xml version="1.0"?>
 <launch>
     <rosparam file="$(find tesi_bluerov2)/yaml/params.yaml" />
-    <arg name="flag" default="back" />
+    <arg name="flag" default="ad_back" />
     <include file="$(find gazebo_ros)/launch/empty_world.launch"> -->
         <arg name="world_name" value="$(find tesi_bluerov2)/src/mondo_bluerov2_wall.world" />
         <arg name="paused" value="true" />
     </include>
 
-    <!-- <group
+    <group
     if="$(eval flag == 'MPC')">
         <node name="model_pred_control" pkg="tesi_bluerov2" type="model_pred_control" />
     </group>
 
     <group
-    if="$(eval flag == 'back')" -->
+    if="$(eval flag == 'back')">
     <node name="backstepping_6DOF" pkg="tesi_bluerov2" type="backstepping_6DOF" />
-    <!--</group> -->
+    </group>
+    
+    <group
+    if="$(eval flag == 'ad_back')">
+    <node name="adaptive_backstepping_6DOF" pkg="tesi_bluerov2" type="adaptive_backstepping_6DOF" />
+    </group>
 
     <node name="dynamics" pkg="tesi_bluerov2" type="dynamics6DOF" />
 
