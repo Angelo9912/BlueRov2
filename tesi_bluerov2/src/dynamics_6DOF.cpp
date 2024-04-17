@@ -17,8 +17,8 @@ double tau_p = 0.0;
 double tau_q = 0.0;
 double tau_r = 0.0;
 
-double x = +0;
-double y = +0;
+double x = 0;
+double y = 0;
 double z = 0;
 double phi = 0;
 double theta = 0;

@@ -240,29 +240,6 @@ add_executable(guidance src/guidance.cpp)
 target_link_libraries(guidance ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(guidance ${catkin_EXPORTED_TARGETS})
 
-#add_executable(backstepping src/backstepping.cpp)
-#target_link_libraries(backstepping ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
-#add_dependencies(backstepping ${catkin_EXPORTED_TARGETS})
-
-#add_executable(model_pred_control src/model_pred_control.cpp)
-#target_link_libraries(model_pred_control ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
-#add_dependencies(model_pred_control ${catkin_EXPORTED_TARGETS})
-
-#target_link_libraries(pose_plugin ${GAZEBO_LIBRARIES} ${roscpp_LIBRARIES})
-#add_dependencies(pose_plugin ${pose_plugin_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-#add_executable(sim_visualization src/sim_visualization.cpp)
-#target_link_libraries(sim_visualization ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
-#add_dependencies(sim_visualization ${catkin_EXPORTED_TARGETS})
-
-add_executable(planning src/planner.cpp)
-target_link_libraries(planning ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
-add_dependencies(planning ${catkin_EXPORTED_TARGETS})
-
-#add_executable(stereocamera src/camera.cpp)
-#target_link_libraries(stereocamera ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
-#add_dependencies(stereocamera ${catkin_EXPORTED_TARGETS})
-
 add_executable(manager src/mission_manager.cpp)
 target_link_libraries(manager ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(manager ${catkin_EXPORTED_TARGETS})
@@ -310,3 +287,11 @@ add_dependencies(backstepping_6DOF ${catkin_EXPORTED_TARGETS})
 add_executable(adaptive_backstepping_6DOF src/adaptive_backstepping_6DOF.cpp)
 target_link_libraries(adaptive_backstepping_6DOF ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(adaptive_backstepping_6DOF ${catkin_EXPORTED_TARGETS})
+
+add_executable(PID_controller_6DOF src/PID_controller_6DOF.cpp)
+target_link_libraries(PID_controller_6DOF ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(PID_controller_6DOF ${catkin_EXPORTED_TARGETS})
+
+add_executable(MPC_6DOF src/MPC_6DOF.cpp)
+target_link_libraries(MPC_6DOF ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(MPC_6DOF ${catkin_EXPORTED_TARGETS})

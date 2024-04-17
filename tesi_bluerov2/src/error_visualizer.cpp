@@ -392,7 +392,7 @@ int main(int argc, char **argv)
         // tesi_bluerov2::Floats des_msg;
         // des_msg.data = des;
         // pub3.publish(des_msg);
-        way = {2.0, 2.0, 0.0, 2.0, -2.0, 0.0, 4.0, 1.0, 0.0, 6.0, -3.0, 0.0, 2.0, -4.0, 0.0, 0.0,0.0,0.0};
+        way = {2.0, 2.0, 1.0, 2.0, -2.0, 2.0, 4.0, 1.0, 3.0, 6.0, -3.0, 2.0, 2.0, -4.0, 1.0, 0.0,0.0,0.0};
         tesi_bluerov2::waypoints way_msg;
         way_msg.waypoints = way;
         way_msg.speed = 0.5;
