@@ -7,6 +7,7 @@
 #include <random>
 
 rosbag::Bag bag;
+rosbag::Bag waypoints_bag;
 
 double x = 0.0;
 double y = 0.0;
@@ -228,6 +229,7 @@ int main(int argc, char **argv)
 
     std::string path = ros::package::getPath("tesi_bluerov2");
     bag.open(path + "/bag/test.bag", rosbag::bagmode::Write);
+    waypoints_bag.open(path + "/bag/waypoints.bag", rosbag::bagmode::Write);
 
     double x_d = 0;
     double y_d = 0;
@@ -392,11 +394,13 @@ int main(int argc, char **argv)
         // tesi_bluerov2::Floats des_msg;
         // des_msg.data = des;
         // pub3.publish(des_msg);
-        way = {2.0, 2.0, 1.0, 2.0, -2.0, 2.0, 4.0, 1.0, 3.0, 6.0, -3.0, 2.0, 2.0, -4.0, 1.0, 0.0,0.0,0.0};
+
+        way = {0.0, 2.0, 0.0, 2.0, 2.0, 0.0, 2.0, -2.0, 0.0, 0.0, -2.0, 0.0, 0.0, 0.0, 4.0, 0.0, 2.0, 4.0, 2.0, 2.0, 4.0, 2.0, -2.0, 4.0, 0.0, -2.0, 4.0, 0.0, 0.0, 4.0};
         tesi_bluerov2::waypoints way_msg;
         way_msg.waypoints = way;
         way_msg.speed = 0.5;
         way_msg.strategy = "Rect";
+
         if (flag)
         {
             pub2.publish(way_msg);
@@ -406,6 +410,7 @@ int main(int argc, char **argv)
         if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
         {
             bag.write("error_topic", ros::Time::now(), error_msg);
+            waypoints_bag.write("waypoints_topic", ros::Time::now(), way_msg);
         }
 
         ros::spinOnce();
@@ -413,6 +418,7 @@ int main(int argc, char **argv)
     }
 
     bag.close();
+    waypoints_bag.close();
 
     return 0;
 }

@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
     <rosparam file="$(find tesi_bluerov2)/yaml/params.yaml" />
-    <arg name="flag" default="MPC" />
+    <arg name="flag" default="PID" />
     <include file="$(find gazebo_ros)/launch/empty_world.launch"> -->
         <arg name="world_name" value="$(find tesi_bluerov2)/src/mondo_bluerov2_wall.world" />
         <arg name="paused" value="true" />

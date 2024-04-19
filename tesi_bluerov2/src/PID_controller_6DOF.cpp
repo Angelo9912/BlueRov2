@@ -41,7 +41,6 @@ double phi_hat_dot;
 double theta_hat_dot;
 double psi_hat_dot;
 
-
 double angleDifference(double e)
 {
     if (e > 0)
@@ -313,7 +312,6 @@ int main(int argc, char **argv)
 
     Eigen::Matrix<double, 6, 1> est_pose_dot;
 
-
     while (ros::ok())
     {
         // Calcolo il tempo iniziale in maniera periodica fino a che non diventa maggiore di 0 in modo tale da non avere falsi positivi nella
@@ -373,7 +371,7 @@ int main(int argc, char **argv)
         K_p << 10 * Eigen::Matrix<double, 6, 6>::Identity();
 
         Eigen::Matrix<double, 6, 6> K_i;
-        K_i << 0* Eigen::Matrix<double, 6, 6>::Identity();
+        K_i << 0 * Eigen::Matrix<double, 6, 6>::Identity();
 
         Eigen::Matrix<double, 4, 6> B_pinv;
 
@@ -393,10 +391,9 @@ int main(int argc, char **argv)
 
         D = 0.5 * 1000 * D;
 
-
         // Define the torques vector
         Eigen::Matrix<double, 4, 1> torques_vec;
-        torques_vec = B_pinv * (J.transpose() * K_p * error + J.transpose() * K_d * error_dot + J.transpose() * K_i * error_int + G + D*nu); //= B_pinv * (Y * pi_d + J.transpose() * error + K_d * s);
+        torques_vec = B_pinv * (J.transpose() * K_p * error + J.transpose() * K_d * error_dot + J.transpose() * K_i * error_int + G + D * nu); //= B_pinv * (Y * pi_d + J.transpose() * error + K_d * s);
 
         if (torques_vec(3) > 37.471)
         {

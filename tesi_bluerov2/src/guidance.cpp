@@ -2,6 +2,7 @@
 #include "std_msgs/String.h"
 #include <sstream>
 #include <ros/console.h>
+#include <rosbag/bag.h>
 #include <eigen3/Eigen/Dense>        // for eigen matrix
 #include "tesi_bluerov2/Floats.h"    // for accessing -- tesi_bluerov2 Floats()
 #include "tesi_bluerov2/waypoints.h" // for accessing -- tesi_bluerov2 Floats_String()
@@ -57,6 +58,7 @@ void waypointCallback(const tesi_bluerov2::waypoints::ConstPtr &msg) // CALLBACK
         y_1 = y_hat;
         z_1 = z_hat;
         psi_1 = psi_hat;
+        way_counter = 1;
         is_psi_adjusted = false;
         way_spline = msg->waypoints;
         speed = msg->speed;
@@ -163,6 +165,12 @@ int main(int argc, char **argv)
     ros::Rate loop_rate(freq);
     int i_psi = 0;
 
+    rosbag::Bag des_state_bag;
+    std::string path = ros::package::getPath("tesi_bluerov2");
+    des_state_bag.open(path + "/bag/des_state.bag", rosbag::bagmode::Write);
+
+    tesi_bluerov2::Floats des_state_msg;
+
     // Inizializzo i valori di stato desiderato
     double x_d = 0.0;         // x desiderata
     double y_d = 0.0;         // y desiderata
@@ -266,14 +274,11 @@ int main(int argc, char **argv)
                 p_d = 0.0;
                 q_d = 0.0;
                 r_d = 0.0;
-                // double vel = sqrt(u_d * u_d + v_d * v_d + w_d * w_d);
+
                 waypoint_distance = 0;
                 Eigen::VectorXd waypoint_distance_vector(n_waypoints - 1);
                 Eigen::VectorXd delta_t_vector(n_waypoints - 1);
-                // for (int i = 0; i < n_waypoints - 1; i++)
-                // {
-                //     waypoint_distance += sqrt(pow(way_spline_x(i + 1) - way_spline_x(i), 2) + pow(way_spline_y(i + 1) - way_spline_y(i), 2) + pow(way_spline_z(i + 1) - way_spline_z(i), 2)) / n_waypoints;
-                // }
+
                 for (int i = 0; i < n_waypoints - 1; i++)
                 {
                     waypoint_distance_vector(i) = sqrt(pow(way_spline_x(i + 1) - way_spline_x(i), 2) + pow(way_spline_y(i + 1) - way_spline_y(i), 2) + pow(way_spline_z(i + 1) - way_spline_z(i), 2));
@@ -283,7 +288,7 @@ int main(int argc, char **argv)
                 dim = 0;
                 for (int i = 0; i < n_waypoints - 1; i++)
                 {
-                    delta_t_vector(i) = h * 0.05 / waypoint_distance_vector(i);
+                    delta_t_vector(i) = h * 0.05 / waypoint_distance_vector(i); // Un punto ogni 5cm
                     dim += (int)((n_waypoints - 1) * h / delta_t_vector(i));
                 }
                 dim = dim++;
@@ -358,7 +363,9 @@ int main(int argc, char **argv)
                 Eigen::VectorXd phi2(dim);
                 Eigen::VectorXd theta2(dim);
                 Eigen::VectorXd psi2(dim);
-                Eigen::VectorXd dist(dim);
+                double dist;
+                Eigen::VectorXi j_waypoint(n_waypoints); // Vettore che contiene gli indici relativi ai waypoint
+                j_waypoint(0) = 0;                       // all'interno della struttura dati della spline
                 int j_prec = 0;
                 double h_i = h;
                 for (int i = 0; i < n_waypoints - 1; i++)
@@ -375,6 +382,7 @@ int main(int argc, char **argv)
                         psi2(j + j_prec) = atan2(3 * ay(i) * pow(j * delta_t, 2) + 2 * by(i) * (j * delta_t) + cy(i), 3 * ax(i) * pow(j * delta_t, 2) + 2 * bx(i) * (j * delta_t) + cx(i));
                     }
                     j_prec = j_prec + (int)(h_i / delta_t);
+                    j_waypoint(i + 1) = j_prec;
                 }
 
                 x2(dim - 1) = way_spline_x(n_waypoints - 1);
@@ -387,11 +395,11 @@ int main(int argc, char **argv)
                 int dim1 = 0;
                 if (angleDifference(psi2(0) - psi_1) > 10 * (M_PI / 180))
                 {
-                    dim1 = (int)(angleDifference(psi2(0) - psi_1) / (1 * (M_PI / 180)));
+                    dim1 = (int)(angleDifference(psi2(0) - psi_1) * freq / (10 * (M_PI / 180)));
                 }
                 else if (angleDifference(psi2(0) - psi_1) < -10 * (M_PI / 180))
                 {
-                    dim1 = (int)(angleDifference(psi_1 - psi2(0)) / (1 * (M_PI / 180)));
+                    dim1 = (int)(angleDifference(psi_1 - psi2(0)) * freq / (10 * (M_PI / 180)));
                 }
                 else
                 {
@@ -403,6 +411,7 @@ int main(int argc, char **argv)
                     // FASE DI REGOLAZIONE DI PSI
 
                     double delta_psi = angleDifference(psi2(0) - psi_1) / dim1;
+                    //  ROS_WARN("delta_psi : %f", delta_psi * 180 / M_PI);
 
                     x_d = x_1;
                     y_d = y_1;
@@ -410,11 +419,14 @@ int main(int argc, char **argv)
                     phi_d = 0.0;
                     theta_d = 0.0;
                     psi_d = psi_1 + i_psi * delta_psi;
+                    psi_d = atan2(sin(psi_d), cos(psi_d));
                     i_psi++;
                     if (i_psi >= dim1 - 1)
                     {
                         is_psi_adjusted = true;
                     }
+                    /*ROS_WARN("i_psi : %d", i_psi);
+                    ROS_WARN("dim1 : %d", dim1);*/
                     u_d = 0.0;
                     v_d = 0.0;
                     w_d = 0.0;
@@ -435,24 +447,29 @@ int main(int argc, char **argv)
                     // FASE DI SPLINE
                     // Calcolo la distanza minima tra il ROV e i waypoint
                     i_psi = 0;
-                    int i_dist_min = 0;
+                    int i_dist_min = j_waypoint(way_counter - 1);
 
-                    for (int i = 0; i < dim; i++)
+                    for (int i = j_waypoint(way_counter - 1); i < j_waypoint(way_counter); i++)
                     {
-                        dist(i) = sqrt(pow(x2(i) - x_hat, 2.0) + pow(y2(i) - y_hat, 2.0) + pow(z2(i) - z_hat, 2.0));
-                        if (i == 0)
+                        dist = sqrt(pow(x2(i) - x_hat, 2.0) + pow(y2(i) - y_hat, 2.0) + pow(z2(i) - z_hat, 2.0));
+                        if (i == j_waypoint(way_counter - 1))
                         {
-                            dist_min = dist(i);
+                            dist_min = dist;
                         }
                         else
                         {
-                            if (dist(i) < dist_min)
+                            if (dist < dist_min)
                             {
-                                dist_min = dist(i);
+                                dist_min = dist;
                                 i_dist_min = i;
                             }
                         }
                     }
+
+                    // ROS_WARN("i_dist_min: %d", i_dist_min);
+                    // ROS_WARN("way_counter: %d", way_counter);
+                    // ROS_WARN_STREAM("j_waypoint \n" << j_waypoint);
+
                     x_d = x2(i_dist_min);
                     y_d = y2(i_dist_min);
                     z_d = z2(i_dist_min);
@@ -477,39 +494,46 @@ int main(int argc, char **argv)
                     q_d = 0.0;
                     r_d = 0.0;
 
-                    if (i_dist_min > dim - 10)
+                    if (i_dist_min >= j_waypoint(way_counter) - 2)
                     {
-                        // u_d = 0.0;
-                        // v_d = 0.0;
-                        // w_d = 0.0;
-                        // r_d = 0.0;
-                        std::string status_req = "PAUSED";
-                        std_msgs::String msg;
-                        msg.data = status_req;
-                        // publisher_status.publish(msg);
+                        if (way_counter < (n_waypoints - 1))
+                        {
+                            way_counter++;
+                        }
+                        else
+                        {
+                            // u_d = 0.0;
+                            // v_d = 0.0;
+                            // w_d = 0.0;
+                            // r_d = 0.0;
+                            std::string status_req = "PAUSED";
+                            std_msgs::String msg;
+                            msg.data = status_req;
+                            publisher_status.publish(msg);
+                        }
                     }
+
+                    // Define Jacobian Matrix
+                    J << cos(psi_d) * cos(theta_d), cos(psi_d) * sin(phi_d) * sin(theta_d) - cos(phi_d) * sin(psi_d), sin(phi_d) * sin(psi_d) + cos(phi_d) * cos(psi_d) * sin(theta_d), 0, 0, 0,
+                        cos(theta_d) * sin(psi_d), cos(phi_d) * cos(psi_d) + sin(phi_d) * sin(psi_d) * sin(theta_d), cos(phi_d) * sin(psi_d) * sin(theta_d) - cos(psi_d) * sin(phi_d), 0, 0, 0,
+                        -sin(theta_d), cos(theta_d) * sin(phi_d), cos(phi_d) * cos(theta_d), 0, 0, 0,
+                        0, 0, 0, 1, sin(phi_d) * tan(theta_d), cos(phi_d) * tan(theta_d),
+                        0, 0, 0, 0, cos(phi_d), -sin(phi_d),
+                        0, 0, 0, 0, sin(phi_d) / cos(theta_d), cos(phi_d) / cos(theta_d);
+
+                    nu_d << u_d, v_d, w_d, p_d, q_d, r_d;
+
+                    pose_d_dot = J * nu_d;
+
+                    x_dot_d = pose_d_dot(0);
+                    y_dot_d = pose_d_dot(1);
+                    z_dot_d = pose_d_dot(2);
+                    phi_dot_d = pose_d_dot(3);
+                    theta_dot_d = pose_d_dot(4);
+                    psi_dot_d = pose_d_dot(5);
                 }
-                // Define Jacobian Matrix
-                J << cos(psi_d) * cos(theta_d), cos(psi_d) * sin(phi_d) * sin(theta_d) - cos(phi_d) * sin(psi_d), sin(phi_d) * sin(psi_d) + cos(phi_d) * cos(psi_d) * sin(theta_d), 0, 0, 0,
-                    cos(theta_d) * sin(psi_d), cos(phi_d) * cos(psi_d) + sin(phi_d) * sin(psi_d) * sin(theta_d), cos(phi_d) * sin(psi_d) * sin(theta_d) - cos(psi_d) * sin(phi_d), 0, 0, 0,
-                    -sin(theta_d), cos(theta_d) * sin(phi_d), cos(phi_d) * cos(theta_d), 0, 0, 0,
-                    0, 0, 0, 1, sin(phi_d) * tan(theta_d), cos(phi_d) * tan(theta_d),
-                    0, 0, 0, 0, cos(phi_d), -sin(phi_d),
-                    0, 0, 0, 0, sin(phi_d) / cos(theta_d), cos(phi_d) / cos(theta_d);
-
-                nu_d << u_d, v_d, w_d, p_d, q_d, r_d;
-
-                pose_d_dot = J * nu_d;
-
-                x_dot_d = pose_d_dot(0);
-                y_dot_d = pose_d_dot(1);
-                z_dot_d = pose_d_dot(2);
-                phi_dot_d = pose_d_dot(3);
-                theta_dot_d = pose_d_dot(4);
-                psi_dot_d = pose_d_dot(5);
 
                 std::vector<double> des_state = {x_d, y_d, z_d, phi_d, theta_d, psi_d, x_dot_d, y_dot_d, z_dot_d, phi_dot_d, theta_dot_d, psi_dot_d};
-                tesi_bluerov2::Floats des_state_msg;
                 des_state_msg.data = des_state;
                 // Publishing the state
                 guidance_pub.publish(des_state_msg);
@@ -545,6 +569,7 @@ int main(int argc, char **argv)
                     y_to_go(way_counter - 1) = way_spline_y(way_counter) - way_spline_y(way_counter - 1);   // distanza da percorrere in y
                     z_to_go(way_counter - 1) = way_spline_z(way_counter) - way_spline_z(way_counter - 1);   // distanza da percorrere in z
                     psi_to_go(way_counter - 1) = atan2(y_to_go(way_counter - 1), x_to_go(way_counter - 1)); // angolo da percorrere
+
                     if (angleDifference(psi_to_go(way_counter - 1) - psi_1) > 10 * (M_PI / 180))
                     {
                         dim1(way_counter - 1) = (int)(angleDifference(psi_to_go(way_counter - 1) - psi_1) * freq / (10 * (M_PI / 180)));
@@ -552,6 +577,10 @@ int main(int argc, char **argv)
                     else if (angleDifference(psi_to_go(way_counter - 1) - psi_1) < -10 * (M_PI / 180))
                     {
                         dim1(way_counter - 1) = (int)(angleDifference(psi_1 - psi_to_go(way_counter - 1)) * freq / (10 * (M_PI / 180)));
+                    }
+                    else
+                    {
+                        is_psi_adjusted = true;
                     }
 
                     if (!is_psi_adjusted)
@@ -569,6 +598,8 @@ int main(int argc, char **argv)
                         {
                             is_psi_adjusted = true;
                         }
+                        /* ROS_WARN("i_psi : %d", i_psi);
+                         ROS_WARN("dim1 : %d", dim1(way_counter - 1));*/
                         u_d = 0.0;
                         v_d = 0.0;
                         w_d = 0.0;
@@ -605,22 +636,12 @@ int main(int argc, char **argv)
                         pos_rel_z(way_counter - 1) = way_spline_z(way_counter) - way_spline_z(way_counter - 1);
 
                         dist_to_targ(way_counter - 1) = sqrt(pow(pos_rel_x(way_counter - 1), 2) + pow(pos_rel_y(way_counter - 1), 2) + pow(pos_rel_z(way_counter - 1), 2));
-                        double step = 1.0/50.0;
-                        ROS_WARN("dist_to_targ(way_counter - 1): %f", dist_to_targ(way_counter - 1));
+                        double step = 1.0 / 50.0;
                         middle_waypoints(way_counter - 1) = (int)(floor(dist_to_targ(way_counter - 1) / step)); // numero di waypoint intermedi
-                        ROS_WARN("middle_waypoints(way_counter - 1): %f", (dist_to_targ(way_counter - 1) / step));
 
                         dx(way_counter - 1) = pos_rel_x(way_counter - 1) / middle_waypoints(way_counter - 1);
                         dy(way_counter - 1) = pos_rel_y(way_counter - 1) / middle_waypoints(way_counter - 1);
                         dz(way_counter - 1) = pos_rel_z(way_counter - 1) / middle_waypoints(way_counter - 1);
-
-                        // Eigen::MatrixXd x(n_waypoints, middle_waypoints(i - 1));
-                        // Eigen::MatrixXd y(n_waypoints, middle_waypoints(i - 1));
-                        // Eigen::MatrixXd z(n_waypoints, middle_waypoints(i - 1));
-                        // Eigen::MatrixXd phi(n_waypoints, middle_waypoints(i - 1));
-                        // Eigen::MatrixXd theta(n_waypoints, middle_waypoints(i - 1));
-                        // Eigen::MatrixXd psi(n_waypoints, middle_waypoints(i - 1));
-                        // Eigen::VectorXd dist(middle_waypoints(i - 1));
 
                         Eigen::VectorXd x(middle_waypoints(way_counter - 1));
                         Eigen::VectorXd y(middle_waypoints(way_counter - 1));
@@ -650,39 +671,14 @@ int main(int argc, char **argv)
                                 {
                                     dist_min = dist(j - 1);
                                     i_dist_min = j - 1;
+                                    
                                 }
                             }
-                            // x_d = x(i - 1, i_dist_min);
-                            // y_d = y(i - 1, i_dist_min);
-                            // z_d = z(i - 1, i_dist_min);
-                            // phi_d = 0.0;
-                            // theta_d = 0.0;
-                            // psi_d = psi(i - 1, i_dist_min);
-                            // if (i_dist_min == middle_waypoints(i - 1) - 1)
-                            // {
-                            //     is_psi_adjusted = false;
-                            // }
 
-                            // x(i - 1, j) = way_spline_x(i - 1) + j * dx(i - 1);
-                            // y(i - 1, j) = way_spline_y(i - 1) + j * dy(i - 1);
-                            // z(i - 1, j) = way_spline_z(i - 1) + j * dz(i - 1);
-                            // phi(i - 1, j) = 0.0;
-                            // theta(i - 1, j) = 0.0;
-                            // psi(i - 1, j) = atan2(y(i - 1, j), x(i - 1, j));
-
-                            // dist(i - 1, j) = sqrt(pow(x(i - 1, j) - x_hat, 2.0) + pow(y(i - 1, j) - y_hat, 2.0) + pow(z(i - 1, j) - z_hat, 2.0));
-                            // if (j == 0)
-                            // {
-                            //     dist_min = dist(i - 1, j);
-                            // }
-                            // else
-                            // {
-                            //     if (dist(i - 1, j) < dist_min)
-                            //     {
-                            //         dist_min = dist(i - 1, j);
-                            //         i_dist_min = j;
-                            //     }
-                            // }
+                        }
+                        if(dist_min <= 0.05)
+                        {
+                            i_dist_min ++;
                         }
                         x_d = x(i_dist_min);
                         y_d = y(i_dist_min);
@@ -690,18 +686,34 @@ int main(int argc, char **argv)
                         phi_d = 0.0;
                         theta_d = 0.0;
                         psi_d = psi(i_dist_min);
+                        ROS_WARN("i_dist_min: %d", i_dist_min);
                         if (i_dist_min >= middle_waypoints(way_counter - 1) - 10)
                         {
                             u_d = 0.0;
                         }
+
+                        if (z_hat < z_d)
+                        {
+                            w_d = 0.1;
+                        }
+                        else if (z_hat == z_d)
+                        {
+                            w_d = 0.0;
+                        }
+                        else
+                        {
+                            w_d = -0.1;
+                        }
+
                         if (i_dist_min >= middle_waypoints(way_counter - 1) - 2)
                         {
                             is_psi_adjusted = false;
                             way_counter++;
                             psi_1 = psi_d;
                         }
-                        ROS_WARN("i_dist_min: %d", i_dist_min);
-                        ROS_WARN("way_counter: %d", way_counter);
+                        // ROS_WARN("middle_waypoints(way_counter - 1): %f", (dist_to_targ(way_counter - 1) / step));
+                        // ROS_WARN("i_dist_min: %d", i_dist_min);
+                        // ROS_WARN("way_counter: %d", way_counter);
                         // Define Jacobian Matrix
                         J << cos(psi_d) * cos(theta_d), cos(psi_d) * sin(phi_d) * sin(theta_d) - cos(phi_d) * sin(psi_d), sin(phi_d) * sin(psi_d) + cos(phi_d) * cos(psi_d) * sin(theta_d), 0, 0, 0,
                             cos(theta_d) * sin(psi_d), cos(phi_d) * cos(psi_d) + sin(phi_d) * sin(psi_d) * sin(theta_d), cos(phi_d) * sin(psi_d) * sin(theta_d) - cos(psi_d) * sin(phi_d), 0, 0, 0,
@@ -721,8 +733,8 @@ int main(int argc, char **argv)
                         theta_dot_d = pose_d_dot(4);
                         psi_dot_d = pose_d_dot(5);
                     }
+
                     std::vector<double> des_state = {x_d, y_d, z_d, phi_d, theta_d, psi_d, x_dot_d, y_dot_d, z_dot_d, phi_dot_d, theta_dot_d, psi_dot_d};
-                    tesi_bluerov2::Floats des_state_msg;
                     des_state_msg.data = des_state;
                     // Publishing the state
                     guidance_pub.publish(des_state_msg);
@@ -735,6 +747,11 @@ int main(int argc, char **argv)
             std_msgs::String msg;
             msg.data = status_req;
             publisher_status.publish(msg);
+        }
+
+        if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
+        {
+            des_state_bag.write("desired_state_topic", ros::Time::now(), des_state_msg);
         }
 
         ros::spinOnce();

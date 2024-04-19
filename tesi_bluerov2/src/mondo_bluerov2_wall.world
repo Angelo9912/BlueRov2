@@ -163,7 +163,7 @@
           <cast_shadows>1</cast_shadows>
           <geometry>
             <mesh>
-              <uri>/home/antonio/catkin_ws/src/tesi_bluerov2/BlueRov2.dae</uri>
+              <uri>/home/angelo/catkin_ws/src/tesi_bluerov2/BlueRov2.dae</uri>
             </mesh>
           </geometry>
         </visual>
