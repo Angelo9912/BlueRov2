@@ -8,6 +8,7 @@ import rosbag
 import os
 import pathlib
 
+
 dir = os.path.join(os.path.dirname(__file__), os.path.pardir)
 os.chdir(dir)
 
@@ -129,9 +130,9 @@ t0 = state_t[0]
 for i in range(len(state_t)):
     state_t[i] = state_t[i] - t0
     
+
 for topic, msg, t in des_state_data:
     time_d = t.to_sec()
-    print(msg.data)
     x_d = msg.data[0]
     y_d = msg.data[1]
     z_d = msg.data[2]
@@ -178,6 +179,8 @@ for topic, msg, t in way_data:
 t0 = way_t_list[0]
 for i in range(len(way_t_list)):
     way_t_list[i] = way_t_list[i] - t0
+
+
 
 
 des_state_bag.close()

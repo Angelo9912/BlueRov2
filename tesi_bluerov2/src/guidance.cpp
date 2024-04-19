@@ -758,5 +758,6 @@ int main(int argc, char **argv)
 
         loop_rate.sleep();
     }
+    des_state_bag.close();
     return 0;
 }
