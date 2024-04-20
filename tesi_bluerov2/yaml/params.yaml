@@ -75,8 +75,8 @@ target_z : 5
 # Varianze del rumore di misura
 var_x_GPS : 1
 var_y_GPS : 1
-var_x_scanner : 0.0004
-var_y_scanner : 0.0004
+var_x_scanner : 4
+var_y_scanner : 4
 var_z_depth_sensor : 0.0025
 var_phi_IMU : 0.01
 var_theta_IMU : 0.01
@@ -95,7 +95,6 @@ var_tau_w : 0.5
 var_tau_p : 0.1
 var_tau_q : 0.1
 var_tau_r : 0.1
-
 
 MAP_NE_x: 20 #vertice nord est mappa, coordinata x
 MAP_NE_y: 20 #vertice nord est mappa, coordinata y

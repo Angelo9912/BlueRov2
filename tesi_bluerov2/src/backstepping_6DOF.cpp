@@ -361,6 +361,8 @@ int main(int argc, char **argv)
 
         LAMBDA << 3.0 * Eigen::Matrix<double, 6, 6>::Identity();
         LAMBDA(5, 5) = 10.0;
+        LAMBDA(0, 0) = 10.0;
+        LAMBDA(1, 1) = 10.0;
         
 
         q_r_dot = J.inverse() * (des_pos_dot + LAMBDA * error);

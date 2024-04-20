@@ -411,7 +411,6 @@ int main(int argc, char **argv)
                     // FASE DI REGOLAZIONE DI PSI
 
                     double delta_psi = angleDifference(psi2(0) - psi_1) / dim1;
-                    //  ROS_WARN("delta_psi : %f", delta_psi * 180 / M_PI);
 
                     x_d = x_1;
                     y_d = y_1;
@@ -425,8 +424,7 @@ int main(int argc, char **argv)
                     {
                         is_psi_adjusted = true;
                     }
-                    /*ROS_WARN("i_psi : %d", i_psi);
-                    ROS_WARN("dim1 : %d", dim1);*/
+
                     u_d = 0.0;
                     v_d = 0.0;
                     w_d = 0.0;
@@ -466,35 +464,63 @@ int main(int argc, char **argv)
                         }
                     }
 
-                    // ROS_WARN("i_dist_min: %d", i_dist_min);
-                    // ROS_WARN("way_counter: %d", way_counter);
-                    // ROS_WARN_STREAM("j_waypoint \n" << j_waypoint);
-
                     x_d = x2(i_dist_min);
                     y_d = y2(i_dist_min);
                     z_d = z2(i_dist_min);
                     phi_d = phi2(i_dist_min);
                     theta_d = theta2(i_dist_min);
                     psi_d = psi2(i_dist_min);
-                    u_d = 0.5;
-                    v_d = 0.0;
-                    if (z_hat < z_d)
+                    u_d = speed;
+
+                    Eigen::MatrixXd Body2NED(3, 3);
+                    Body2NED << cos(psi_hat) * cos(theta_hat), cos(psi_hat) * sin(phi_hat) * sin(theta_hat) - cos(phi_hat) * sin(psi_hat), sin(phi_hat) * sin(psi_hat) + cos(phi_hat) * cos(psi_hat) * sin(theta_hat),
+                        cos(theta_hat) * sin(psi_hat), cos(phi_hat) * cos(psi_hat) + sin(phi_hat) * sin(psi_hat) * sin(theta_hat), cos(phi_hat) * sin(psi_hat) * sin(theta_hat) - cos(psi_hat) * sin(phi_hat),
+                        -sin(theta_hat), cos(theta_hat) * sin(phi_hat), cos(phi_hat) * cos(theta_hat);
+
+                    Eigen::VectorXd pose_d(3);
+                    pose_d << x_d, y_d, z_d;
+                    Eigen::VectorXd pose_hat(3);
+                    pose_hat << x_hat, y_hat, z_hat;
+
+                    Eigen::VectorXd pose_error_body = Body2NED.transpose() * (pose_d - pose_hat);
+
+                    if (pose_error_body(1) > 0.4)
                     {
-                        w_d = 0.1;
+                        v_d = 0.1;
                     }
-                    else if (z_hat == z_d)
+                    else if (pose_error_body(1) < -0.4)
                     {
-                        w_d = 0.0;
+                        v_d = -0.1;
                     }
                     else
                     {
+                        v_d = 0.0;
+                    }
+
+                    if (z_d - z_hat > 0.1)
+                    {
+                        w_d = 0.1;
+                    }
+                    else if (z_d - z_hat < -0.1)
+                    {
                         w_d = -0.1;
                     }
+                    else
+                    {
+                        w_d = 0.0;
+                    }
+
                     p_d = 0.0;
                     q_d = 0.0;
                     r_d = 0.0;
 
-                    if (i_dist_min >= j_waypoint(way_counter) - 2)
+                    double error_x_to_waypoint = way_spline_x(way_counter) - x_hat;
+                    double error_y_to_waypoint = way_spline_y(way_counter) - y_hat;
+                    double error_z_to_waypoint = way_spline_z(way_counter) - z_hat;
+
+                    double dist_to_waypoint = sqrt(pow(error_x_to_waypoint, 2) + pow(error_y_to_waypoint, 2) + pow(error_z_to_waypoint, 2));
+
+                    if (dist_to_waypoint < 0.3)
                     {
                         if (way_counter < (n_waypoints - 1))
                         {
@@ -502,10 +528,6 @@ int main(int argc, char **argv)
                         }
                         else
                         {
-                            // u_d = 0.0;
-                            // v_d = 0.0;
-                            // w_d = 0.0;
-                            // r_d = 0.0;
                             std::string status_req = "PAUSED";
                             std_msgs::String msg;
                             msg.data = status_req;
@@ -547,24 +569,23 @@ int main(int argc, char **argv)
                 way_spline_x(0) = x_1;
                 way_spline_y(0) = y_1;
                 way_spline_z(0) = z_1;
+
                 for (int i = 0; i < n_waypoints - 1; i++)
                 {
                     way_spline_x(i + 1) = way_spline[i * 3];
                     way_spline_y(i + 1) = way_spline[i * 3 + 1];
                     way_spline_z(i + 1) = way_spline[i * 3 + 2];
                 }
+
                 Eigen::VectorXd x_to_go(n_waypoints - 1);
                 Eigen::VectorXd y_to_go(n_waypoints - 1);
                 Eigen::VectorXd z_to_go(n_waypoints - 1);
                 Eigen::VectorXd psi_to_go(n_waypoints - 1);
                 Eigen::VectorXi dim1(n_waypoints - 1);
                 Eigen::VectorXd delta_psi(n_waypoints - 1);
-                // for (int i = 1; i < n_waypoints; i++)
-                // {
 
                 if (way_counter < n_waypoints)
                 {
-
                     x_to_go(way_counter - 1) = way_spline_x(way_counter) - way_spline_x(way_counter - 1);   // distanza da percorrere in x
                     y_to_go(way_counter - 1) = way_spline_y(way_counter) - way_spline_y(way_counter - 1);   // distanza da percorrere in y
                     z_to_go(way_counter - 1) = way_spline_z(way_counter) - way_spline_z(way_counter - 1);   // distanza da percorrere in z
@@ -598,8 +619,7 @@ int main(int argc, char **argv)
                         {
                             is_psi_adjusted = true;
                         }
-                        /* ROS_WARN("i_psi : %d", i_psi);
-                         ROS_WARN("dim1 : %d", dim1(way_counter - 1));*/
+
                         u_d = 0.0;
                         v_d = 0.0;
                         w_d = 0.0;
@@ -671,15 +691,10 @@ int main(int argc, char **argv)
                                 {
                                     dist_min = dist(j - 1);
                                     i_dist_min = j - 1;
-                                    
                                 }
                             }
+                        }
 
-                        }
-                        if(dist_min <= 0.05)
-                        {
-                            i_dist_min ++;
-                        }
                         x_d = x(i_dist_min);
                         y_d = y(i_dist_min);
                         z_d = z(i_dist_min);
@@ -687,25 +702,61 @@ int main(int argc, char **argv)
                         theta_d = 0.0;
                         psi_d = psi(i_dist_min);
                         ROS_WARN("i_dist_min: %d", i_dist_min);
-                        if (i_dist_min >= middle_waypoints(way_counter - 1) - 10)
+
+                        double error_x_to_waypoint = way_spline_x(way_counter) - x_hat;
+                        double error_y_to_waypoint = way_spline_y(way_counter) - y_hat;
+                        double error_z_to_waypoint = way_spline_z(way_counter) - z_hat;
+
+                        double dist_to_waypoint = sqrt(pow(error_x_to_waypoint, 2) + pow(error_y_to_waypoint, 2) + pow(error_z_to_waypoint, 2));
+
+                        if (dist_to_waypoint < 0.3)
                         {
                             u_d = 0.0;
                         }
-
-                        if (z_hat < z_d)
+                        else
                         {
-                            w_d = 0.1;
+                            u_d = speed;
                         }
-                        else if (z_hat == z_d)
+
+                        Eigen::MatrixXd Body2NED(3, 3);
+                        Body2NED << cos(psi_hat) * cos(theta_hat), cos(psi_hat) * sin(phi_hat) * sin(theta_hat) - cos(phi_hat) * sin(psi_hat), sin(phi_hat) * sin(psi_hat) + cos(phi_hat) * cos(psi_hat) * sin(theta_hat),
+                            cos(theta_hat) * sin(psi_hat), cos(phi_hat) * cos(psi_hat) + sin(phi_hat) * sin(psi_hat) * sin(theta_hat), cos(phi_hat) * sin(psi_hat) * sin(theta_hat) - cos(psi_hat) * sin(phi_hat),
+                            -sin(theta_hat), cos(theta_hat) * sin(phi_hat), cos(phi_hat) * cos(theta_hat);
+
+                        Eigen::VectorXd pose_d(3);
+                        pose_d << x_d, y_d, z_d;
+                        Eigen::VectorXd pose_hat(3);
+                        pose_hat << x_hat, y_hat, z_hat;
+
+                        Eigen::VectorXd pose_error_body = Body2NED.transpose() * (pose_d - pose_hat);
+
+                        if (pose_error_body(1) > 0.2)
                         {
-                            w_d = 0.0;
+                            v_d = 0.1;
+                        }
+                        else if (pose_error_body(1) < -0.2)
+                        {
+                            v_d = -0.1;
                         }
                         else
                         {
-                            w_d = -0.1;
+                            v_d = 0.0;
                         }
 
-                        if (i_dist_min >= middle_waypoints(way_counter - 1) - 2)
+                        if (z_d - z_hat > 0.1)
+                        {
+                            w_d = 0.1;
+                        }
+                        else if (z_d - z_hat < -0.1)
+                        {
+                            w_d = -0.1;
+                        }
+                        else
+                        {
+                            w_d = 0.0;
+                        }
+
+                        if (dist_to_waypoint < 0.1)
                         {
                             is_psi_adjusted = false;
                             way_counter++;

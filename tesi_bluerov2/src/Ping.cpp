@@ -5,8 +5,8 @@
 double x_hat = 0.0;
 double y_hat = 0.0;
 
-double var_x = 0.0004;
-double var_y = 0.0004;
+double var_x = 4;
+double var_y = 4;
 
 // Function to generate Gaussian random number
 double gaussianNoise(double mean, double var)
@@ -54,7 +54,7 @@ int main(int argc, char **argv)
     double start_time;
 
     // Loop at 10Hz, publishing messages until this node is shut down.
-    ros::Rate rate(5);
+    ros::Rate rate(1.5);
     while (ros::ok())
     {
         tesi_bluerov2::Floats msg;

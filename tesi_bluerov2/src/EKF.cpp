@@ -137,6 +137,8 @@ double N_p_dot = 0.0;
 double N_q_dot = 0.0;
 double N_r_dot = 0.0;
 
+double W = 0.0;
+
 // Distanza di Mahalanobis
 double mahalanobis_distance = 0.0;
 
@@ -394,6 +396,15 @@ int main(int argc, char **argv)
     n.getParam("var_tau_q", var_tau_q);
     n.getParam("var_tau_r", var_tau_r);
 
+    Eigen::Matrix<double, 6, 6> C_rb;
+    Eigen::Matrix<double, 6, 6> C_a;
+    Eigen::Matrix<double, 6, 6> C;
+    Eigen::Matrix<double, 6, 6> D;
+    Eigen::Matrix<double, 6, 1> G;
+    Eigen::Matrix<double, 6, 6> Jacobian;
+    Eigen::Matrix<double, 6, 1> eta_pred;
+    Eigen::Matrix<double, 6, 1> nu_pred;
+
     // Current corrected state vector (12x1)
     Eigen::VectorXd xi_curr(12);
     xi_curr.setZero();
@@ -571,14 +582,14 @@ int main(int argc, char **argv)
                 q = xi_curr(10);
                 r = xi_curr(11);
 
-                double W = m * 9.81;
+                W = m * 9.81;
 
-                Eigen::MatrixXd F(12, 12);
+                Eigen::MatrixXd F_k(12, 12);
 
-                F << 0.0, 0.0, 0.0, v * (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta)) + w * (cos(phi) * sin(psi) - cos(psi) * sin(phi) * sin(theta)), cos(psi) * (w * cos(phi) * cos(theta) - u * sin(theta) + v * cos(theta) * sin(phi)), w * (cos(psi) * sin(phi) - cos(phi) * sin(psi) * sin(theta)) - v * (cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta)) - u * cos(theta) * sin(psi), cos(psi) * cos(theta), cos(psi) * sin(phi) * sin(theta) - cos(phi) * sin(psi), (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta)), 0.0, 0.0, 0.0,
+                F_k << 0.0, 0.0, 0.0, v * (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta)) + w * (cos(phi) * sin(psi) - cos(psi) * sin(phi) * sin(theta)), cos(psi) * (w * cos(phi) * cos(theta) - u * sin(theta) + v * cos(theta) * sin(phi)), w * (cos(psi) * sin(phi) - cos(phi) * sin(psi) * sin(theta)) - v * (cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta)) - u * cos(theta) * sin(psi), cos(psi) * cos(theta), cos(psi) * sin(phi) * sin(theta) - cos(phi) * sin(psi), (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta)), 0.0, 0.0, 0.0,
                     0.0, 0.0, 0.0, -v * (cos(psi) * sin(phi) - cos(phi) * sin(psi) * sin(theta)) - w * (cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta)), sin(psi) * (w * cos(phi) * cos(theta) - u * sin(theta) + v * cos(theta) * sin(phi)), w * (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta)) - v * (cos(phi) * sin(psi) - cos(psi) * sin(phi) * sin(theta)) + u * cos(psi) * cos(theta), cos(theta) * sin(psi), (cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta)), cos(phi) * sin(psi) * sin(theta) - cos(psi) * sin(phi), 0.0, 0.0, 0.0,
                     0.0, 0.0, 0.0, cos(theta) * (v * cos(phi) - w * sin(phi)), -u * cos(theta) - w * cos(phi) * sin(theta) - v * sin(phi) * sin(theta), 0.0, -sin(theta), cos(theta) * sin(phi), cos(phi) * cos(theta), 0.0, 0.0, 0.0,
-                    0.0, 0.0, 0.0, (2 * tan(theta) * (q - r * tan(phi / 2))) / (tan(phi / 2) * tan(phi/2) + 1) - q * tan(theta), (r * cos(phi) + q * sin(phi)) / (cos(theta) *cos(theta)), 0.0, 0.0, 0.0, 0.0, 1, sin(phi) * tan(theta), cos(phi) * tan(theta),
+                    0.0, 0.0, 0.0, (2 * tan(theta) * (q - r * tan(phi / 2))) / (tan(phi / 2) * tan(phi / 2) + 1) - q * tan(theta), (r * cos(phi) + q * sin(phi)) / (cos(theta) * cos(theta)), 0.0, 0.0, 0.0, 0.0, 1, sin(phi) * tan(theta), cos(phi) * tan(theta),
                     0.0, 0.0, 0.0, -r * cos(phi) - q * sin(phi), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, cos(phi), -sin(phi),
                     0.0, 0.0, 0.0, (q * cos(phi) - r * sin(phi)) / cos(theta), -(sin(theta) * (r * cos(phi) + q * sin(phi))) / (sin(theta) * sin(theta) - 1), 0.0, 0.0, 0.0, 0.0, 0.0, sin(phi) / cos(theta), cos(phi) / cos(theta),
                     0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -(1000 * A_x * abs(u)) / (X_u_dot + m), -(r * (Y_v_dot - m)) / (X_u_dot + m), (q * (Z_w_dot - m)) / (X_u_dot + m), 0.0, (w * (Z_w_dot - m)) / (X_u_dot + m), -(v * (Y_v_dot - m)) / (X_u_dot + m),
@@ -588,11 +599,11 @@ int main(int argc, char **argv)
                     0.0, 0.0, 0.0, -(W * x_b * cos(theta) * sin(phi)) / (I_y + M_q_dot), (W * (z_b * cos(theta) - x_b * cos(phi) * sin(theta))) / (I_y + M_q_dot), 0.0, (w * (X_u_dot - Z_w_dot)) / (I_y + M_q_dot), 0.0, (u * (X_u_dot - Z_w_dot)) / (I_y + M_q_dot), -(r * (I_x - I_z - K_p_dot + N_r_dot)) / (I_y + M_q_dot), -(1000 * A_q * abs(q)) / (I_y + M_q_dot), -(p * (I_x - I_z - K_p_dot + N_r_dot)) / (I_y + M_q_dot),
                     0.0, 0.0, 0.0, -(W * x_b * cos(phi) * cos(theta)) / (I_z + N_r_dot), -(W * (y_b * cos(theta) - x_b * sin(phi) * sin(theta))) / (I_z + N_r_dot), 0.0, -(v * (X_u_dot - Y_v_dot)) / (I_z + N_r_dot), -(u * (X_u_dot - Y_v_dot)) / (I_z + N_r_dot), 0.0, (q * (I_x - I_y - K_p_dot + M_q_dot)) / (I_z + N_r_dot), (p * (I_x - I_y - K_p_dot + M_q_dot)) / (I_z + N_r_dot), -(1000 * A_r * abs(r)) / (I_z + N_r_dot);
 
-                F = dt * F + Eigen::MatrixXd::Identity(12, 12);
+                F_k = dt * F_k + Eigen::MatrixXd::Identity(12, 12);
 
-                Eigen::MatrixXd D(12, 6);
+                Eigen::MatrixXd D_k(12, 6);
 
-                D << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                D_k << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                     0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                     0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                     0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -605,16 +616,67 @@ int main(int argc, char **argv)
                     0.0, 0.0, 0.0, 0.0, 1 / (I_y + M_q_dot), 0.0,
                     0.0, 0.0, 0.0, 0.0, 0.0, 1 / (I_z + N_r_dot);
 
-                D = dt * D;
+                D_k = dt * D_k;
 
-                xi_pred = F * xi_curr + D * tau;
+                C_rb << 0.0, 0.0, 0.0, m * (y_g * q + z_g * r), -m * (x_g * q - w), -m * (x_g * r + v),
+                    0.0, 0.0, 0.0, -m * (y_g * p + w), m * (z_g * r + x_g * p), -m * (y_g * r - u),
+                    0.0, 0.0, 0.0, -m * (z_g * p - v), -m * (z_g * q + u), m * (x_g * p + y_g * q),
+                    -m * (y_g * q + z_g * r), m * (y_g * p + w), m * (z_g * p - v), 0.0, I_z * r - I_yz * q - I_xz * p, I_xy * p + I_yz * r - I_y * q,
+                    m * (x_g * q - w), -m * (z_g * r + x_g * p), m * (z_g * q + u), I_yz * q + I_xz * p - I_z * r, 0.0, -I_xz * r - I_xy * q + I_x * p,
+                    m * (x_g * r + v), m * (y_g * r - u), -m * (x_g * p + y_g * q), -I_yz * r - I_xy * p + I_y * q, I_xy * q + I_xz * r - I_x * p, 0.0;
+
+                double a1 = X_u_dot * u + X_v_dot * v + X_w_dot * w + X_p_dot * p + X_q_dot * q + X_r_dot * r;
+                double a2 = X_v_dot * u + Y_v_dot * v + Y_w_dot * w + Y_p_dot * p + Y_q_dot * q + Y_r_dot * r;
+                double a3 = X_w_dot * u + Y_w_dot * v + Z_w_dot * w + Z_p_dot * p + Z_q_dot * q + Z_r_dot * r;
+                double b1 = X_p_dot * u + Y_p_dot * v + Z_p_dot * w + K_p_dot * p + K_q_dot * q + K_r_dot * r;
+                double b2 = X_q_dot * u + Y_q_dot * v + Z_q_dot * w + K_p_dot * p + M_q_dot * q + M_r_dot * r;
+                double b3 = X_r_dot * u + Y_r_dot * v + Z_r_dot * w + K_r_dot * p + M_r_dot * q + N_r_dot * r;
+
+                C_a << 0.0, 0.0, 0.0, 0.0, -a3, a2,
+                    0.0, 0.0, 0.0, a3, 0.0, -a1,
+                    0.0, 0.0, 0.0, -a2, a1, 0.0,
+                    0.0, -a3, a2, 0.0, -b3, b2,
+                    a3, 0.0, -a1, b3, 0.0, -b1,
+                    -a2, a1, 0.0, -b2, b1, 0.0;
+
+                C = C_rb + C_a;
+
+                D << A_x * abs(u), 0, 0, 0, 0, 0,
+                    0, A_y * abs(v), 0, 0, 0, 0,
+                    0, 0, A_z * abs(w), 0, 0, 0,
+                    0, 0, 0, A_p * abs(p), 0, 0,
+                    0, 0, 0, 0, A_q * abs(q), 0,
+                    0, 0, 0, 0, 0, A_r * abs(r);
+
+                D = 0.5 * 1000 * D;
+
+                // VETTORE DEI TERMINI GRAVITAZIONALI
+                W = m * 9.81;
+
+                G << 0,
+                    0,
+                    0,
+                    -(y_g - y_b) * W * cos(phi) * cos(theta) + (z_g - z_b) * W * sin(phi) * cos(theta),
+                    (z_g - z_b) * W * sin(theta) + (x_g - x_b) * W * cos(theta) * cos(phi),
+                    -(x_g - x_b) * W * cos(theta) * sin(phi) - (y_g - y_b) * W * sin(theta);
+
+                Jacobian << cos(psi) * cos(theta), cos(psi) * sin(phi) * sin(theta) - cos(phi) * sin(psi), sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta), 0, 0, 0,
+                    cos(theta) * sin(psi), cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta), cos(phi) * sin(psi) * sin(theta) - cos(psi) * sin(phi), 0, 0, 0,
+                    -sin(theta), cos(theta) * sin(phi), cos(phi) * cos(theta), 0, 0, 0,
+                    0, 0, 0, 1, sin(phi) * tan(theta), cos(phi) * tan(theta),
+                    0, 0, 0, 0, cos(phi), -sin(phi),
+                    0, 0, 0, 0, sin(phi) / cos(theta), cos(phi) / cos(theta);
+
+                eta_pred = dt * Jacobian * xi_curr.tail(6) + xi_curr.head(6);
+                nu_pred = dt * M.inverse() * (tau - C * xi_curr.tail(6) - D * xi_curr.tail(6) - G) + xi_curr.tail(6);
+                xi_pred << eta_pred, nu_pred;
 
                 // wrapToPi
                 xi_pred(3) = atan2(sin(xi_pred(3)), cos(xi_pred(3)));
                 xi_pred(4) = atan2(sin(xi_pred(4)), cos(xi_pred(4)));
                 xi_pred(5) = atan2(sin(xi_pred(5)), cos(xi_pred(5)));
 
-                P_pred = F * P_curr * F.transpose() + D * Q * D.transpose();
+                P_pred = F_k * P_curr * F_k.transpose() + D_k * Q * D_k.transpose();
             }
         }
         else
@@ -702,7 +764,6 @@ int main(int argc, char **argv)
                 }
             }
 
-
             if (z_valid.size() == 1 && z_valid(0) == 0.0)
             {
                 ROS_WARN("NO VALID MEASURES");
@@ -776,9 +837,9 @@ int main(int argc, char **argv)
             q = xi_curr(10);
             r = xi_curr(11);
 
-            Eigen::MatrixXd F(12, 12);
+            Eigen::MatrixXd F_k(12, 12);
 
-            F << 0.0, 0.0, 0.0, v * (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta)) + w * (cos(phi) * sin(psi) - cos(psi) * sin(phi) * sin(theta)), w * cos(phi) * cos(psi) * cos(theta) - u * cos(psi) * sin(theta) + v * cos(psi) * cos(theta) * sin(phi), w * (cos(psi) * sin(phi) - cos(phi) * sin(psi) * sin(theta)) - v * (cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta)) - u * cos(theta) * sin(psi), cos(psi) * cos(theta), cos(psi) * sin(phi) * sin(theta) - cos(phi) * sin(psi), (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta)), 0.0, 0.0, 0.0,
+            F_k << 0.0, 0.0, 0.0, v * (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta)) + w * (cos(phi) * sin(psi) - cos(psi) * sin(phi) * sin(theta)), w * cos(phi) * cos(psi) * cos(theta) - u * cos(psi) * sin(theta) + v * cos(psi) * cos(theta) * sin(phi), w * (cos(psi) * sin(phi) - cos(phi) * sin(psi) * sin(theta)) - v * (cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta)) - u * cos(theta) * sin(psi), cos(psi) * cos(theta), cos(psi) * sin(phi) * sin(theta) - cos(phi) * sin(psi), (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta)), 0.0, 0.0, 0.0,
                 0.0, 0.0, 0.0, -v * (cos(psi) * sin(phi) - cos(phi) * sin(psi) * sin(theta)) - w * (cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta)), w * cos(phi) * cos(theta) * sin(psi) - u * sin(psi) * sin(theta) + v * cos(theta) * sin(phi) * sin(psi), w * (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta)) - v * (cos(phi) * sin(psi) - cos(psi) * sin(phi) * sin(theta)) + u * cos(psi) * cos(theta), cos(theta) * sin(psi), (cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta)), cos(phi) * sin(psi) * sin(theta) - cos(psi) * sin(phi), 0.0, 0.0, 0.0,
                 0.0, 0.0, 0.0, v * cos(phi) * cos(theta) - w * cos(theta) * sin(phi), -u * cos(theta) - w * cos(phi) * sin(theta) - v * sin(phi) * sin(theta), 0.0, -sin(theta), cos(theta) * sin(phi), cos(phi) * cos(theta), 0.0, 0.0, 0.0,
                 0.0, 0.0, 0.0, q * cos(phi) * tan(theta) - r * sin(phi) * tan(theta), r * cos(phi) * (tan(theta) * tan(theta) + 1) + q * sin(phi) * (tan(theta) * tan(theta) + 1), 0.0, 0.0, 0.0, 0.0, (1), sin(phi) * tan(theta), cos(phi) * tan(theta),
@@ -791,11 +852,11 @@ int main(int argc, char **argv)
                 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, (m * w - Z_w_dot * w + w * (X_u_dot - m)) / (I_y + M_q_dot), 0.0, -(m * u - X_u_dot * u + u * (Z_w_dot - m)) / (I_y + M_q_dot), -(N_r_dot * r - I_z * r + r * (I_x - K_p_dot)) / (I_y + M_q_dot), -(500 * A_q * abs(q) + 500 * A_q * q * sign(q)) / (I_y + M_q_dot), (K_p_dot * p - I_x * p + p * (I_z - N_r_dot)) / (I_y + M_q_dot),
                 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -(m * v - Y_v_dot * v + v * (X_u_dot - m)) / (I_z + N_r_dot), (m * u - X_u_dot * u + u * (Y_v_dot - m)) / (I_z + N_r_dot), 0.0, (2 * K_p_dot * p - I_y * q + M_q_dot * q + q * (I_x - K_p_dot)) / (I_z + N_r_dot), -(K_p_dot * p - I_x * p + p * (I_y - M_q_dot)) / (I_z + N_r_dot), -(500 * A_r * abs(r) + 500 * A_r * r * sign(r)) / (I_z + N_r_dot);
 
-            F = dt * F + Eigen::MatrixXd::Identity(12, 12);
+            F_k = dt * F_k + Eigen::MatrixXd::Identity(12, 12);
 
-            Eigen::MatrixXd D(12, 6);
+            Eigen::MatrixXd D_k(12, 6);
 
-            D << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            D_k << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -808,16 +869,67 @@ int main(int argc, char **argv)
                 0.0, 0.0, 0.0, 0.0, 1 / (I_y + M_q_dot), 0.0,
                 0.0, 0.0, 0.0, 0.0, 0.0, 1 / (I_z + N_r_dot);
 
-            D = dt * D;
+            D_k = dt * D_k;
 
-            xi_pred = F * xi_curr + D * tau;
+            C_rb << 0.0, 0.0, 0.0, m * (y_g * q + z_g * r), -m * (x_g * q - w), -m * (x_g * r + v),
+                0.0, 0.0, 0.0, -m * (y_g * p + w), m * (z_g * r + x_g * p), -m * (y_g * r - u),
+                0.0, 0.0, 0.0, -m * (z_g * p - v), -m * (z_g * q + u), m * (x_g * p + y_g * q),
+                -m * (y_g * q + z_g * r), m * (y_g * p + w), m * (z_g * p - v), 0.0, I_z * r - I_yz * q - I_xz * p, I_xy * p + I_yz * r - I_y * q,
+                m * (x_g * q - w), -m * (z_g * r + x_g * p), m * (z_g * q + u), I_yz * q + I_xz * p - I_z * r, 0.0, -I_xz * r - I_xy * q + I_x * p,
+                m * (x_g * r + v), m * (y_g * r - u), -m * (x_g * p + y_g * q), -I_yz * r - I_xy * p + I_y * q, I_xy * q + I_xz * r - I_x * p, 0.0;
 
-            // wrap2Pi
+            double a1 = X_u_dot * u + X_v_dot * v + X_w_dot * w + X_p_dot * p + X_q_dot * q + X_r_dot * r;
+            double a2 = X_v_dot * u + Y_v_dot * v + Y_w_dot * w + Y_p_dot * p + Y_q_dot * q + Y_r_dot * r;
+            double a3 = X_w_dot * u + Y_w_dot * v + Z_w_dot * w + Z_p_dot * p + Z_q_dot * q + Z_r_dot * r;
+            double b1 = X_p_dot * u + Y_p_dot * v + Z_p_dot * w + K_p_dot * p + K_q_dot * q + K_r_dot * r;
+            double b2 = X_q_dot * u + Y_q_dot * v + Z_q_dot * w + K_p_dot * p + M_q_dot * q + M_r_dot * r;
+            double b3 = X_r_dot * u + Y_r_dot * v + Z_r_dot * w + K_r_dot * p + M_r_dot * q + N_r_dot * r;
+
+            C_a << 0.0, 0.0, 0.0, 0.0, -a3, a2,
+                0.0, 0.0, 0.0, a3, 0.0, -a1,
+                0.0, 0.0, 0.0, -a2, a1, 0.0,
+                0.0, -a3, a2, 0.0, -b3, b2,
+                a3, 0.0, -a1, b3, 0.0, -b1,
+                -a2, a1, 0.0, -b2, b1, 0.0;
+
+            C = C_rb + C_a;
+
+            D << A_x * abs(u), 0, 0, 0, 0, 0,
+                0, A_y * abs(v), 0, 0, 0, 0,
+                0, 0, A_z * abs(w), 0, 0, 0,
+                0, 0, 0, A_p * abs(p), 0, 0,
+                0, 0, 0, 0, A_q * abs(q), 0,
+                0, 0, 0, 0, 0, A_r * abs(r);
+
+            D = 0.5 * 1000 * D;
+
+            // VETTORE DEI TERMINI GRAVITAZIONALI
+            W = m * 9.81;
+
+            G << 0,
+                0,
+                0,
+                -(y_g - y_b) * W * cos(phi) * cos(theta) + (z_g - z_b) * W * sin(phi) * cos(theta),
+                (z_g - z_b) * W * sin(theta) + (x_g - x_b) * W * cos(theta) * cos(phi),
+                -(x_g - x_b) * W * cos(theta) * sin(phi) - (y_g - y_b) * W * sin(theta);
+
+            Jacobian << cos(psi) * cos(theta), cos(psi) * sin(phi) * sin(theta) - cos(phi) * sin(psi), sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta), 0, 0, 0,
+                cos(theta) * sin(psi), cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta), cos(phi) * sin(psi) * sin(theta) - cos(psi) * sin(phi), 0, 0, 0,
+                -sin(theta), cos(theta) * sin(phi), cos(phi) * cos(theta), 0, 0, 0,
+                0, 0, 0, 1, sin(phi) * tan(theta), cos(phi) * tan(theta),
+                0, 0, 0, 0, cos(phi), -sin(phi),
+                0, 0, 0, 0, sin(phi) / cos(theta), cos(phi) / cos(theta);
+
+            eta_pred = dt * Jacobian * xi_curr.tail(6) + xi_curr.head(6);
+            nu_pred = dt * M.inverse() * (tau - C * xi_curr.tail(6) - D * xi_curr.tail(6) - G) + xi_curr.tail(6);
+            xi_pred << eta_pred, nu_pred;
+
+            // wrapToPi
             xi_pred(3) = atan2(sin(xi_pred(3)), cos(xi_pred(3)));
             xi_pred(4) = atan2(sin(xi_pred(4)), cos(xi_pred(4)));
             xi_pred(5) = atan2(sin(xi_pred(5)), cos(xi_pred(5)));
 
-            P_pred = F * P_curr * F.transpose() + D * Q * D.transpose();
+            P_pred = F_k * P_curr * F_k.transpose() + D_k * Q * D_k.transpose();
 
             ///////////////////////////////////////////////////////////////////////
             ///////////////////////////// PUBLISHING //////////////////////////////

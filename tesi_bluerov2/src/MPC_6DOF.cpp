@@ -377,6 +377,16 @@ int main(int argc, char **argv)
 
         Eigen::Matrix<double, 24, 24> Qc = 10.0 * Eigen::Matrix<double, 24, 24>::Identity();
 
+        // Coefficienti per la x
+        Qc(0, 0) = 100.0;
+        Qc(8, 8) = 100.0;
+        Qc(16, 16) = 100.0;
+
+        // Coefficienti per la y
+        Qc(2, 2) = 100.0;
+        Qc(10, 10) = 100.0;
+        Qc(18, 18) = 100.0;
+
         // Coefficienti per la z
         Qc(4, 4) = 500.0;
         Qc(12, 12) = 500.0;

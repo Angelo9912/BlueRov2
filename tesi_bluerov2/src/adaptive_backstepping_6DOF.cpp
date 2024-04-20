@@ -147,7 +147,7 @@ int main(int argc, char **argv)
 
     ros::Publisher chatter_pub = n.advertise<tesi_bluerov2::Floats>("tau_topic", 1);
     ros::Subscriber sub_des_state = n.subscribe("desired_state_topic", 1, desStateCallback);
-    ros::Subscriber sub_est_state = n.subscribe("est_state_topic", 1, estStateCallback);
+    ros::Subscriber sub_est_state = n.subscribe("est_state_UKF_topic", 1, estStateCallback);
 
     double freq = 200;
     double dt = 1 / freq;
@@ -366,6 +366,9 @@ int main(int argc, char **argv)
 
         LAMBDA << 3.0 * Eigen::Matrix<double, 6, 6>::Identity();
         LAMBDA(5, 5) = 10.0;
+        LAMBDA(0, 0) = 10.0;
+        LAMBDA(1, 1) = 10.0;
+        LAMBDA(2, 2) = 10.0;
 
         nu_r = J.inverse() * (des_pos_dot + LAMBDA * error);
 

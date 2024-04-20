@@ -4,6 +4,7 @@
 
 double x_hat = 0.0;
 double y_hat = 0.0;
+double z_hat = 0.0;
 
 double var_x = 1;
 double var_y = 1;
@@ -25,11 +26,13 @@ void stateCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
     {
         x_hat = 0.0;
         y_hat = 0.0;
+        z_hat = 0.0;
     }
     else
     {
         x_hat = msg->data[0];
         y_hat = msg->data[1];
+        z_hat = msg->data[2];
     }
 }
 
@@ -54,7 +57,7 @@ int main(int argc, char **argv)
     double start_time;
 
     // Loop at 10Hz, publishing messages until this node is shut down.
-    ros::Rate rate(5);
+    ros::Rate rate(1);
     while (ros::ok())
     {
         if (is_first_loop)
@@ -64,12 +67,17 @@ int main(int argc, char **argv)
         }
 
         tesi_bluerov2::Floats msg;
-        double valid = 1.0;
+        double valid;
+
+        if (z_hat > 0.5)
+            valid = 0.0;
+        else
+            valid = 1.0;
 
         // Add noise to the GPS data and fill the message
         std::vector<double> GPS_data = {x_hat + gaussianNoise(0, var_x), y_hat + gaussianNoise(0, var_y), valid};
         msg.data = GPS_data;
-       // ROS_WARN("GPS data: x: %f, y: %f", GPS_data[0], GPS_data[1]);
+        // ROS_WARN("GPS data: x: %f, y: %f", GPS_data[0], GPS_data[1]);
 
         if (ros::Time::now().toSec() - start_time > 5)
         {
