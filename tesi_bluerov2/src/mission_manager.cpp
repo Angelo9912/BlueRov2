@@ -2,13 +2,10 @@
 #include "std_msgs/String.h"
 #include <sstream>
 #include <ros/console.h>
-#include <eigen3/Eigen/Dense>                // for eigen matrix
-#include "tesi_bluerov2/Floats.h"        // for accessing -- tesi_bluerov2 Floats()
-#include "tesi_bluerov2/Floats_String.h" // for accessing -- tesi_bluerov2 Floats_String()
 #include <vector>
 #include "yaml-cpp/yaml.h" // for yaml
 
-std::string status_true = "PAUSED";
+std::string status_true = "IDLE";
 std::string status_req = "";
 
 // Subscriber callback function
@@ -31,68 +28,61 @@ int main(int argc, char **argv)
 
     // Loop at 10Hz
     ros::Rate rate(20);
-    bool first_time = true;
 
     while (ros::ok())
     {
-        if (status_true == "PAUSED")
+        if (status_true == "IDLE")
+        {
+            ROS_WARN("IDLE");
+            if (status_req == "READY")
+            {
+                status_true = "READY";
+                ROS_WARN("YOU WENT FROM IDLE -> READY");
+            }
+        }
+        else if (status_true == "READY")
         {
             if (status_req == "RUNNING")
             {
                 status_true = "RUNNING";
-                ROS_WARN("YOU WENT FROM PAUSE -> RUNNING");
-                first_time = true;
-            }
-            else if (status_req == "COMPLETED")
-            {
-                ROS_WARN("You can't go from PAUSED to COMPLETED");
-            }
-            else if (status_req == "PAUSED")
-            {
-                if (first_time)
-                {
-                    //ROS_WARN("You are already PAUSED");
-                    first_time = false;
-                }
+                ROS_WARN("YOU WENT FROM READY -> RUNNING");
             }
         }
         else if (status_true == "RUNNING")
         {
-            if (status_req == "RUNNING")
-            {
-                if (first_time)
-                {
-                    //ROS_WARN("You are already RUNNING");
-                    first_time = false;
-                }
-            }
-            else if (status_req == "COMPLETED")
+
+            if (status_req == "COMPLETED")
             {
                 status_true = "COMPLETED";
-                ROS_WARN("MISSION COMPLETED \a");
-                first_time = true;
+                ROS_WARN("YOU WENT FROM RUNNING -> COMPLETED");
             }
             else if (status_req == "PAUSED")
             {
                 status_true = "PAUSED";
                 ROS_WARN("YOU WENT FROM RUNNING -> PAUSED");
-                first_time = true;
             }
         }
-        else if (status_true == "COMPLETED")
+        else if (status_true == "PAUSED")
         {
             if (status_req == "RUNNING")
             {
-                //ROS_WARN("Mission already COMPLETED");
+                status_true = "RUNNING";
+                ROS_WARN("YOU WENT FROM PAUSE -> RUNNING");
+            }
+            else if (status_req == "READY")
+            {
+                status_true = "READY";
+                ROS_WARN("YOU WENT FROM PAUSE -> READY");
             }
             else if (status_req == "COMPLETED")
             {
-                //ROS_WARN("Mission already COMPLETED");
+                ROS_WARN("You can't go from PAUSED to COMPLETED");
             }
-            else if (status_req == "PAUSED")
-            {
-                //ROS_WARN("Mission already COMPLETED");
-            }
+        }
+
+        else if (status_true == "COMPLETED")
+        {
+            ROS_WARN("MISSION COMPLETED \a");
         }
 
         // Create a message
