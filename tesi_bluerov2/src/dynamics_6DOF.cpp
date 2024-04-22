@@ -306,6 +306,10 @@ int main(int argc, char **argv)
             (z_g - z_b) * W * sin(theta) + (x_g - x_b) * W * cos(theta) * cos(phi),
             -(x_g - x_b) * W * cos(theta) * sin(phi) - (y_g - y_b) * W * sin(theta);
 
+        if(eta(2) < 0)
+        {
+            G(2) = -W;
+        }
         // VETTORE DI FORZE E MOMENTI
         Eigen::Matrix<double, 6, 1> tau;
         tau << tau_u + gaussianNoise(0.0, var_tau_u), tau_v + gaussianNoise(0.0, var_tau_v), tau_w + gaussianNoise(0.0, var_tau_w), tau_p + gaussianNoise(0.0, var_tau_p), tau_q + gaussianNoise(0.0, var_tau_q), tau_r + gaussianNoise(0.0, var_tau_r);

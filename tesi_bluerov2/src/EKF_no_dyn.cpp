@@ -395,11 +395,11 @@ int main(int argc, char **argv)
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, var_q_IMU, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, var_r_IMU;
 
-            ROS_WARN_STREAM("EKF (no dyn) nu_0: \n"
+            /*ROS_WARN_STREAM("EKF (no dyn) nu_0: \n"
                             << xi_curr(6) << "\n"
                             << xi_curr(7) << "\n"
                             << xi_curr(8) << "\n"
-                            << "\n");
+                            << "\n");*/
 
             is_init = ((is_GPS_init || is_scanner_init) && is_depth_init && is_IMU_init);
 

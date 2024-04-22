@@ -539,11 +539,11 @@ int main(int argc, char **argv)
             xi_curr(7) = 0.0 + gaussianNoise(0, var_v_DVL);
             xi_curr(8) = 0.0 + gaussianNoise(0, var_w_DVL);
 
-            ROS_WARN_STREAM("EKF nu_0: \n"
+            /*ROS_WARN_STREAM("EKF nu_0: \n"
                             << xi_curr(6) << "\n"
                             << xi_curr(7) << "\n"
                             << xi_curr(8) << "\n"
-                            << "\n");
+                            << "\n");*/
 
             P_curr << var_x, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, var_y, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,

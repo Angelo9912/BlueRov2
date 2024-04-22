@@ -871,7 +871,7 @@ int main(int argc, char **argv)
                 for (int i = 99; i < 199; i++)
                 {
                     double t;
-                    if (clockwise == 1.0)
+                    if (clockwise == 1)
                     {
                         t = -(i - 99) * k;
                         psi[i] = atan2(-cos(beta + t), sin(beta + t));
@@ -1117,7 +1117,7 @@ int main(int argc, char **argv)
                     {
                         ROS_WARN_STREAM("AVVICINAMENTO (FINE)");
                         u_d = 0.02;
-                        w_d = (z_p - z_hat) / abs(z_hat - z_p) * 0.05;
+                        w_d = (z_p - z_hat) / abs(z_hat - z_p) * 0.1;
                     }
                 }
                 else if (i_dist_min >= 99)
@@ -1127,12 +1127,12 @@ int main(int argc, char **argv)
                     if (up == 1)
                     {
                         ROS_WARN_STREAM("RISALITA");
-                        w_d = 0.05;
+                        w_d = 0.1;
                     }
                     else
                     {
                         ROS_WARN_STREAM("DISCESA");
-                        w_d = -0.05;
+                        w_d = -0.1;
                     }
                     r_d = 0.0;
                 }

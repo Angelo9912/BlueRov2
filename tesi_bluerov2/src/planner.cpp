@@ -317,7 +317,22 @@ int main(int argc, char **argv)
     tesi_bluerov2::waypoints waypoint_msg; // messaggio da pubblicare sulla topic dei waypoint
 
     // waypoint da seguire per completare la missione
-    waypoints_to_go = {0.0, 2.0, 0.0, 4.0, 2.0, 0.0, 2.0, -2.0, 0.0, 0.0, -2.0, 0.0, 0.0, 0.0, 4.0, 0.0, 2.0, 4.0, 2.0, 2.0, 4.0, 2.0, -2.0, 4.0, 0.0, -2.0, 4.0, 0.0, 0.0, 4.0};
+    int k = 0;
+    waypoints_to_go = {0.0, 2.0, 0.0, 4.0, 2.0, 0.0, 2.0, -2.0, 0.0, 0.0, -2.0, 0.0, 0.0, 0.0, 4.0, 0.0, 2.0, 4.0, 4.0, 2.0, 4.0, 2.0, -2.0, 4.0, 0.0, -2.0, 4.0, 0.0, 0.0, 4.0};
+    for (int i = 0; i < waypoints_to_go.size(); i++)
+    {
+        waypoints_to_go[i] = waypoints_to_go[i] * 3.0;
+
+    }
+
+    waypoints_to_go[14] = 4.0;
+    waypoints_to_go[17] = 4.0;
+    waypoints_to_go[20] = 4.0;
+    waypoints_to_go[23] = 4.0;
+    waypoints_to_go[26] = 4.0;
+    waypoints_to_go[29] = 4.0;
+    
+
     int n_waypoints = waypoints_to_go.size() / 3;
     Eigen::VectorXd waypoints_x(n_waypoints);
     Eigen::VectorXd waypoints_y(n_waypoints);
@@ -331,12 +346,11 @@ int main(int argc, char **argv)
     }
     Eigen::VectorXi waypoint_passed(n_waypoints);
     waypoint_passed.setZero();
-    
 
     double start_time;
     double end_time;
 
-    ros::Rate loop_rate(5);
+    ros::Rate loop_rate(20); // 20 Hz
     while (ros::ok())
     {
         x_1 = x_hat;
@@ -580,11 +594,22 @@ int main(int argc, char **argv)
             {
                 if (waypoint_passed(i) == 0)
                 {
-                    dist_to_next_waypoint = sqrt(pow((x_hat - waypoints_x(i * 3)), 2) + pow((y_hat - waypoints_y(i * 3)), 2) + pow((z_hat - waypoints_z(i * 3)), 2));
+                    dist_to_next_waypoint = sqrt(pow((x_hat - waypoints_x(i)), 2) + pow((y_hat - waypoints_y(i)), 2) + pow((z_hat - waypoints_z(i)), 2));
                     if (dist_to_next_waypoint < 0.1)
                     {
-                        ROS_WARN("SONO PASSATO DAL WAYPOINT %d", i);
-                        waypoint_passed(i) = 1;
+                        if (i == 0)
+                        {
+                            ROS_WARN("SONO PASSATO DAL WAYPOINT %d", i);
+                            waypoint_passed(i) = 1;
+                        }
+                        else
+                        {
+                            if (waypoint_passed(i - 1) == 1)
+                            {
+                                ROS_WARN("SONO PASSATO DAL WAYPOINT %d", i);
+                                waypoint_passed(i) = 1;
+                            }
+                        }
                     }
                 }
             }

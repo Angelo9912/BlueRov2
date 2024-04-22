@@ -53,13 +53,13 @@ int main(int argc, char **argv)
     ros::Rate rate(5);
 
     Eigen::Matrix<double, 1, 3> sphere1;
-    sphere1 << 0.0, 3.5, 0.0;
+    sphere1 << 0.0, 4.0, 1.0;
     Eigen::Matrix<double, 1, 3> sphere2;
-    sphere2 << -8.0, -12.0, 2.0;
+    sphere2 << 0.0, 4.0, 4.0;
     Eigen::Matrix<double, 1, 3> box1;
-    box1 << 14.0, 10.0, 1.0;
+    box1 << 8.0, 6.0, 1.0;
     Eigen::Matrix<double, 1, 3> box2;
-    box2 << 10.0, -10.0, 1.5;
+    box2 << 8.0, 6.0, 4.0;
     Eigen::Matrix<double, 4, 3> buoy_positions;
     buoy_positions << sphere1, box1, sphere2, box2;
 
@@ -93,9 +93,9 @@ int main(int argc, char **argv)
             if (distances[i_min] <= 1.5)
             {
                 if (i_min == 0)
-                    buoy_msg.clockwise = 1.0;
+                    buoy_msg.clockwise = 1;
                 else 
-                    buoy_msg.clockwise = 0.0;
+                    buoy_msg.clockwise = 0;
                 buoy_pub.publish(buoy_msg);
             }
         }
@@ -111,9 +111,9 @@ int main(int argc, char **argv)
             if (distances[i_min] <= 1.5)
             {
                 if (i_min == 1)
-                    buoy_msg.up = 1.0;
+                    buoy_msg.up = 0;
                 else
-                    buoy_msg.up = 0.0;
+                    buoy_msg.up = 1;
                 buoy_pub.publish(buoy_msg);
             }
         }

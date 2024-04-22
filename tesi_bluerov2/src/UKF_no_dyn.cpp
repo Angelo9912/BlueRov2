@@ -166,7 +166,7 @@ double angleDifference(double e)
 UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::VectorXd acc_k, Eigen::MatrixXd P_kk, Eigen::MatrixXd Q, double dt)
 {
 
-    ROS_WARN_STREAM("acc_k " << acc_k);
+    //ROS_WARN_STREAM("acc_k " << acc_k);
 
     // Il vettore utilizzato effettivamente nella trasformata
     Eigen::VectorXd xi_prediction(xi_k.size() + Q.rows());
