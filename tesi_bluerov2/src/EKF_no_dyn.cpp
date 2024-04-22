@@ -1,0 +1,718 @@
+#include "ros/ros.h"
+#include "std_msgs/String.h"
+#include <sstream>
+#include <ros/console.h>
+#include <eigen3/Eigen/Dense>     // for eigen matrix
+#include "tesi_bluerov2/Floats.h" // for accessing -- tesi_bluerov2 Floats()
+#include <vector>
+#include "yaml-cpp/yaml.h" // for yaml
+#include <random>
+
+double a_u = 0.0;
+double a_v = 0.0;
+double a_w = 0.0;
+
+double x = 0.0;
+double y = 0.0;
+double z = 0.0;
+double phi = 0.0;
+double theta = 0.0;
+double psi = 0.0;
+double u = 0.0;
+double v = 0.0;
+double w = 0.0;
+double p = 0.0;
+double q = 0.0;
+double r = 0.0;
+
+double x_GPS = 0.0;
+double y_GPS = 0.0;
+double x_scanner = 0.0;
+double y_scanner = 0.0;
+double phi_IMU = 0.0;
+double theta_IMU = 0.0;
+double psi_IMU = 0.0;
+double u_DVL = 0.0;
+double v_DVL = 0.0;
+double w_DVL = 0.0;
+double p_IMU = 0.0;
+double q_IMU = 0.0;
+double r_IMU = 0.0;
+double z_depth_sensor = 0.0;
+
+double valid_GPS = 0;
+double valid_scanner = 0;
+double valid_IMU = 0;
+double valid_DVL = 0;
+double valid_depth_sensor = 0;
+
+// Covariance values (process noise)
+double var_acc_u = 0.0;
+double var_acc_v = 0.0;
+double var_acc_w = 0.0;
+double var_model_p = 0.0;
+double var_model_q = 0.0;
+double var_model_r = 0.0;
+
+// Covariance values (sensor noise)
+double var_x_GPS = 0.0;
+double var_y_GPS = 0.0;
+double var_x_scanner = 0.0;
+double var_y_scanner = 0.0;
+double var_z_depth_sensor = 0.0;
+double var_phi_IMU = 0.0;
+double var_theta_IMU = 0.0;
+double var_psi_IMU = 0.0;
+double var_u_DVL = 0.0;
+double var_v_DVL = 0.0;
+double var_w_DVL = 0.0;
+double var_p_IMU = 0.0;
+double var_q_IMU = 0.0;
+double var_r_IMU = 0.0;
+
+// Distanza di Mahalanobis
+double mahalanobis_distance = 0.0;
+
+bool is_prima_volta = true;
+
+int sign(double x)
+{
+    if (x > 0)
+    {
+        return 1;
+    }
+    else if (x < 0)
+    {
+        return -1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+double angleDifference(double e)
+{
+    if (e > 0)
+    {
+        if (e > 2 * M_PI - e)
+        {
+            e = -(2 * M_PI - e);
+        }
+        else
+        {
+            e = e;
+        }
+    }
+    else
+    {
+        e = -e;
+        if (e > 2 * M_PI - e)
+        {
+            e = 2 * M_PI - e;
+        }
+        else
+        {
+            e = -e;
+        }
+    }
+    return e;
+}
+
+// Function to generate Gaussian random number
+double gaussianNoise(double mean, double var)
+{
+    double stddev = sqrt(var);
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::normal_distribution<> d(mean, stddev);
+    return d(gen);
+}
+
+// Callback function for the subscriber
+void GPSCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
+{
+    if (msg->data[0] != msg->data[0])
+    {
+        x_GPS = 0.0;
+        y_GPS = 0.0;
+        valid_GPS = 0;
+    }
+    else
+    {
+        x_GPS = msg->data[0];
+        y_GPS = msg->data[1];
+        valid_GPS = msg->data[2];
+    }
+}
+
+void ScannerCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
+{
+    if (msg->data[0] != msg->data[0])
+    {
+        x_scanner = 0.0;
+        y_scanner = 0.0;
+        valid_scanner = 0;
+    }
+    else
+    {
+        x_scanner = msg->data[0];
+        y_scanner = msg->data[1];
+        valid_scanner = msg->data[2];
+    }
+}
+
+void IMUCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
+{
+    if (msg->data[0] != msg->data[0])
+    {
+        phi_IMU = 0.0;
+        theta_IMU = 0.0;
+        psi_IMU = 0.0;
+        p_IMU = 0.0;
+        q_IMU = 0.0;
+        r_IMU = 0.0;
+        valid_IMU = 0;
+    }
+    else
+    {
+        phi_IMU = msg->data[0];
+        theta_IMU = msg->data[1];
+        psi_IMU = msg->data[2];
+        p_IMU = msg->data[3];
+        q_IMU = msg->data[4];
+        r_IMU = msg->data[5];
+        valid_IMU = msg->data[6];
+    }
+}
+
+void DVLCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
+{
+    if (msg->data[0] != msg->data[0])
+    {
+        u_DVL = 0.0;
+        v_DVL = 0.0;
+        w_DVL = 0.0;
+        valid_DVL = 0;
+    }
+    else
+    {
+        u_DVL = msg->data[0];
+        v_DVL = msg->data[1];
+        w_DVL = msg->data[2];
+        valid_DVL = msg->data[3];
+    }
+}
+
+void depthSensorCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
+{
+    if (msg->data[0] != msg->data[0])
+    {
+        z_depth_sensor = 0.0;
+        valid_depth_sensor = 0;
+    }
+    else
+    {
+        z_depth_sensor = msg->data[0];
+        valid_depth_sensor = msg->data[1];
+    }
+}
+
+void acc_callback(const tesi_bluerov2::Floats::ConstPtr &msg)
+{
+    if (msg->data[0] != msg->data[0])
+    {
+        a_u = 0.0;
+        a_v = 0.0;
+        a_w = 0.0;
+    }
+    else
+    {
+        a_u = msg->data[0];
+        a_v = msg->data[1];
+        a_w = msg->data[2];
+    }
+}
+
+int main(int argc, char **argv)
+{
+    // Initialize the ROS system and become a node.
+    ros::init(argc, argv, "EKF");
+
+    // Create a ROS node handle
+    ros::NodeHandle n;
+    n.getParam("var_x_GPS", var_x_GPS);
+    n.getParam("var_y_GPS", var_y_GPS);
+    n.getParam("var_x_scanner", var_x_scanner);
+    n.getParam("var_y_scanner", var_y_scanner);
+    n.getParam("var_z_depth_sensor", var_z_depth_sensor);
+    n.getParam("var_phi_IMU", var_phi_IMU);
+    n.getParam("var_theta_IMU", var_theta_IMU);
+    n.getParam("var_psi_IMU", var_psi_IMU);
+    n.getParam("var_u_DVL", var_u_DVL);
+    n.getParam("var_v_DVL", var_v_DVL);
+    n.getParam("var_w_DVL", var_w_DVL);
+    n.getParam("var_p_IMU", var_p_IMU);
+    n.getParam("var_q_IMU", var_q_IMU);
+    n.getParam("var_r_IMU", var_r_IMU);
+
+    n.getParam("var_acc_u", var_acc_u);
+    n.getParam("var_acc_v", var_acc_v);
+    n.getParam("var_acc_w", var_acc_w);
+    n.getParam("var_model_p", var_model_p);
+    n.getParam("var_model_q", var_model_q);
+    n.getParam("var_model_r", var_model_r);
+
+    Eigen::Matrix<double, 6, 6> Jacobian;
+    Eigen::Matrix<double, 6, 1> eta_pred;
+    Eigen::Matrix<double, 6, 1> nu_pred;
+
+    // Current corrected state vector (12x1)
+    Eigen::VectorXd xi_curr(12);
+    xi_curr.setZero();
+
+    // Matrice MMSE
+    Eigen::Matrix<double, 12, 12> P_curr;
+    P_curr.setZero();
+
+    // Predicted state vector
+    Eigen::VectorXd xi_pred(12);
+    xi_pred.setZero();
+
+    // Matrice di covarianza di predizione
+    Eigen::MatrixXd P_pred(12, 12);
+    P_pred.setZero();
+
+    // MATRICE DI MASSA
+
+    // Time step
+    double freq = 50;
+    double dt = 1 / freq;
+
+    bool is_init = false;
+
+    bool is_GPS_init = false;
+    bool is_scanner_init = false;
+    bool is_depth_init = false;
+    bool is_IMU_init = false;
+
+    Eigen::VectorXd var_sensors(14);
+    var_sensors << var_x_GPS, var_y_GPS, var_x_scanner, var_y_scanner, var_z_depth_sensor, var_phi_IMU, var_theta_IMU, var_psi_IMU, var_u_DVL, var_v_DVL, var_w_DVL, var_p_IMU, var_q_IMU, var_r_IMU;
+
+    Eigen::MatrixXd Q(6, 6);
+    Q << var_acc_u, 0, 0, 0, 0, 0,
+        0, var_acc_v, 0, 0, 0, 0,
+        0, 0, var_acc_w, 0, 0, 0,
+        0, 0, 0, var_model_p, 0, 0,
+        0, 0, 0, 0, var_model_q, 0,
+        0, 0, 0, 0, 0, var_model_r;
+
+    // Set the loop rate
+    ros::Rate loop_rate(freq);
+
+    // Create a publisher object
+    ros::Publisher est_state_pub = n.advertise<tesi_bluerov2::Floats>("state/est_state_topic_no_dyn", 1000);
+
+    // Create subscriber objects
+
+    ros::Subscriber acc_sub = n.subscribe("sensors/acc_topic", 1000, acc_callback);
+
+    ros::Subscriber GPS_sub = n.subscribe("sensors/GPS_topic", 1000, GPSCallback);
+
+    ros::Subscriber scanner_sub = n.subscribe("sensors/scanner_topic", 1000, ScannerCallback);
+
+    ros::Subscriber IMU_sub = n.subscribe("sensors/IMU_topic", 1000, IMUCallback);
+
+    ros::Subscriber DVL_sub = n.subscribe("sensors/DVL_topic", 1000, DVLCallback);
+
+    ros::Subscriber depth_sub = n.subscribe("sensors/depth_sensor_topic", 1000, depthSensorCallback);
+
+    tesi_bluerov2::Floats msg;
+
+    while (ros::ok())
+    {
+
+        //////Kalman Filter///////
+
+        ///////////////////////////////////////////////////////////////////////
+        ///////////////// INITIALIZATION OF THE FILTER ////////////////////////
+        ///////////////////////////////////////////////////////////////////////
+
+        if (!is_init)
+        {
+            double var_x;
+            double var_y;
+            if (valid_scanner == 1.0)
+            {
+                xi_curr(0) = x_scanner;
+                xi_curr(1) = y_scanner;
+                var_x = var_x_scanner;
+                var_y = var_y_scanner;
+                is_scanner_init = true;
+            }
+            else if (valid_GPS == 1.0)
+            {
+                xi_curr(0) = x_GPS;
+                xi_curr(1) = y_GPS;
+                var_x = var_x_GPS;
+                var_y = var_y_GPS;
+                is_GPS_init = true;
+            }
+
+            if (valid_depth_sensor == 1.0)
+            {
+                xi_curr(2) = z_depth_sensor;
+                is_depth_init = true;
+            }
+
+            if (valid_IMU == 1.0)
+            {
+                xi_curr(3) = phi_IMU;
+                xi_curr(4) = theta_IMU;
+                xi_curr(5) = psi_IMU;
+
+                xi_curr(9) = p_IMU;
+                xi_curr(10) = q_IMU;
+                xi_curr(11) = r_IMU;
+
+                is_IMU_init = true;
+            }
+
+            xi_curr(6) = 0.0 + gaussianNoise(0, var_u_DVL);
+            xi_curr(7) = 0.0 + gaussianNoise(0, var_v_DVL);
+            xi_curr(8) = 0.0 + gaussianNoise(0, var_w_DVL);
+
+            P_curr << var_x, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, var_y, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, var_z_depth_sensor, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, var_phi_IMU, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, var_theta_IMU, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, var_psi_IMU, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, var_u_DVL, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, var_v_DVL, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, var_w_DVL, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, var_p_IMU, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, var_q_IMU, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, var_r_IMU;
+
+            ROS_WARN_STREAM("EKF (no dyn) nu_0: \n"
+                            << xi_curr(6) << "\n"
+                            << xi_curr(7) << "\n"
+                            << xi_curr(8) << "\n"
+                            << "\n");
+
+            is_init = ((is_GPS_init || is_scanner_init) && is_depth_init && is_IMU_init);
+
+            if (is_init) // Se l'inizializzazione è completata pubblica lo stato stimato iniziale e passa alla predizione
+            {
+                ROS_WARN_STREAM("EKF (no dyn) INITIALIZATION COMPLETED\n");
+
+                msg.data = {xi_curr(0), xi_curr(1), xi_curr(2), xi_curr(3), xi_curr(4), xi_curr(5), xi_curr(6), xi_curr(7), xi_curr(8), xi_curr(9), xi_curr(10), xi_curr(11), mahalanobis_distance};
+                est_state_pub.publish(msg);
+
+                ////////////////////////////////////////////////////////////////////
+                /////////////////////////PREDICTION/////////////////////////////////
+                ////////////////////////////////////////////////////////////////////
+
+                // VETTORE DI FORZE E MOMENTI
+
+                phi = xi_curr(3);
+                theta = xi_curr(4);
+                psi = xi_curr(5);
+                u = xi_curr(6);
+                v = xi_curr(7);
+                w = xi_curr(8);
+                p = xi_curr(9);
+                q = xi_curr(10);
+                r = xi_curr(11);
+
+                Eigen::MatrixXd F_k(12, 12);
+                F_k << 1.0, 0.0, 0.0, dt * v * (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta)) + dt * w * (cos(phi) * sin(psi) - cos(psi) * sin(phi) * sin(theta)), dt * cos(psi) * (w * cos(phi) * cos(theta) - u * sin(theta) + v * cos(theta) * sin(phi)), dt * w * (cos(psi) * sin(phi) - cos(phi) * sin(psi) * sin(theta)) - dt * v * (cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta)) - dt * u * cos(theta) * sin(psi), dt * cos(psi) * cos(theta), dt * cos(psi) * sin(phi) * sin(theta) - dt * cos(phi) * sin(psi), dt * sin(phi) * sin(psi) + dt * cos(phi) * cos(psi) * sin(theta), 0.0, 0.0, 0.0,
+                    0.0, 1.0, 0.0, -dt * v * (cos(psi) * sin(phi) - cos(phi) * sin(psi) * sin(theta)) - dt * w * (cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta)), dt * sin(psi) * (w * cos(phi) * cos(theta) - u * sin(theta) + v * cos(theta) * sin(phi)), dt * w * (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta)) - dt * v * (cos(phi) * sin(psi) - cos(psi) * sin(phi) * sin(theta)) + dt * u * cos(psi) * cos(theta), dt * cos(theta) * sin(psi), dt * cos(phi) * cos(psi) + dt * sin(phi) * sin(psi) * sin(theta), dt * cos(phi) * sin(psi) * sin(theta) - dt * cos(psi) * sin(phi), 0.0, 0.0, 0.0,
+                    0.0, 0.0, 1.0, dt * cos(theta) * (v * cos(phi) - w * sin(phi)), -dt * (u * cos(theta) + w * cos(phi) * sin(theta) + v * sin(phi) * sin(theta)), 0.0, -dt * sin(theta), dt * cos(theta) * sin(phi), dt * cos(phi) * cos(theta), 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, dt * q * cos(phi) * tan(theta) - dt * r * sin(phi) * tan(theta) + 1, (dt * (r * cos(phi) + q * sin(phi))) / (cos(theta) * cos(theta)), 0.0, 0.0, 0.0, 0.0, dt, dt * sin(phi) * tan(theta), dt * cos(phi) * tan(theta),
+                    0.0, 0.0, 0.0, -dt * (r * cos(phi) + q * sin(phi)), 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, dt * cos(phi), -dt * sin(phi),
+                    0.0, 0.0, 0.0, (dt * (q * cos(phi) - r * sin(phi))) / cos(theta), (dt * sin(theta) * (r * (2 * sin(phi / 2) * sin(phi / 2) - 1) - q * sin(phi))) / (sin(theta) * sin(theta) - 1), 1.0, 0.0, 0.0, 0.0, 0.0, (dt * sin(phi)) / cos(theta), (dt * cos(phi)) / cos(theta),
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0;
+
+                Eigen::MatrixXd D_k(12, 6);
+
+                D_k << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                    dt, 0.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0, dt, 0.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, dt, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, 1.0;
+
+                Jacobian << cos(psi) * cos(theta), cos(psi) * sin(phi) * sin(theta) - cos(phi) * sin(psi), sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta), 0, 0, 0,
+                    cos(theta) * sin(psi), cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta), cos(phi) * sin(psi) * sin(theta) - cos(psi) * sin(phi), 0, 0, 0,
+                    -sin(theta), cos(theta) * sin(phi), cos(phi) * cos(theta), 0, 0, 0,
+                    0, 0, 0, 1, sin(phi) * tan(theta), cos(phi) * tan(theta),
+                    0, 0, 0, 0, cos(phi), -sin(phi),
+                    0, 0, 0, 0, sin(phi) / cos(theta), cos(phi) / cos(theta);
+
+                eta_pred = dt * Jacobian * xi_curr.tail(6) + xi_curr.head(6);
+
+                double u_pred = dt * a_u + u;
+                double v_pred = dt * a_v + v;
+                double w_pred = dt * a_w + w;
+                double p_pred = p;
+                double q_pred = q;
+                double r_pred = r;
+
+                nu_pred << u_pred, v_pred, w_pred, p_pred, q_pred, r_pred;
+                xi_pred << eta_pred, nu_pred;
+
+                // wrapToPi
+                xi_pred(3) = atan2(sin(xi_pred(3)), cos(xi_pred(3)));
+                xi_pred(4) = atan2(sin(xi_pred(4)), cos(xi_pred(4)));
+                xi_pred(5) = atan2(sin(xi_pred(5)), cos(xi_pred(5)));
+
+                P_pred = F_k * P_curr * F_k.transpose() + D_k * Q * D_k.transpose();
+            }
+        }
+        else
+        {
+            ///////////////////////////////////////////////////////////////////////
+            ///////////////////////////// CORRECTION //////////////////////////////
+            ///////////////////////////////////////////////////////////////////////
+
+            // VETTORE DI MISURA
+            Eigen::VectorXd z(14);
+            z << x_GPS, y_GPS, x_scanner, y_scanner, z_depth_sensor, phi_IMU, theta_IMU, psi_IMU, u_DVL, v_DVL, w_DVL, p_IMU, q_IMU, r_IMU;
+
+            Eigen::VectorXd valid(14);
+            valid << valid_GPS, valid_GPS, valid_scanner, valid_scanner, valid_depth_sensor, valid_IMU, valid_IMU, valid_IMU, valid_DVL, valid_DVL, valid_DVL, valid_IMU, valid_IMU, valid_IMU;
+
+            Eigen::MatrixXd H(1, 12);
+            H.setZero();
+
+            Eigen::VectorXd var_valid(1);
+            var_valid.setZero();
+
+            // Pesco le misure valide
+            Eigen::VectorXd z_valid(1);
+            z_valid.setZero();
+
+            bool is_first_element = true;
+            int n_valid = 0;
+
+            // Indice della misura di phi
+            int id_phi = -1;
+
+            for (int i = 0; i < valid.size(); i++)
+            {
+                if (valid(i) == 1.0)
+                {
+                    if (z_valid.size() == 1 && is_first_element)
+                    {
+                        z_valid(0) = z(i);
+                        if (i < 2)
+                        {
+                            H(0, i) = 1.0;
+                        }
+                        else
+                        {
+                            H(0, i - 2) = 1.0;
+                        }
+                        var_valid(0) = var_sensors(i);
+
+                        if (i == 5)
+                        {
+                            id_phi = 0;
+                        }
+
+                        is_first_element = false;
+                    }
+                    else
+                    {
+                        n_valid = z_valid.size();
+                        z_valid.conservativeResize(n_valid + 1);
+                        H.conservativeResize(n_valid + 1, 12);
+                        var_valid.conservativeResize(n_valid + 1);
+                        n_valid++;
+                        z_valid(n_valid - 1) = z(i);
+                        H.row(n_valid - 1) << Eigen::MatrixXd::Zero(1, 12);
+
+                        // Gestione della rindondanza delle misure GPS/scanner (x,y)
+                        if (i < 2)
+                        {
+                            H(n_valid - 1, i) = 1.0;
+                        }
+                        else
+                        {
+                            H(n_valid - 1, i - 2) = 1.0;
+                        }
+
+                        // Vettore delle varianze delle misure valide (per la creazione a dimensione variabile di R)
+                        var_valid(n_valid - 1) = var_sensors(i);
+
+                        // Indice della misura di phi
+                        if (i == 5)
+                        {
+                            id_phi = n_valid - 1;
+                        }
+                    }
+                }
+            }
+
+            if (z_valid.size() == 1 && z_valid(0) == 0.0)
+            {
+                ROS_WARN("NO VALID MEASURES");
+                xi_curr = xi_pred;
+                P_curr = P_pred;
+                mahalanobis_distance = 0.0;
+            }
+            else
+            {
+                // Correzione
+
+                int n_z = z_valid.size();
+
+                Eigen::MatrixXd R(n_z, n_z);
+                R = var_valid.asDiagonal();
+
+                Eigen::MatrixXd S_k(n_z, n_z);
+                S_k = H * P_pred * H.transpose() + R;
+
+                // Calcolo il guadagno di Kalman
+                Eigen::MatrixXd K(12, n_z);
+                K = P_pred * H.transpose() * S_k.inverse();
+
+                // Calcolo la predizione corretta
+                Eigen::VectorXd e_k(n_z);
+                e_k = z_valid - H * xi_pred;
+
+                if (id_phi >= 0)
+                {
+                    for (int i = id_phi; i < id_phi + 3; i++)
+                    {
+                        e_k(i) = angleDifference(e_k(i));
+                    }
+                }
+
+                // Calcolo la stima corretta
+
+                Eigen::VectorXd xi_corr(xi_pred.size());
+
+                xi_corr = xi_pred + K * e_k;
+
+                xi_corr(3) = atan2(sin(xi_corr(3)), cos(xi_corr(3)));
+                xi_corr(4) = atan2(sin(xi_corr(4)), cos(xi_corr(4)));
+                xi_corr(5) = atan2(sin(xi_corr(5)), cos(xi_corr(5)));
+
+                // Calcolo la matrice di covarianza corretta
+                Eigen::MatrixXd P_corr(12, 12);
+                P_corr = (Eigen::MatrixXd::Identity(12, 12) - K * H) * P_pred * (Eigen::MatrixXd::Identity(12, 12) - K * H).transpose() + K * R * K.transpose();
+
+                xi_curr = xi_corr;
+                P_curr = P_corr;
+
+                mahalanobis_distance = sqrt((e_k.transpose() * S_k.inverse() * e_k));
+            }
+
+            ////////////////////////////////////////////////////////////////////
+            /////////////////////////PREDICTION/////////////////////////////////
+            ////////////////////////////////////////////////////////////////////
+
+            phi = xi_curr(3);
+            theta = xi_curr(4);
+            psi = xi_curr(5);
+            u = xi_curr(6);
+            v = xi_curr(7);
+            w = xi_curr(8);
+            p = xi_curr(9);
+            q = xi_curr(10);
+            r = xi_curr(11);
+
+            Eigen::MatrixXd F_k(12, 12);
+
+            F_k << 1.0, 0.0, 0.0, dt * v * (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta)) + dt * w * (cos(phi) * sin(psi) - cos(psi) * sin(phi) * sin(theta)), dt * cos(psi) * (w * cos(phi) * cos(theta) - u * sin(theta) + v * cos(theta) * sin(phi)), dt * w * (cos(psi) * sin(phi) - cos(phi) * sin(psi) * sin(theta)) - dt * v * (cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta)) - dt * u * cos(theta) * sin(psi), dt * cos(psi) * cos(theta), dt * cos(psi) * sin(phi) * sin(theta) - dt * cos(phi) * sin(psi), dt * sin(phi) * sin(psi) + dt * cos(phi) * cos(psi) * sin(theta), 0.0, 0.0, 0.0,
+                0.0, 1.0, 0.0, -dt * v * (cos(psi) * sin(phi) - cos(phi) * sin(psi) * sin(theta)) - dt * w * (cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta)), dt * sin(psi) * (w * cos(phi) * cos(theta) - u * sin(theta) + v * cos(theta) * sin(phi)), dt * w * (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta)) - dt * v * (cos(phi) * sin(psi) - cos(psi) * sin(phi) * sin(theta)) + dt * u * cos(psi) * cos(theta), dt * cos(theta) * sin(psi), dt * cos(phi) * cos(psi) + dt * sin(phi) * sin(psi) * sin(theta), dt * cos(phi) * sin(psi) * sin(theta) - dt * cos(psi) * sin(phi), 0.0, 0.0, 0.0,
+                0.0, 0.0, 1.0, dt * cos(theta) * (v * cos(phi) - w * sin(phi)), -dt * (u * cos(theta) + w * cos(phi) * sin(theta) + v * sin(phi) * sin(theta)), 0.0, -dt * sin(theta), dt * cos(theta) * sin(phi), dt * cos(phi) * cos(theta), 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, dt * q * cos(phi) * tan(theta) - dt * r * sin(phi) * tan(theta) + 1, (dt * (r * cos(phi) + q * sin(phi))) / (cos(theta) * cos(theta)), 0.0, 0.0, 0.0, 0.0, dt, dt * sin(phi) * tan(theta), dt * cos(phi) * tan(theta),
+                0.0, 0.0, 0.0, -dt * (r * cos(phi) + q * sin(phi)), 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, dt * cos(phi), -dt * sin(phi),
+                0.0, 0.0, 0.0, (dt * (q * cos(phi) - r * sin(phi))) / cos(theta), (dt * sin(theta) * (r * (2 * sin(phi / 2) * sin(phi / 2) - 1) - q * sin(phi))) / (sin(theta) * sin(theta) - 1), 1.0, 0.0, 0.0, 0.0, 0.0, (dt * sin(phi)) / cos(theta), (dt * cos(phi)) / cos(theta),
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0;
+
+            Eigen::MatrixXd D_k(12, 6);
+
+            D_k << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                dt, 0.0, 0.0, 0.0, 0.0, 0.0,
+                0.0, dt, 0.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, dt, 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, 1.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, 0.0, 1.0;
+
+            Jacobian << cos(psi) * cos(theta), cos(psi) * sin(phi) * sin(theta) - cos(phi) * sin(psi), sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta), 0, 0, 0,
+                cos(theta) * sin(psi), cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta), cos(phi) * sin(psi) * sin(theta) - cos(psi) * sin(phi), 0, 0, 0,
+                -sin(theta), cos(theta) * sin(phi), cos(phi) * cos(theta), 0, 0, 0,
+                0, 0, 0, 1, sin(phi) * tan(theta), cos(phi) * tan(theta),
+                0, 0, 0, 0, cos(phi), -sin(phi),
+                0, 0, 0, 0, sin(phi) / cos(theta), cos(phi) / cos(theta);
+
+            eta_pred = dt * Jacobian * xi_curr.tail(6) + xi_curr.head(6);
+
+            double u_pred = dt * a_u + u;
+            double v_pred = dt * a_v + v;
+            double w_pred = dt * a_w + w;
+            double p_pred = p;
+            double q_pred = q;
+            double r_pred = r;
+
+            nu_pred << u_pred, v_pred, w_pred, p_pred, q_pred, r_pred;
+            xi_pred << eta_pred, nu_pred;
+
+            // wrapToPi
+            xi_pred(3) = atan2(sin(xi_pred(3)), cos(xi_pred(3)));
+            xi_pred(4) = atan2(sin(xi_pred(4)), cos(xi_pred(4)));
+            xi_pred(5) = atan2(sin(xi_pred(5)), cos(xi_pred(5)));
+
+            P_pred = F_k * P_curr * F_k.transpose() + D_k * Q * D_k.transpose();
+
+            ///////////////////////////////////////////////////////////////////////
+            ///////////////////////////// PUBLISHING //////////////////////////////
+            ///////////////////////////////////////////////////////////////////////
+
+            msg.data = {xi_curr(0), xi_curr(1), xi_curr(2), xi_curr(3), xi_curr(4), xi_curr(5), xi_curr(6), xi_curr(7), xi_curr(8), xi_curr(9), xi_curr(10), xi_curr(11), mahalanobis_distance};
+            est_state_pub.publish(msg);
+        }
+
+        valid_GPS = 0;
+        valid_scanner = 0;
+        valid_IMU = 0;
+        valid_DVL = 0;
+        valid_depth_sensor = 0;
+
+        // Let ROS handle all incoming messages in a callback function
+
+        ros::spinOnce();
+
+        // Sleep for the remaining time to hit our 10Hz target
+        loop_rate.sleep();
+    }
+
+    return 0;
+}

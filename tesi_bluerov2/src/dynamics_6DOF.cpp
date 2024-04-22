@@ -233,6 +233,8 @@ int main(int argc, char **argv)
 
     ros::Publisher chatter_pub = n.advertise<tesi_bluerov2::Floats>("state/state_topic", 1);
     ros::Subscriber sub = n.subscribe("tau_topic", 1000, tauCallback);
+    ros::Publisher acc_pub = n.advertise<tesi_bluerov2::Floats>("state/raw_acc_topic", 1);
+
     double freq = 1000;
     double dt = 1 / freq;
     ros::Rate loop_rate(freq);
@@ -258,8 +260,8 @@ int main(int argc, char **argv)
         C_rb << 0.0, 0.0, 0.0, m * (y_g * q + z_g * r), -m * (x_g * q - w), -m * (x_g * r + v),
             0.0, 0.0, 0.0, -m * (y_g * p + w), m * (z_g * r + x_g * p), -m * (y_g * r - u),
             0.0, 0.0, 0.0, -m * (z_g * p - v), -m * (z_g * q + u), m * (x_g * p + y_g * q),
-            -m * (y_g * q + z_g * r), m * (y_g * p + w), m * (z_g * p - v), 0.0, I_z * r -I_yz * q - I_xz * p, I_xy * p + I_yz * r - I_y * q,
-            m * (x_g * q - w), -m * (z_g * r + x_g * p), m * (z_g * q + u), I_yz * q + I_xz * p - I_z*r, 0.0, -I_xz * r - I_xy * q + I_x * p,
+            -m * (y_g * q + z_g * r), m * (y_g * p + w), m * (z_g * p - v), 0.0, I_z * r - I_yz * q - I_xz * p, I_xy * p + I_yz * r - I_y * q,
+            m * (x_g * q - w), -m * (z_g * r + x_g * p), m * (z_g * q + u), I_yz * q + I_xz * p - I_z * r, 0.0, -I_xz * r - I_xy * q + I_x * p,
             m * (x_g * r + v), m * (y_g * r - u), -m * (x_g * p + y_g * q), -I_yz * r - I_xy * p + I_y * q, I_xy * q + I_xz * r - I_x * p, 0.0;
 
         Eigen::Matrix<double, 6, 6> C_a;
@@ -308,9 +310,12 @@ int main(int argc, char **argv)
         Eigen::Matrix<double, 6, 1> tau;
         tau << tau_u + gaussianNoise(0.0, var_tau_u), tau_v + gaussianNoise(0.0, var_tau_v), tau_w + gaussianNoise(0.0, var_tau_w), tau_p + gaussianNoise(0.0, var_tau_p), tau_q + gaussianNoise(0.0, var_tau_q), tau_r + gaussianNoise(0.0, var_tau_r);
 
+        Eigen::VectorXd nu_dot(6);
+        nu_dot = M.inverse() * (tau - C * nu - D * nu - G);
+
         // VETTORE DELLE VELOCITA'
         Eigen::Matrix<double, 6, 1> nu_k1;
-        nu_k1 = dt * M.inverse() * (tau - C * nu - D * nu - G) + nu;
+        nu_k1 = dt * nu_dot + nu;
 
         // VETTORE DELLE POSIZIONI
         Eigen::Matrix<double, 6, 6> Jacobian;
@@ -337,6 +342,10 @@ int main(int argc, char **argv)
         tesi_bluerov2::Floats state_msg;
         state_msg.data = state;
 
+        tesi_bluerov2::Floats acc_msg;
+        acc_msg.data = {nu_dot(0), nu_dot(1), nu_dot(2)};
+        acc_pub.publish(acc_msg);
+        
         chatter_pub.publish(state_msg);
 
         eta = eta_k1;
@@ -344,7 +353,7 @@ int main(int argc, char **argv)
 
         if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
         {
-            state_bag.write("state_topic", ros::Time::now(), state_msg);
+            state_bag.write("state/state_topic", ros::Time::now(), state_msg);
         }
 
         ros::spinOnce();

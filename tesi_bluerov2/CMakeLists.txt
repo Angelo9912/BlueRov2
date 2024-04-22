@@ -265,13 +265,25 @@ add_executable(ping src/Ping.cpp)
 target_link_libraries(ping ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(ping ${catkin_EXPORTED_TARGETS})
 
-add_executable(EKF src/EKF.cpp)
-target_link_libraries(EKF ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
-add_dependencies(EKF ${catkin_EXPORTED_TARGETS})
+add_executable(accelerometer src/accelerometer.cpp)
+target_link_libraries(accelerometer ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(accelerometer ${catkin_EXPORTED_TARGETS})
 
-add_executable(UKF src/UKF.cpp)
-target_link_libraries(UKF ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
-add_dependencies(UKF ${catkin_EXPORTED_TARGETS})
+add_executable(EKF_dynamics src/EKF_dynamics.cpp)
+target_link_libraries(EKF_dynamics ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(EKF_dynamics ${catkin_EXPORTED_TARGETS})
+
+add_executable(EKF_no_dyn src/EKF_no_dyn.cpp)
+target_link_libraries(EKF_no_dyn ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(EKF_no_dyn ${catkin_EXPORTED_TARGETS})
+
+add_executable(UKF_dynamics src/UKF_dynamics.cpp)
+target_link_libraries(UKF_dynamics ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(UKF_dynamics ${catkin_EXPORTED_TARGETS})
+
+add_executable(UKF_no_dyn src/UKF_no_dyn.cpp)
+target_link_libraries(UKF_no_dyn ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(UKF_no_dyn ${catkin_EXPORTED_TARGETS})
 
 add_executable(err_vis src/error_visualizer.cpp)
 target_link_libraries(err_vis ${catkin_LIBRARIES} ${roscpp_LIBRARIES})

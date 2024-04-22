@@ -8,6 +8,7 @@
 #include <vector>
 #include "yaml-cpp/yaml.h" // for yaml
 #include <math.h>
+#include <random>
 
 // Declare callback variables
 double x_d = 0.0;
@@ -40,6 +41,15 @@ double r_hat = 0.0;
 double phi_hat_dot;
 double theta_hat_dot;
 double psi_hat_dot;
+
+double gaussianNoise(double mean, double var)
+{
+    double stddev = sqrt(var);
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::normal_distribution<> d(mean, stddev);
+    return d(gen);
+}
 
 double angleDifference(double e)
 {
@@ -153,7 +163,7 @@ int main(int argc, char **argv)
     double dt = 1 / freq;
     ros::Rate loop_rate(freq);
 
-    ros::Duration(10).sleep();
+    ros::Duration(60).sleep();
 
     // Import parameters from YAML file
 
@@ -299,18 +309,49 @@ int main(int argc, char **argv)
     Eigen::Matrix<double, 6, 1> est_pose;
 
     // Define error vector
-    Eigen::Matrix<double, 6, 1> error;
+    Eigen::Matrix<double, 3, 1> error_lin;
 
-    Eigen::Matrix<double, 6, 1> error_int;
-    error_int.setZero();
+    Eigen::Matrix<double, 3, 1> error_lin_int;
+    error_lin_int.setZero();
 
-    Eigen::Matrix<double, 6, 1> error_dot;
+    Eigen::Matrix<double, 3, 1> error_lin_dot;
+
+    double error_psi;
+    double error_psi_int = 0.0;
+    double error_psi_dot;
 
     Eigen::Matrix<double, 6, 1> nu;
 
-    Eigen::Matrix<double, 6, 6> J;
+    Eigen::Matrix<double, 3, 3> J1;
 
-    Eigen::Matrix<double, 6, 1> est_pose_dot;
+    Eigen::Matrix<double, 3, 1> est_pose_lin_dot;
+    Eigen::Matrix<double, 3, 1> est_pose_lin;
+
+    // Define the gains
+    Eigen::Matrix<double, 3, 3> K_p_lin;
+    K_p_lin = (400) * Eigen::Matrix<double, 3, 3>::Identity();
+
+    Eigen::Matrix<double, 3, 3> K_d_lin;
+    K_d_lin = (50) * Eigen::Matrix<double, 3, 3>::Identity();
+
+    Eigen::Matrix<double, 3, 3> K_i_lin;
+    K_i_lin = (0) * Eigen::Matrix<double, 3, 3>::Identity();
+
+    double K_p_psi;
+    K_p_psi = 200;
+
+    double K_d_psi;
+    K_d_psi = 20;
+
+    double K_i_psi;
+    K_i_psi = 0;
+
+    Eigen::Vector3d tau_lin;
+    double tau_psi;
+
+    Eigen::Vector3d anti_windup_lin;
+    anti_windup_lin.setZero();
+    double anti_windup_psi = 0.0;
 
     while (ros::ok())
     {
@@ -329,109 +370,79 @@ int main(int argc, char **argv)
         des_pos_dot << x_dot_d, y_dot_d, z_dot_d, phi_dot_d, theta_dot_d, psi_dot_d;
         est_pose << x_hat, y_hat, z_hat, phi_hat, theta_hat, psi_hat;
 
-        error = des_pose - est_pose;
-
-        error(3) = angleDifference(error(3));
-        error(4) = angleDifference(error(4));
-        error(5) = angleDifference(error(5));
-
         // Define Jacobian Matrix
-        J << cos(psi_hat) * cos(theta_hat), cos(psi_hat) * sin(phi_hat) * sin(theta_hat) - cos(phi_hat) * sin(psi_hat), sin(phi_hat) * sin(psi_hat) + cos(phi_hat) * cos(psi_hat) * sin(theta_hat), 0, 0, 0,
-            cos(theta_hat) * sin(psi_hat), cos(phi_hat) * cos(psi_hat) + sin(phi_hat) * sin(psi_hat) * sin(theta_hat), cos(phi_hat) * sin(psi_hat) * sin(theta_hat) - cos(psi_hat) * sin(phi_hat), 0, 0, 0,
-            -sin(theta_hat), cos(theta_hat) * sin(phi_hat), cos(phi_hat) * cos(theta_hat), 0, 0, 0,
-            0, 0, 0, 1, sin(phi_hat) * tan(theta_hat), cos(phi_hat) * tan(theta_hat),
-            0, 0, 0, 0, cos(phi_hat), -sin(phi_hat),
-            0, 0, 0, 0, sin(phi_hat) / cos(theta_hat), cos(phi_hat) / cos(theta_hat);
-
-        // Define gravity vector
-        Eigen::Matrix<double, 6, 1> G;
-        double W = m * 9.81;
-
-        G << 0,
-            0,
-            0,
-            -(y_g - y_b) * W * cos(phi_hat) * cos(theta_hat) + (z_g - z_b) * W * sin(phi_hat) * cos(theta_hat),
-            (z_g - z_b) * W * sin(theta_hat) + (x_g - x_b) * W * cos(theta_hat) * cos(phi_hat),
-            -(x_g - x_b) * W * cos(theta_hat) * sin(phi_hat) - (y_g - y_b) * W * sin(theta_hat);
+        J1 << cos(psi_hat) * cos(theta_hat), cos(psi_hat) * sin(phi_hat) * sin(theta_hat) - cos(phi_hat) * sin(psi_hat), sin(phi_hat) * sin(psi_hat) + cos(phi_hat) * cos(psi_hat) * sin(theta_hat),
+            cos(theta_hat) * sin(psi_hat), cos(phi_hat) * cos(psi_hat) + sin(phi_hat) * sin(psi_hat) * sin(theta_hat), cos(phi_hat) * sin(psi_hat) * sin(theta_hat) - cos(psi_hat) * sin(phi_hat),
+            -sin(theta_hat), cos(theta_hat) * sin(phi_hat), cos(phi_hat) * cos(theta_hat);
 
         nu << u_hat, v_hat, w_hat, p_hat, q_hat, r_hat;
 
-        est_pose_dot = J * nu;
+        // Define the error vector
+        error_lin = J1.transpose() * (des_pose.head(3) - est_pose.head(3));
 
-        error_dot = des_pos_dot - est_pose_dot;
+        error_lin_dot = J1.transpose() * (des_pos_dot.head(3)) - nu.head(3);
 
-        error_int += error * dt;
+        error_lin_int += error_lin * dt;
 
-        Eigen::Matrix<double, 6, 6> K_d;
-        K_d << 10 * Eigen::Matrix<double, 6, 6>::Identity();
+        error_psi = angleDifference(des_pose(5) - est_pose(5));
+        error_psi_dot = des_pos_dot(5) - nu(5);
+        error_psi_int += error_psi * dt;
 
-        K_d(0, 0) = 50;
-
-        Eigen::Matrix<double, 6, 6> K_p;
-        K_p << 10 * Eigen::Matrix<double, 6, 6>::Identity();
-
-        Eigen::Matrix<double, 6, 6> K_i;
-        K_i << 0 * Eigen::Matrix<double, 6, 6>::Identity();
-
-        Eigen::Matrix<double, 4, 6> B_pinv;
-
-        B_pinv << 1, 0, 0, 0, 0, 0,
-            0, 1, 0, 0, 0, 0,
-            0, 0, 1, 0, 0, 0,
-            0, 0, 0, 0, 0, 1;
-
-        Eigen::Matrix<double, 6, 6> D;
-
-        D << A_x * abs(u_hat), 0, 0, 0, 0, 0,
-            0, A_y * abs(v_hat), 0, 0, 0, 0,
-            0, 0, A_z * abs(w_hat), 0, 0, 0,
-            0, 0, 0, A_p * abs(p_hat), 0, 0,
-            0, 0, 0, 0, A_q * abs(q_hat), 0,
-            0, 0, 0, 0, 0, A_r * abs(r_hat);
-
-        D = 0.5 * 1000 * D;
+        tau_lin = K_p_lin * error_lin + K_d_lin * error_lin_dot + K_i_lin * (error_lin_int + anti_windup_lin);
+        tau_psi = K_p_psi * error_psi + K_d_psi * error_psi_dot + K_i_psi * (error_psi_int + anti_windup_psi);
 
         // Define the torques vector
         Eigen::Matrix<double, 4, 1> torques_vec;
-        torques_vec = B_pinv * (J.transpose() * K_p * error + J.transpose() * K_d * error_dot + J.transpose() * K_i * error_int + G + D * nu); //= B_pinv * (Y * pi_d + J.transpose() * error + K_d * s);
+
+        torques_vec << tau_lin(0), tau_lin(1), tau_lin(2), tau_psi;
+
+        double tau_u;
+        double tau_v;
+        double tau_w;
+        double tau_r;
 
         if (torques_vec(3) > 37.471)
         {
-            torques_vec(3) = 37.471;
+            tau_r = 37.471;
         }
         else if (torques_vec(3) < -37.471)
         {
-            torques_vec(3) = -37.471;
+            tau_r = -37.471;
         }
 
         if (torques_vec(0) > 141.42)
         {
-            torques_vec(0) = 141.42;
+            tau_u = 141.42;
         }
         else if (torques_vec(0) < -141.42)
         {
-            torques_vec(0) = -141.42;
+            tau_u = -141.42;
         }
 
         if (torques_vec(1) > 141.42)
         {
-            torques_vec(1) = 141.42;
+            tau_v = 141.42;
         }
         else if (torques_vec(1) < -141.42)
         {
-            torques_vec(1) = -141.42;
+            tau_v = -141.42;
         }
 
         if (torques_vec(2) > 70.71)
         {
-            torques_vec(2) = 70.71;
+            tau_w = 70.71;
         }
         else if (torques_vec(2) < -70.71)
         {
-            torques_vec(2) = -70.71;
+            tau_w = -70.71;
         }
 
-        std::vector<double> torques = {torques_vec(0), torques_vec(1), torques_vec(2), 0.0, 0.0, torques_vec(3)};
+        Eigen::Vector4d tau_out_sat;
+        tau_out_sat << tau_u, tau_v, tau_w, tau_r;
+        anti_windup_lin = tau_out_sat.head(3) - tau_lin;
+        anti_windup_psi = tau_out_sat(3) - tau_psi;
+
+        std::vector<double> torques = {torques_vec(0) + gaussianNoise(0.0, var_tau_u), torques_vec(1) + gaussianNoise(0.0, var_tau_v), torques_vec(2) + gaussianNoise(0.0, var_tau_w), 0.0, 0.0, torques_vec(3) + gaussianNoise(0.0, var_tau_r)};
 
         // Publishing the torques
         tesi_bluerov2::Floats torques_msg;

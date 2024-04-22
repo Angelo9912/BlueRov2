@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
     <rosparam file="$(find tesi_bluerov2)/yaml/params.yaml" />
-    <arg name="flag" default="back" />
+    <arg name="flag" default="PID" />
     <include file="$(find gazebo_ros)/launch/empty_world.launch"> -->
         <arg name="world_name" value="$(find tesi_bluerov2)/src/mondo_bluerov2_wall.world" />
         <arg name="paused" value="true" />
@@ -37,8 +37,11 @@
     <node name="gps" pkg="tesi_bluerov2" type="gps" />
     <node name="ping" pkg="tesi_bluerov2" type="ping" />
     <node name="dvl" pkg="tesi_bluerov2" type="dvl" />
-    <!--<node name="EKF" pkg="tesi_bluerov2" type="EKF" /> -->
-    <node name="UKF" pkg="tesi_bluerov2" type="UKF" />
+    <node name="accelerometer" pkg="tesi_bluerov2" type="accelerometer" />
+    <node name="EKF_dynamics" pkg="tesi_bluerov2" type="EKF_dynamics" />
+    <node name="UKF_dynamics" pkg="tesi_bluerov2" type="UKF_dynamics" />
+    <node name="EKF_no_dyn" pkg="tesi_bluerov2" type="EKF_no_dyn" />
+    <node name="UKF_no_dyn" pkg="tesi_bluerov2" type="UKF_no_dyn" />
     <node name="manager" pkg="tesi_bluerov2" type="manager" />
     <node name="err_vis" pkg="tesi_bluerov2" type="err_vis" />
     <node name="guidance" pkg="tesi_bluerov2" type="guidance" />

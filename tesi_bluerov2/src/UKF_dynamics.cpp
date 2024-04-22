@@ -697,7 +697,7 @@ void tau_callback(const tesi_bluerov2::Floats::ConstPtr &msg)
 int main(int argc, char **argv)
 {
     // Initialize the ROS system and become a node.
-    ros::init(argc, argv, "UKF");
+    ros::init(argc, argv, "UKF_dynamics");
 
     // Create a ROS node handle
     ros::NodeHandle n;
@@ -817,7 +817,7 @@ int main(int argc, char **argv)
     M = M_rb + M_a;
 
     // Time step
-    double freq = 30;
+    double freq = 50;
     double dt = 1 / freq;
 
     bool is_init = false;
@@ -932,7 +932,7 @@ int main(int argc, char **argv)
 
             if (is_init) // Se l'inizializzazione è completata pubblica lo stato stimato iniziale e passa alla predizione
             {
-                ROS_WARN_STREAM("INITIALIZATION COMPLETED\n");
+                ROS_WARN_STREAM("UKF INITIALIZATION COMPLETED \n");
 
                 msg.data = {xi_curr(0), xi_curr(1), xi_curr(2), xi_curr(3), xi_curr(4), xi_curr(5), xi_curr(6), xi_curr(7), xi_curr(8), xi_curr(9), xi_curr(10), xi_curr(11), mahalanobis_distance};
                 est_state_pub.publish(msg);
