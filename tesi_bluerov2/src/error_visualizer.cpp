@@ -207,12 +207,10 @@ int main(int argc, char **argv)
 
     ros::NodeHandle n;
 
-    ros::Subscriber sub1 = n.subscribe("state_topic", 1000, state_callback);
-    ros::Subscriber sub2 = n.subscribe("est_state_topic", 1000, est_state_callback);
-    ros::Subscriber sub3 = n.subscribe("est_state_UKF_topic", 1000, est_state_UKF_callback);
+    ros::Subscriber sub1 = n.subscribe("state/state_topic", 1000, state_callback);
+    ros::Subscriber sub2 = n.subscribe("state/est_state_topic", 1000, est_state_callback);
+    ros::Subscriber sub3 = n.subscribe("state/est_state_UKF_topic", 1000, est_state_UKF_callback);
     ros::Publisher pub = n.advertise<tesi_bluerov2::Floats>("error_topic", 1000);
-    ros::Publisher pub2 = n.advertise<tesi_bluerov2::waypoints>("waypoints_topic", 1000);
-
     // ros::Publisher pub2 = n.advertise<tesi_bluerov2::Floats>("tau_topic", 1000);
     // ros::Publisher pub3 = n.advertise<tesi_bluerov2::Floats>("desired_state_topic", 1000);
     ros::Rate loop_rate(100);
@@ -395,30 +393,12 @@ int main(int argc, char **argv)
         // des_msg.data = des;
         // pub3.publish(des_msg);
 
-        way = {0.0, 2.0, 0.0, 2.0, 2.0, 0.0, 2.0, -2.0, 0.0, 0.0, -2.0, 0.0, 0.0, 0.0, 4.0, 0.0, 2.0, 4.0, 2.0, 2.0, 4.0, 2.0, -2.0, 4.0, 0.0, -2.0, 4.0, 0.0, 0.0, 4.0};
-        tesi_bluerov2::waypoints way_msg;
-        way_msg.waypoints = way;
-        way_msg.speed = 0.5;
-        way_msg.strategy = "Rect";
-
-        if (flag)
-        {
-            pub2.publish(way_msg);
-            flag = false;
-        }
-
-        if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
-        {
-            bag.write("error_topic", ros::Time::now(), error_msg);
-            waypoints_bag.write("waypoints_topic", ros::Time::now(), way_msg);
-        }
 
         ros::spinOnce();
         loop_rate.sleep();
     }
 
     bag.close();
-    waypoints_bag.close();
 
     return 0;
 }

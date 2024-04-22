@@ -231,7 +231,7 @@ int main(int argc, char **argv)
     Eigen::Matrix<double, 6, 6> M;
     M = M_rb + M_a;
 
-    ros::Publisher chatter_pub = n.advertise<tesi_bluerov2::Floats>("state_topic", 1);
+    ros::Publisher chatter_pub = n.advertise<tesi_bluerov2::Floats>("state/state_topic", 1);
     ros::Subscriber sub = n.subscribe("tau_topic", 1000, tauCallback);
     double freq = 1000;
     double dt = 1 / freq;

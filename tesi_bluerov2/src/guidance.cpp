@@ -23,23 +23,35 @@ double p_hat = 0.0;     // velocità angolare di roll stimata
 double q_hat = 0.0;     // velocità angolare di pitch stimata
 double r_hat = 0.0;     // velocità angolare di yaw stimata
 double speed = 0.0;     // velocità di crociera
-
-// coordiate spline a 3 punti
+int clockwise = 0;      // flag per indicare se il giro è in senso orario
+int up = 0;             // flag per indicare se la traiettoria è in salita
 
 double x_1 = 0.0;   // coordiata x del primo waypoint
 double y_1 = 0.0;   // coordiata y del primo waypoint
 double z_1 = 0.0;   // coordiata z del primo waypoint
 double psi_1 = 0.0; // orientamento del primo waypoint
 
+double x_b = 0.0; // coordiata x del centro della circonferenza
+double y_b = 0.0; // coordiata y del centro della circonferenza
+double z_b = 0.0; // coordiata z del centro della circonferenza
+
+double x_p = 0.0; // coordiata x del punto della circonferenza
+double y_p = 0.0; // coordiata y del punto della circonferenza
+double z_p = 0.0; // coordiata z del punto della circonferenza
+
 double x_t = 0.0;     // coordiata x del target da raggiungere a fine missione
 double y_t = 0.0;     // coordiata y del target da raggiungere a fine missione
 double z_t = 0.0;     // coordiata z del target da raggiungere a fine missione
 bool is_psi_adjusted; // flag per controllare se psi è stato aggiustato
 int way_counter = 0;  // contatore per waypoint
-
+bool UP_DOWN_first_phase = true;
 std::string strategy = "";       // strategia di controllo
 std::string mission_status = ""; // stato di missione
 std::vector<double> way_spline;  // vettore che contiene i waypoint
+
+// velocità costanti da comandare al robot
+double const surge_speed = 0.5;            // velocità da seguire normalmente
+double const surge_speed_replanning = 0.2; // velocità da seguire durante ripianificazioni
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////// DEFINIZIONE CALLBACK /////////////////////////////////////////////////////
@@ -75,6 +87,39 @@ void waypointCallback(const tesi_bluerov2::waypoints::ConstPtr &msg) // CALLBACK
         way_spline = msg->waypoints;
         speed = msg->speed;
         strategy = msg->strategy;
+    }
+    else if (msg->strategy == "Circumference")
+    {
+        x_1 = x_hat;
+        y_1 = y_hat;
+        z_1 = z_hat;
+        psi_1 = psi_hat;
+        way_counter = 1;
+        is_psi_adjusted = false;
+        x_b = msg->waypoints[0];
+        y_b = msg->waypoints[1];
+        z_b = msg->waypoints[2];
+        x_p = msg->waypoints[3];
+        y_p = msg->waypoints[4];
+        z_p = msg->waypoints[5];
+        speed = msg->speed;
+        strategy = msg->strategy;
+        clockwise = msg->approach;
+    }
+    else if (msg->strategy == "UP_DOWN")
+    {
+        x_1 = x_hat;
+        y_1 = y_hat;
+        z_1 = z_hat;
+        psi_1 = psi_hat;
+        way_counter = 1;
+        is_psi_adjusted = false;
+        x_p = msg->waypoints[0];
+        y_p = msg->waypoints[1];
+        z_p = msg->waypoints[2];
+        speed = msg->speed;
+        strategy = msg->strategy;
+        up = msg->approach;
     }
     else if (msg->strategy == "Target") // quando interrompiamo l'esplorazione e ci dirigiamo al target
     {
@@ -154,14 +199,14 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "guidance");
     ros::NodeHandle n;
     // Definisco publisher e subscriber
-    ros::Publisher guidance_pub = n.advertise<tesi_bluerov2::Floats>("desired_state_topic", 1);            // publisher stato desiderato
+    ros::Publisher guidance_pub = n.advertise<tesi_bluerov2::Floats>("state/desired_state_topic", 1);      // publisher stato desiderato
     ros::Publisher publisher_status = n.advertise<std_msgs::String>("manager/status_requested_topic", 10); // publisher stato richiesto al manager di missione
 
-    ros::Subscriber sub_est_state = n.subscribe("est_state_UKF_topic", 1, estStateCallback); // sottoscrizione alla topic di stato stimato
-    ros::Subscriber sub_waypoint = n.subscribe("waypoints_topic", 1, waypointCallback);      // sottoscrizione alla topic di waypoint
-    ros::Subscriber sub_status = n.subscribe("manager/status_topic", 1, statusCallback);     // sottoscrizione alla topic di mission status
-    double freq = 50.0;                                                                      // frequenza di lavoro
-    double dt = 1 / freq;                                                                    // tempo di campionamento
+    ros::Subscriber sub_est_state = n.subscribe("state/est_state_UKF_topic", 1, estStateCallback); // sottoscrizione alla topic di stato stimato
+    ros::Subscriber sub_waypoint = n.subscribe("waypoints_topic", 1, waypointCallback);            // sottoscrizione alla topic di waypoint
+    ros::Subscriber sub_status = n.subscribe("manager/status_topic", 1, statusCallback);           // sottoscrizione alla topic di mission status
+    double freq = 50.0;                                                                            // frequenza di lavoro
+    double dt = 1 / freq;                                                                          // tempo di campionamento
     ros::Rate loop_rate(freq);
     int i_psi = 0;
 
@@ -190,7 +235,7 @@ int main(int argc, char **argv)
     double p_d = 0.0;
     double q_d = 0.0;
     double r_d = 0.0;
-
+    int CIRCUMFERENCE_phase = 0;
     double dist_min;
     double dist_min_psi;
 
@@ -701,7 +746,7 @@ int main(int argc, char **argv)
                         phi_d = 0.0;
                         theta_d = 0.0;
                         psi_d = psi(i_dist_min);
-                        ROS_WARN("i_dist_min: %d", i_dist_min);
+                        //ROS_WARN("i_dist_min: %d", i_dist_min);
 
                         double error_x_to_waypoint = way_spline_x(way_counter) - x_hat;
                         double error_y_to_waypoint = way_spline_y(way_counter) - y_hat;
@@ -709,7 +754,7 @@ int main(int argc, char **argv)
 
                         double dist_to_waypoint = sqrt(pow(error_x_to_waypoint, 2) + pow(error_y_to_waypoint, 2) + pow(error_z_to_waypoint, 2));
 
-                        if (dist_to_waypoint < 0.3)
+                        if (dist_to_waypoint < 0.1)
                         {
                             u_d = 0.0;
                         }
@@ -791,18 +836,332 @@ int main(int argc, char **argv)
                     guidance_pub.publish(des_state_msg);
                 }
             }
-        }
-        else if (mission_status == "PAUSED")
-        {
-            std::string status_req = "RUNNING";
-            std_msgs::String msg;
-            msg.data = status_req;
-            publisher_status.publish(msg);
+            else if (strategy == "Circumference")
+            {
+                double x[199];
+                double y[199];
+                double z[199];
+                double phi[199];
+                double theta[199];
+                double psi[199];
+
+                double u_d = surge_speed;
+                double v_d = 0.0;
+                double w_d = 0.0;
+                double p_d = 0.0;
+                double q_d = 0.0;
+                double r_d = 0.0;
+
+                Eigen::VectorXd dist(199);
+                double dx = (x_p - x_1) / 100;
+                double dy = (y_p - y_1) / 100;
+                double dz = (z_p - z_1) / 100;
+
+                for (int i = 0; i < 99; i++)
+                {
+                    x[i] = x_1 + (i + 1) * dx;
+                    y[i] = y_1 + (i + 1) * dy;
+                    z[i] = z_1 + (i + 1) * dz;
+                    psi[i] = atan2(dy, dx);
+                }
+
+                double k = 2 * M_PI / 100;
+                double beta = atan2(y_p - y_b, x_p - x_b);
+
+                for (int i = 99; i < 199; i++)
+                {
+                    double t;
+                    if (clockwise == 1.0)
+                    {
+                        t = -(i - 99) * k;
+                        psi[i] = atan2(-cos(beta + t), sin(beta + t));
+                    }
+                    else
+                    {
+                        t = (i - 99) * k;
+                        psi[i] = atan2(cos(beta + t), -sin(beta + t));
+                    }
+                    x[i] = x_b + cos(beta + t);
+                    y[i] = y_b + sin(beta + t);
+                    z[i] = z_b;
+                }
+
+                int i_dist_min;
+                if (CIRCUMFERENCE_phase == 1)
+                {
+                    // ROS_WARN("RETTA");
+                    i_dist_min = 0;
+                    for (int i = 0; i < 99; i++)
+                    {
+                        dist(i) = sqrt(pow(x_hat - x[i], 2.0) + pow(y_hat - y[i], 2.0) + pow(z_hat - z[i], 2.0));
+                        if (i == 0)
+                        {
+                            dist_min = dist(i);
+                        }
+                        else
+                        {
+                            if (dist(i) < dist_min)
+                            {
+                                dist_min = dist(i);
+                                i_dist_min = i;
+                            }
+                        }
+                    }
+                    if (i_dist_min >= 97)
+                    {
+                        CIRCUMFERENCE_phase = 2;
+                    }
+                }
+                else if (CIRCUMFERENCE_phase == 2)
+                {
+                    // ROS_WARN("CIRCONFERENZA 1");
+                    i_dist_min = 99;
+                    for (int i = 99; i < 149; i++)
+                    {
+                        dist(i) = sqrt(pow(x_hat - x[i], 2.0) + pow(y_hat - y[i], 2.0) + pow(z_hat - z[i], 2.0));
+                        if (i == 99)
+                        {
+                            dist_min = dist(i);
+                        }
+                        else
+                        {
+                            if (dist(i) < dist_min)
+                            {
+                                dist_min = dist(i);
+                                i_dist_min = i;
+                            }
+                        }
+                    }
+                    if (i_dist_min >= 147)
+                    {
+                        CIRCUMFERENCE_phase = 3;
+                    }
+                }
+                else
+                {
+                    // ROS_WARN("CIRCONFERENZA 2");
+
+                    i_dist_min = 149;
+                    for (int i = 149; i < 199; i++)
+                    {
+                        dist(i) = sqrt(pow(x_hat - x[i], 2.0) + pow(y_hat - y[i], 2.0) + pow(z_hat - z[i], 2.0));
+                        if (i == 149)
+                        {
+                            dist_min = dist(i);
+                        }
+                        else
+                        {
+                            if (dist(i) < dist_min)
+                            {
+                                dist_min = dist(i);
+                                i_dist_min = i;
+                            }
+                        }
+                    }
+                }
+
+                x_d = x[i_dist_min];
+                y_d = y[i_dist_min];
+                z_d = z[i_dist_min];
+                phi_d = 0.0;
+                theta_d = 0.0;
+                psi_d = psi[i_dist_min];
+                // ROS_WARN("i_dist_min: %d", i_dist_min);
+
+                if (i_dist_min > 99 && i_dist_min <= 196)
+                {
+                    u_d = surge_speed_replanning;
+                    v_d = 0.0;
+                    w_d = 0.0;
+                    r_d = 0.0;
+                }
+                else if (i_dist_min > 196)
+                {
+                    u_d = 0.0;
+                    v_d = 0.0;
+                    w_d = 0.0;
+                    p_d = 0.0;
+                    q_d = 0.0;
+                    r_d = 0.0;
+                    std::string status_req = "PAUSED";
+                    std_msgs::String msg;
+                    msg.data = status_req;
+                    publisher_status.publish(msg);
+                    CIRCUMFERENCE_phase = 1;
+                }
+                x_dot_d = u_d * cos(psi_d) - v_d * sin(psi_d);
+                y_dot_d = u_d * sin(psi_d) + v_d * cos(psi_d);
+                z_dot_d = w_d;
+                phi_dot_d = 0.0;
+                theta_dot_d = 0.0;
+                psi_dot_d = r_d;
+
+                std::vector<double> des_state = {x_d, y_d, z_d, phi_d, theta_d, psi_d, x_dot_d, y_dot_d, z_dot_d, phi_dot_d, theta_dot_d, psi_dot_d};
+                des_state_msg.data = des_state;
+                // Publishing the state
+                guidance_pub.publish(des_state_msg);
+            }
+            else if (strategy == "UP_DOWN")
+            {
+                double x[119];
+                double y[119];
+                double z[119];
+                double phi[119];
+                double theta[119];
+                double psi[119];
+
+                double u_d = surge_speed;
+                double v_d = 0.0;
+                double w_d = 0.0;
+                double p_d = 0.0;
+                double q_d = 0.0;
+                double r_d = 0.0;
+
+                Eigen::VectorXd dist(119);
+
+                double dx = (x_p - x_1) / 100;
+                double dy = (y_p - y_1) / 100;
+                double dz = (z_p - z_1) / 100;
+
+                w_d = dz * 10;
+
+                // FASE DI AVVICINAMENTO
+                for (int i = 0; i < 99; i++)
+                {
+                    x[i] = x_1 + (i + 1) * dx;
+                    y[i] = y_1 + (i + 1) * dy;
+                    z[i] = z_1 + (i + 1) * dz;
+                    phi[i] = 0.0;
+                    theta[i] = 0.0;
+                    psi[i] = atan2(dy, dx);
+                }
+
+                // FASE DI RISALITA
+                double dz2 = 0.5 / 20; // passo di risalita su asse z per ripianificazione locale
+
+                for (int i = 99; i < 119; i++)
+                {
+                    x[i] = x_p;
+                    y[i] = y_p;
+                    z[i] = z[i - 1] + dz2;
+                    phi[i] = 0.0;
+                    theta[i] = 0.0;
+                    psi[i] = psi[i - 1];
+                }
+                int i_dist_min;
+                if (UP_DOWN_first_phase)
+                {
+                    i_dist_min = 0;
+
+                    // Scelta del waypoint più vicino
+
+                    for (int i = 0; i < 99; i++)
+                    {
+                        dist(i) = sqrt(pow(x_hat - x[i], 2.0) + pow(y_hat - y[i], 2.0) + pow(z_hat - z[i], 2.0));
+                        if (i == 0)
+                        {
+                            dist_min = dist(i);
+                        }
+                        else
+                        {
+                            if (dist(i) < dist_min)
+                            {
+                                dist_min = dist(i);
+                                i_dist_min = i;
+                            }
+                        }
+                    }
+                    if (i_dist_min >= 97 && abs(z_hat - z_p) < 0.1)
+                    {
+                        UP_DOWN_first_phase = false;
+                    }
+                }
+                else
+                {
+                    // ROS_WARN("z: %f", z_hat);
+                    i_dist_min = 99;
+
+                    // Scelta del waypoint più vicino
+
+                    for (int i = 99; i < 119; i++)
+                    {
+                        dist(i) = sqrt(pow(x_hat - x[i], 2.0) + pow(y_hat - y[i], 2.0) + pow(z_hat - z[i], 2.0));
+                        if (i == 99)
+                        {
+                            dist_min = dist(i);
+                        }
+                        else
+                        {
+                            if (dist(i) < dist_min)
+                            {
+                                dist_min = dist(i);
+                                i_dist_min = i;
+                            }
+                        }
+                    }
+                }
+
+                x_d = x[i_dist_min];
+                y_d = y[i_dist_min];
+                z_d = z[i_dist_min];
+                phi_d = 0.0;
+                theta_d = 0.0;
+                psi_d = psi[i_dist_min];
+
+                if (i_dist_min > 50 && i_dist_min < 99)
+                {
+                    u_d = surge_speed_replanning;
+                    v_d = 0.0;
+                    r_d = 0.0;
+                    if (i_dist_min > 70)
+                    {
+                        ROS_WARN_STREAM("AVVICINAMENTO (FINE)");
+                        u_d = 0.02;
+                        w_d = (z_p - z_hat) / abs(z_hat - z_p) * 0.05;
+                    }
+                }
+                else if (i_dist_min >= 99)
+                {
+                    u_d = 0.0;
+                    v_d = 0.0;
+                    if (up == 1)
+                    {
+                        ROS_WARN_STREAM("RISALITA");
+                        w_d = 0.05;
+                    }
+                    else
+                    {
+                        ROS_WARN_STREAM("DISCESA");
+                        w_d = -0.05;
+                    }
+                    r_d = 0.0;
+                }
+
+                if (i_dist_min >= 117)
+                {
+                    std::string status_req = "PAUSED";
+                    std_msgs::String msg;
+                    msg.data = status_req;
+                    publisher_status.publish(msg);
+                    UP_DOWN_first_phase = true;
+                }
+                x_dot_d = u_d * cos(psi_d) - v_d * sin(psi_d);
+                y_dot_d = u_d * sin(psi_d) + v_d * cos(psi_d);
+                z_dot_d = w_d;
+                phi_dot_d = 0.0;
+                theta_dot_d = 0.0;
+                psi_dot_d = r_d;
+
+                std::vector<double> des_state = {x_d, y_d, z_d, phi_d, theta_d, psi_d, x_dot_d, y_dot_d, z_dot_d, phi_dot_d, theta_dot_d, psi_dot_d};
+                des_state_msg.data = des_state;
+                // Publishing the state
+                guidance_pub.publish(des_state_msg);
+            }
         }
 
         if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
         {
-            des_state_bag.write("desired_state_topic", ros::Time::now(), des_state_msg);
+            des_state_bag.write("state/desired_state_topic", ros::Time::now(), des_state_msg);
         }
 
         ros::spinOnce();

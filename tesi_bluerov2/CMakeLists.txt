@@ -60,6 +60,7 @@ add_message_files(
  Floats.msg
  Floats_String.msg
  waypoints.msg
+ buoy.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -295,3 +296,11 @@ add_dependencies(PID_controller_6DOF ${catkin_EXPORTED_TARGETS})
 add_executable(MPC_6DOF src/MPC_6DOF.cpp)
 target_link_libraries(MPC_6DOF ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(MPC_6DOF ${catkin_EXPORTED_TARGETS})
+
+add_executable(planner src/planner.cpp)
+target_link_libraries(planner ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(planner ${catkin_EXPORTED_TARGETS})
+
+add_executable(camera src/camera.cpp)
+target_link_libraries(camera ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(camera ${catkin_EXPORTED_TARGETS})

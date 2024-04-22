@@ -37,11 +37,13 @@
     <node name="gps" pkg="tesi_bluerov2" type="gps" />
     <node name="ping" pkg="tesi_bluerov2" type="ping" />
     <node name="dvl" pkg="tesi_bluerov2" type="dvl" />
-    <node name="EKF" pkg="tesi_bluerov2" type="EKF" />
+    <!--<node name="EKF" pkg="tesi_bluerov2" type="EKF" /> -->
     <node name="UKF" pkg="tesi_bluerov2" type="UKF" />
     <node name="manager" pkg="tesi_bluerov2" type="manager" />
     <node name="err_vis" pkg="tesi_bluerov2" type="err_vis" />
     <node name="guidance" pkg="tesi_bluerov2" type="guidance" />
+    <node name="planner" pkg="tesi_bluerov2" type="planner" />    
+    <node name="camera" pkg="tesi_bluerov2" type="camera" />
     <node name="sim_visualization_6DOF" pkg="tesi_bluerov2" type="sim_visualization_6DOF" />
 
 </launch>

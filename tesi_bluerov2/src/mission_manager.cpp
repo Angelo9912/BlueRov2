@@ -7,6 +7,7 @@
 
 std::string status_true = "IDLE";
 std::string status_req = "";
+bool first_time = true;
 
 // Subscriber callback function
 void statusReqCallback(const std_msgs::String::ConstPtr &msg)
@@ -33,7 +34,12 @@ int main(int argc, char **argv)
     {
         if (status_true == "IDLE")
         {
-            ROS_WARN("IDLE");
+            if (first_time)
+            {
+                ROS_WARN("IDLE");
+                first_time = false;
+            }
+
             if (status_req == "READY")
             {
                 status_true = "READY";

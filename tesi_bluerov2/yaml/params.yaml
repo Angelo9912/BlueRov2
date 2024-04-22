@@ -96,16 +96,18 @@ var_tau_p : 0.1
 var_tau_q : 0.1
 var_tau_r : 0.1
 
-MAP_NE_x: 20 #vertice nord est mappa, coordinata x
-MAP_NE_y: 20 #vertice nord est mappa, coordinata y
-MAP_NW_x: -20 #vertice nord ovest mappa, coordinata x
-MAP_NW_y: 20 #vertice nord ovest mappa, coordinata y
-MAP_SW_x: -20 #vertice sud ovest mappa, coordinata x
-MAP_SW_y: -20 #vertice sud ovest mappa, coordinata y
-MAP_SE_x: 20 #vertice sud est mappa, coordinata x
-MAP_SE_y: -20 #vertice sud est mappa, coordinata y
+# Coordinate geodetiche della vasca
 
-is_Spline_xy: False  # Linear: False, Spline: True
-is_Spline_z: False  # Linear: False, Spline: True
+coord_1_lat : 44.09610021334762
+coord_1_long :  9.864990204688155
+coord_2_lat : 44.09572212299786
+coord_2_long : 9.865189133934882
+coord_3_lat : 44.09563919059691 
+coord_3_long : 9.864862598447628
+coord_4_lat : 44.09603314240908
+coord_4_long : 9.864693489139816
 
+start_lat : 44.09610021334762 
+start_long : 9.864990204688155
 
+# coordinate waypoint

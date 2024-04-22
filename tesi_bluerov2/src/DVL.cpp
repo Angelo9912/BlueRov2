@@ -46,10 +46,10 @@ int main(int argc, char **argv)
     ros::NodeHandle nh;
 
     // Create a publisher object.
-    ros::Publisher pub = nh.advertise<tesi_bluerov2::Floats>("DVL_topic", 1000);
+    ros::Publisher pub = nh.advertise<tesi_bluerov2::Floats>("sensors/DVL_topic", 1000);
 
     // Create a subscriber object.
-    ros::Subscriber sub = nh.subscribe("state_topic", 1000, stateCallback);
+    ros::Subscriber sub = nh.subscribe("state/state_topic", 1000, stateCallback);
 
     // Seed the random number generator.
     srand(time(0));

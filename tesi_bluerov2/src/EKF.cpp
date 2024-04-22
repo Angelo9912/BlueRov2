@@ -468,21 +468,21 @@ int main(int argc, char **argv)
     ros::Rate loop_rate(freq);
 
     // Create a publisher object
-    ros::Publisher est_state_pub = n.advertise<tesi_bluerov2::Floats>("est_state_topic", 1000);
+    ros::Publisher est_state_pub = n.advertise<tesi_bluerov2::Floats>("state/est_state_topic", 1000);
 
     // Create subscriber objects
 
     ros::Subscriber tau_sub = n.subscribe("tau_topic", 1000, tau_callback);
 
-    ros::Subscriber GPS_sub = n.subscribe("GPS_topic", 1000, GPSCallback);
+    ros::Subscriber GPS_sub = n.subscribe("sensors/GPS_topic", 1000, GPSCallback);
 
-    ros::Subscriber scanner_sub = n.subscribe("scanner_topic", 1000, ScannerCallback);
+    ros::Subscriber scanner_sub = n.subscribe("sensors/scanner_topic", 1000, ScannerCallback);
 
-    ros::Subscriber IMU_sub = n.subscribe("IMU_topic", 1000, IMUCallback);
+    ros::Subscriber IMU_sub = n.subscribe("sensors/IMU_topic", 1000, IMUCallback);
 
-    ros::Subscriber DVL_sub = n.subscribe("DVL_topic", 1000, DVLCallback);
+    ros::Subscriber DVL_sub = n.subscribe("sensors/DVL_topic", 1000, DVLCallback);
 
-    ros::Subscriber depth_sub = n.subscribe("depth_sensor_topic", 1000, depthSensorCallback);
+    ros::Subscriber depth_sub = n.subscribe("sensors/depth_sensor_topic", 1000, depthSensorCallback);
 
     tesi_bluerov2::Floats msg;
 

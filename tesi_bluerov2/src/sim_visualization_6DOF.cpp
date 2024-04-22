@@ -53,7 +53,7 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "sim_visualization_6DOF");
     ros::NodeHandle n;
     ros::Publisher chatter_pub = n.advertise<gazebo_msgs::ModelState>("gazebo/set_model_state", 1);
-    ros::Subscriber sub = n.subscribe("state_topic", 1, stateCallback);
+    ros::Subscriber sub = n.subscribe("state/state_topic", 1, stateCallback);
 
     double freq = 100.0;
     double dt = 1 / freq;

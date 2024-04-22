@@ -2,9 +2,10 @@
 #include "std_msgs/String.h"
 #include <sstream>
 #include <ros/console.h>
-#include <eigen3/Eigen/Dense>                // for eigen matrix
+#include <eigen3/Eigen/Dense>            // for eigen matrix
 #include "tesi_bluerov2/Floats.h"        // for accessing -- tesi_bluerov2 Floats()
 #include "tesi_bluerov2/Floats_String.h" // for accessing -- tesi_bluerov2 buoy()
+#include "tesi_bluerov2/buoy.h"      // for accessing -- tesi_bluerov2
 #include <vector>
 #include "yaml-cpp/yaml.h" // for yaml
 
@@ -14,6 +15,8 @@ double z_hat = 0.0;
 double x_b = 0.0;
 double y_b = 0.0;
 double z_b = 0.0;
+int clockwise;
+int up;
 
 // Callback function for the state_topic subscriber
 void estStateCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
@@ -41,27 +44,16 @@ int main(int argc, char **argv)
     ros::NodeHandle nh;
 
     // Create a publisher that publishes std_msgs::String messages on the "buoy_topic" topic
-    ros::Publisher buoy_pub = nh.advertise<tesi_bluerov2::Floats_String>("buoy_topic", 10);
+    ros::Publisher buoy_pub = nh.advertise<tesi_bluerov2::buoy>("sensors/buoy_topic", 10);
 
     // Create a subscriber that subscribes to messages on the "state_topic" topic
-    ros::Subscriber state_sub = nh.subscribe("state_topic", 10, estStateCallback);
+    ros::Subscriber state_sub = nh.subscribe("state/est_state_UKF_topic", 10, estStateCallback);
 
     // Set the publishing rate (e.g., 10 Hz)
     ros::Rate rate(5);
 
-    // Eigen::Matrix<double, 1, 3> sphere1;
-    // sphere1 << 3.0, 5.0, 2.5;
-    // Eigen::Matrix<double, 1, 3> sphere2;
-    // sphere2 << -8.0, -12.0, 2.0;
-    // Eigen::Matrix<double, 1, 3> box1;
-    // box1 << -3.0, 5.5, 1.0;
-    // Eigen::Matrix<double, 1, 3> box2;
-    // box2 << 10.0, -10, 1.5;
-    // Eigen::Matrix<double, 4, 3> buoy_positions;
-    // buoy_positions << sphere1, box1, sphere2, box2;
-
     Eigen::Matrix<double, 1, 3> sphere1;
-    sphere1 << 10.0, 10.0, 3.0;
+    sphere1 << 0.0, 3.5, 0.0;
     Eigen::Matrix<double, 1, 3> sphere2;
     sphere2 << -8.0, -12.0, 2.0;
     Eigen::Matrix<double, 1, 3> box1;
@@ -95,10 +87,17 @@ int main(int argc, char **argv)
             y_b = buoy_positions(i_min, 1);
             z_b = buoy_positions(i_min, 2);
             std::vector<double> buoy_pos = {x_b, y_b, z_b};
-            tesi_bluerov2::Floats_String buoy_msg;
-            buoy_msg.data = buoy_pos;
+            tesi_bluerov2::buoy buoy_msg;
+            buoy_msg.buoy_pos = buoy_pos;
             buoy_msg.strategy = "Circumference";
-            buoy_pub.publish(buoy_msg);
+            if (distances[i_min] <= 1.5)
+            {
+                if (i_min == 0)
+                    buoy_msg.clockwise = 1.0;
+                else 
+                    buoy_msg.clockwise = 0.0;
+                buoy_pub.publish(buoy_msg);
+            }
         }
         else if ((i_min % 2) != 0)
         {
@@ -106,10 +105,17 @@ int main(int argc, char **argv)
             y_b = buoy_positions(i_min, 1);
             z_b = buoy_positions(i_min, 2);
             std::vector<double> buoy_pos = {x_b, y_b, z_b};
-            tesi_bluerov2::Floats_String buoy_msg;
-            buoy_msg.data = buoy_pos;
+            tesi_bluerov2::buoy buoy_msg;
+            buoy_msg.buoy_pos = buoy_pos;
             buoy_msg.strategy = "UP_DOWN";
-            buoy_pub.publish(buoy_msg);
+            if (distances[i_min] <= 1.5)
+            {
+                if (i_min == 1)
+                    buoy_msg.up = 1.0;
+                else
+                    buoy_msg.up = 0.0;
+                buoy_pub.publish(buoy_msg);
+            }
         }
 
         // Spin once to let the ROS node handle callbacks

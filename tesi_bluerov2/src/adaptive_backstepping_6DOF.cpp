@@ -146,8 +146,8 @@ int main(int argc, char **argv)
     tau_bag.open(path + "/bag/tau.bag", rosbag::bagmode::Write);
 
     ros::Publisher chatter_pub = n.advertise<tesi_bluerov2::Floats>("tau_topic", 1);
-    ros::Subscriber sub_des_state = n.subscribe("desired_state_topic", 1, desStateCallback);
-    ros::Subscriber sub_est_state = n.subscribe("est_state_UKF_topic", 1, estStateCallback);
+    ros::Subscriber sub_des_state = n.subscribe("state/desired_state_topic", 1, desStateCallback);
+    ros::Subscriber sub_est_state = n.subscribe("state/est_state_UKF_topic", 1, estStateCallback);
 
     double freq = 200;
     double dt = 1 / freq;
