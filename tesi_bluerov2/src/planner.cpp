@@ -322,16 +322,18 @@ int main(int argc, char **argv)
     for (int i = 0; i < waypoints_to_go.size(); i++)
     {
         waypoints_to_go[i] = waypoints_to_go[i] * 3.0;
-
     }
-
+    waypoints_to_go[2] = 1.0;
+    waypoints_to_go[5] = 1.0;
+    waypoints_to_go[8] = 1.0;
+    waypoints_to_go[11] = 1.0;
+    waypoints_to_go[13] = 1.0;
     waypoints_to_go[14] = 4.0;
     waypoints_to_go[17] = 4.0;
     waypoints_to_go[20] = 4.0;
     waypoints_to_go[23] = 4.0;
     waypoints_to_go[26] = 4.0;
     waypoints_to_go[29] = 4.0;
-    
 
     int n_waypoints = waypoints_to_go.size() / 3;
     Eigen::VectorXd waypoints_x(n_waypoints);
@@ -433,6 +435,7 @@ int main(int argc, char **argv)
                 // Publish the message
                 publisher_status.publish(status_req_msg);
                 delete_mission = false;
+                ros::Duration(2).sleep(); // sleep
             }
             else
             {
@@ -498,7 +501,7 @@ int main(int argc, char **argv)
                 std::vector<double> waypoint_pos = {x_b, y_b, z_b, x_p, y_p, z_p};
                 waypoint_msg.waypoints = waypoint_pos;
                 waypoint_msg.speed = surge_speed_replanning;
-                waypoint_msg.approach = clockwise;
+                waypoint_msg.approach = approach;
                 status_req = "RUNNING";
                 // Publish the message
                 std_msgs::String status_req_msg;
@@ -547,7 +550,7 @@ int main(int argc, char **argv)
                 std::vector<double> waypoint_pos = {x_p, y_p, z_p};
                 waypoint_msg.waypoints = waypoint_pos;
                 waypoint_msg.speed = surge_speed;
-                waypoint_msg.approach = up;
+                waypoint_msg.approach = approach;
 
                 status_req = "RUNNING";
 
@@ -558,11 +561,13 @@ int main(int argc, char **argv)
                 // Publish the message
                 publisher_status.publish(status_req_msg);
                 publisher.publish(waypoint_msg);
-                ros::Duration(0.5).sleep(); // sleep for half a second
+                ros::Duration(2).sleep(); // sleep for half a second
             }
             else
             {
                 std::vector<double> waypoint_pos = {};
+                ROS_WARN("WAYPOINT MANCANTI \n");
+
                 for (int i = 0; i < n_waypoints; i++)
                 {
                     if (waypoint_passed(i) == 0)
@@ -584,6 +589,7 @@ int main(int argc, char **argv)
                 status_req_msg.data = status_req;
                 // Publish the message
                 publisher_status.publish(status_req_msg);
+                ros::Duration(2).sleep(); // sleep
             }
         }
         // CASO DI EMERGENZA (se il robot si trova troppo vicino al muro)
@@ -615,45 +621,6 @@ int main(int argc, char **argv)
             }
             /*if (dist_wall[i_wall_direction] <= SAFE_DIST && !to_target)
             {
-                status_req = "PAUSED";
-
-                // Publish the message
-                std_msgs::String status_req_msg;
-                status_req_msg.data = status_req;
-                delete_mission = true;
-                publisher_status.publish(status_req_msg);
-                ros::Duration(0.5).sleep(); // sleep for 0.5 seconds
-                // if (dist_wall[i_wall_direc_expl] <= 2 * SAFE_DIST)
-                // {
-                //     status_req = "PAUSED";
-                //     // if (!is_second_expl)
-                //     // {
-                //     //     is_second_expl = !is_second_expl;
-                //     //     flag_start_mission = true;
-                //     // }
-                //     // else
-                //     // {
-                //     //     to_target = true;
-                //     //     delete_mission = true;
-                //     // }
-                //     // Publish the message
-
-                //     std_msgs::String status_req_msg;
-                //     status_req_msg.data = status_req;
-                //     publisher_status.publish(status_req_msg);
-                //     ros::Duration(0.5).sleep(); // sleep for half a second
-                // }
-                // else
-                // {
-                //     status_req = "PAUSED";
-
-                //     // Publish the message
-                //     std_msgs::String status_req_msg;
-                //     status_req_msg.data = status_req;
-
-                //     publisher_status.publish(status_req_msg);
-                //     ros::Duration(0.5).sleep(); // sleep for .5 seconds
-                // }
             }
             // PASSAGGIO DA SPLINE A BOA
             else */
@@ -670,6 +637,13 @@ int main(int argc, char **argv)
                 // Publish the message
                 publisher_status.publish(status_req_msg);
                 ros::Duration(0.5).sleep(); // sleep for half a second
+            }
+            Eigen::Vector3d last_waypoint;
+            last_waypoint << waypoints_x.tail(1), waypoints_y.tail(1), waypoints_z.tail(1);
+            double dist_to_last_waypoint = sqrt(pow((x_hat - last_waypoint(0)), 2) + pow((y_hat - last_waypoint(0)), 2) + pow((z_hat - last_waypoint(0)), 2));
+            if (dist_to_last_waypoint < 0.5)
+            {
+                delete_mission = false;
             }
         }
         // Process any incoming messages

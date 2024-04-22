@@ -209,7 +209,10 @@ int main(int argc, char **argv)
     double dt = 1 / freq;                                                                          // tempo di campionamento
     ros::Rate loop_rate(freq);
     int i_psi = 0;
-
+    int post_up_down = 0;        // intero che mi dice se la guida rect deve ripartire a seguito di un up_down
+    double post_up_down_x = 0.0; // x del punto di ripartenza
+    double post_up_down_y = 0.0; // y del punto di ripartenza
+    double post_up_down_z = 0.0; // z del punto di ripartenza
     rosbag::Bag des_state_bag;
     std::string path = ros::package::getPath("tesi_bluerov2");
     des_state_bag.open(path + "/bag/des_state.bag", rosbag::bagmode::Write);
@@ -611,9 +614,18 @@ int main(int argc, char **argv)
                 way_spline_x.resize(n_waypoints);
                 way_spline_y.resize(n_waypoints);
                 way_spline_z.resize(n_waypoints);
-                way_spline_x(0) = x_1;
-                way_spline_y(0) = y_1;
-                way_spline_z(0) = z_1;
+                if (post_up_down == 0)
+                {
+                    way_spline_x(0) = x_1;
+                    way_spline_y(0) = y_1;
+                    way_spline_z(0) = z_1;
+                }
+                else{
+                    post_up_down = 0;
+                    way_spline_x(0) = post_up_down_x;
+                    way_spline_y(0) = post_up_down_y;
+                    way_spline_z(0) = post_up_down_z;
+                }
 
                 for (int i = 0; i < n_waypoints - 1; i++)
                 {
@@ -746,7 +758,7 @@ int main(int argc, char **argv)
                         phi_d = 0.0;
                         theta_d = 0.0;
                         psi_d = psi(i_dist_min);
-                        //ROS_WARN("i_dist_min: %d", i_dist_min);
+                        // ROS_WARN("i_dist_min: %d", i_dist_min);
 
                         double error_x_to_waypoint = way_spline_x(way_counter) - x_hat;
                         double error_y_to_waypoint = way_spline_y(way_counter) - y_hat;
@@ -754,7 +766,7 @@ int main(int argc, char **argv)
 
                         double dist_to_waypoint = sqrt(pow(error_x_to_waypoint, 2) + pow(error_y_to_waypoint, 2) + pow(error_z_to_waypoint, 2));
 
-                        if (dist_to_waypoint < 0.1)
+                        if (dist_to_waypoint < 0.1 || sqrt(pow(pos_rel_x(way_counter - 1), 2) + pow(pos_rel_y(way_counter - 1), 2)) < 0.1)
                         {
                             u_d = 0.0;
                         }
@@ -788,13 +800,13 @@ int main(int argc, char **argv)
                             v_d = 0.0;
                         }
 
-                        if (z_d - z_hat > 0.1)
+                        if (pos_rel_z(way_counter - 1) > 0.5)
                         {
-                            w_d = 0.1;
+                            w_d = 0.2;
                         }
-                        else if (z_d - z_hat < -0.1)
+                        else if (pos_rel_z(way_counter - 1) < -0.5)
                         {
-                            w_d = -0.1;
+                            w_d = -0.2;
                         }
                         else
                         {
@@ -871,7 +883,7 @@ int main(int argc, char **argv)
                 for (int i = 99; i < 199; i++)
                 {
                     double t;
-                    if (clockwise == 1)
+                    if (clockwise == 0)
                     {
                         t = -(i - 99) * k;
                         psi[i] = atan2(-cos(beta + t), sin(beta + t));
@@ -967,12 +979,33 @@ int main(int argc, char **argv)
                 theta_d = 0.0;
                 psi_d = psi[i_dist_min];
                 // ROS_WARN("i_dist_min: %d", i_dist_min);
-
-                if (i_dist_min > 99 && i_dist_min <= 196)
+                if(i_dist_min <= 99)
+                {
+                    u_d = surge_speed;
+                    v_d = 0.0;
+                    if(z_d - z_hat > 0.1)
+                    {
+                        w_d = 0.1;
+                    }
+                    else if(z_d - z_hat < -0.1)
+                    {
+                        w_d = -0.1;
+                    }
+                    else
+                    {
+                        w_d = 0.0;
+                    }
+                    p_d = 0.0;
+                    q_d = 0.0;
+                    r_d = 0.0;
+                }
+                else if (i_dist_min > 99 && i_dist_min <= 196)
                 {
                     u_d = surge_speed_replanning;
                     v_d = 0.0;
                     w_d = 0.0;
+                    p_d = 0.0;
+                    q_d = 0.0;
                     r_d = 0.0;
                 }
                 else if (i_dist_min > 196)
@@ -989,12 +1022,23 @@ int main(int argc, char **argv)
                     publisher_status.publish(msg);
                     CIRCUMFERENCE_phase = 1;
                 }
-                x_dot_d = u_d * cos(psi_d) - v_d * sin(psi_d);
-                y_dot_d = u_d * sin(psi_d) + v_d * cos(psi_d);
-                z_dot_d = w_d;
-                phi_dot_d = 0.0;
-                theta_dot_d = 0.0;
-                psi_dot_d = r_d;
+                J << cos(psi_d) * cos(theta_d), cos(psi_d) * sin(phi_d) * sin(theta_d) - cos(phi_d) * sin(psi_d), sin(phi_d) * sin(psi_d) + cos(phi_d) * cos(psi_d) * sin(theta_d), 0, 0, 0,
+                    cos(theta_d) * sin(psi_d), cos(phi_d) * cos(psi_d) + sin(phi_d) * sin(psi_d) * sin(theta_d), cos(phi_d) * sin(psi_d) * sin(theta_d) - cos(psi_d) * sin(phi_d), 0, 0, 0,
+                    -sin(theta_d), cos(theta_d) * sin(phi_d), cos(phi_d) * cos(theta_d), 0, 0, 0,
+                    0, 0, 0, 1, sin(phi_d) * tan(theta_d), cos(phi_d) * tan(theta_d),
+                    0, 0, 0, 0, cos(phi_d), -sin(phi_d),
+                    0, 0, 0, 0, sin(phi_d) / cos(theta_d), cos(phi_d) / cos(theta_d);
+
+                nu_d << u_d, v_d, w_d, p_d, q_d, r_d;
+
+                pose_d_dot = J * nu_d;
+
+                x_dot_d = pose_d_dot(0);
+                y_dot_d = pose_d_dot(1);
+                z_dot_d = pose_d_dot(2);
+                phi_dot_d = pose_d_dot(3);
+                theta_dot_d = pose_d_dot(4);
+                psi_dot_d = pose_d_dot(5);
 
                 std::vector<double> des_state = {x_d, y_d, z_d, phi_d, theta_d, psi_d, x_dot_d, y_dot_d, z_dot_d, phi_dot_d, theta_dot_d, psi_dot_d};
                 des_state_msg.data = des_state;
@@ -1037,8 +1081,11 @@ int main(int argc, char **argv)
                 }
 
                 // FASE DI RISALITA
-                double dz2 = 0.5 / 20; // passo di risalita su asse z per ripianificazione locale
-
+                double dz2;
+                if (up == 0)
+                    dz2 = 0.5 / 20; // passo di risalita su asse z per ripianificazione locale
+                else if (up == 1)
+                    dz2 = -0.5 / 20; // passo di discesa su asse z per ripianificazione locale
                 for (int i = 99; i < 119; i++)
                 {
                     x[i] = x_p;
@@ -1071,7 +1118,8 @@ int main(int argc, char **argv)
                             }
                         }
                     }
-                    if (i_dist_min >= 97 && abs(z_hat - z_p) < 0.1)
+                    double dist_to_way = sqrt(pow(x_p - x_hat, 2.0) + pow(y_p - y_hat, 2.0) + pow(z_p - z_hat, 2.0));
+                    if (dist_to_way < 0.1)
                     {
                         UP_DOWN_first_phase = false;
                     }
@@ -1115,8 +1163,6 @@ int main(int argc, char **argv)
                     r_d = 0.0;
                     if (i_dist_min > 70)
                     {
-                        ROS_WARN_STREAM("AVVICINAMENTO (FINE)");
-                        u_d = 0.02;
                         w_d = (z_p - z_hat) / abs(z_hat - z_p) * 0.1;
                     }
                 }
@@ -1127,30 +1173,46 @@ int main(int argc, char **argv)
                     if (up == 1)
                     {
                         ROS_WARN_STREAM("RISALITA");
-                        w_d = 0.1;
+                        w_d = -0.1;
                     }
                     else
                     {
                         ROS_WARN_STREAM("DISCESA");
-                        w_d = -0.1;
+                        w_d = 0.1;
                     }
                     r_d = 0.0;
                 }
-
-                if (i_dist_min >= 117)
+                post_up_down = 1;
+                if (i_dist_min >= 115)
                 {
                     std::string status_req = "PAUSED";
+
+                    post_up_down_x = x[i_dist_min];
+                    post_up_down_y = y[i_dist_min];
+                    post_up_down_z = z[i_dist_min];
                     std_msgs::String msg;
                     msg.data = status_req;
                     publisher_status.publish(msg);
                     UP_DOWN_first_phase = true;
+                    ros::Duration(1).sleep();
                 }
-                x_dot_d = u_d * cos(psi_d) - v_d * sin(psi_d);
-                y_dot_d = u_d * sin(psi_d) + v_d * cos(psi_d);
-                z_dot_d = w_d;
-                phi_dot_d = 0.0;
-                theta_dot_d = 0.0;
-                psi_dot_d = r_d;
+                J << cos(psi_d) * cos(theta_d), cos(psi_d) * sin(phi_d) * sin(theta_d) - cos(phi_d) * sin(psi_d), sin(phi_d) * sin(psi_d) + cos(phi_d) * cos(psi_d) * sin(theta_d), 0, 0, 0,
+                    cos(theta_d) * sin(psi_d), cos(phi_d) * cos(psi_d) + sin(phi_d) * sin(psi_d) * sin(theta_d), cos(phi_d) * sin(psi_d) * sin(theta_d) - cos(psi_d) * sin(phi_d), 0, 0, 0,
+                    -sin(theta_d), cos(theta_d) * sin(phi_d), cos(phi_d) * cos(theta_d), 0, 0, 0,
+                    0, 0, 0, 1, sin(phi_d) * tan(theta_d), cos(phi_d) * tan(theta_d),
+                    0, 0, 0, 0, cos(phi_d), -sin(phi_d),
+                    0, 0, 0, 0, sin(phi_d) / cos(theta_d), cos(phi_d) / cos(theta_d);
+
+                nu_d << u_d, v_d, w_d, p_d, q_d, r_d;
+
+                pose_d_dot = J * nu_d;
+
+                x_dot_d = pose_d_dot(0);
+                y_dot_d = pose_d_dot(1);
+                z_dot_d = pose_d_dot(2);
+                phi_dot_d = pose_d_dot(3);
+                theta_dot_d = pose_d_dot(4);
+                psi_dot_d = pose_d_dot(5);
 
                 std::vector<double> des_state = {x_d, y_d, z_d, phi_d, theta_d, psi_d, x_dot_d, y_dot_d, z_dot_d, phi_dot_d, theta_dot_d, psi_dot_d};
                 des_state_msg.data = des_state;
