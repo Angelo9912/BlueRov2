@@ -7,6 +7,7 @@
 #include <vector>
 #include "yaml-cpp/yaml.h" // for yaml
 #include <random>
+#include <rosbag/bag.h>
 
 double a_u = 0.0;
 double a_v = 0.0;
@@ -69,6 +70,8 @@ double var_w_DVL = 0.0;
 double var_p_IMU = 0.0;
 double var_q_IMU = 0.0;
 double var_r_IMU = 0.0;
+
+rosbag::Bag bag;
 
 // Distanza di Mahalanobis
 double mahalanobis_distance = 0.0;
@@ -289,6 +292,9 @@ int main(int argc, char **argv)
     double freq = 50;
     double dt = 1 / freq;
 
+    std::string path = ros::package::getPath("tesi_bluerov2");
+    bag.open(path + "/bag/ekf_kinematics.bag", rosbag::bagmode::Write);
+
     bool is_init = false;
 
     bool is_GPS_init = false;
@@ -427,9 +433,9 @@ int main(int argc, char **argv)
                 r = xi_curr(11);
 
                 Eigen::MatrixXd F_k(12, 12);
-                F_k << 1.0, 0.0, 0.0, dt * v * (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta)) + dt * w * (cos(phi) * sin(psi) - cos(psi) * sin(phi) * sin(theta)), dt * cos(psi) * (w * cos(phi) * cos(theta) - u * sin(theta) + v * cos(theta) * sin(phi)), dt * w * (cos(psi) * sin(phi) - cos(phi) * sin(psi) * sin(theta)) - dt * v * (cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta)) - dt * u * cos(theta) * sin(psi), dt * cos(psi) * cos(theta), dt * cos(psi) * sin(phi) * sin(theta) - dt * cos(phi) * sin(psi), dt * sin(phi) * sin(psi) + dt * cos(phi) * cos(psi) * sin(theta), 0.0, 0.0, 0.0,
-                    0.0, 1.0, 0.0, -dt * v * (cos(psi) * sin(phi) - cos(phi) * sin(psi) * sin(theta)) - dt * w * (cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta)), dt * sin(psi) * (w * cos(phi) * cos(theta) - u * sin(theta) + v * cos(theta) * sin(phi)), dt * w * (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta)) - dt * v * (cos(phi) * sin(psi) - cos(psi) * sin(phi) * sin(theta)) + dt * u * cos(psi) * cos(theta), dt * cos(theta) * sin(psi), dt * cos(phi) * cos(psi) + dt * sin(phi) * sin(psi) * sin(theta), dt * cos(phi) * sin(psi) * sin(theta) - dt * cos(psi) * sin(phi), 0.0, 0.0, 0.0,
-                    0.0, 0.0, 1.0, dt * cos(theta) * (v * cos(phi) - w * sin(phi)), -dt * (u * cos(theta) + w * cos(phi) * sin(theta) + v * sin(phi) * sin(theta)), 0.0, -dt * sin(theta), dt * cos(theta) * sin(phi), dt * cos(phi) * cos(theta), 0.0, 0.0, 0.0,
+                F_k << 1.0, 0.0, 0.0, (dt * (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta)) * (2 * v + a_v * dt)) / 2 + (dt * (cos(phi) * sin(psi) - cos(psi) * sin(phi) * sin(theta)) * (2 * w + a_w * dt)) / 2, (dt * cos(phi) * cos(psi) * cos(theta) * (2 * w + a_w * dt)) / 2 - (dt * cos(psi) * sin(theta) * (2 * u + a_u * dt)) / 2 + (dt * cos(psi) * cos(theta) * sin(phi) * (2 * v + a_v * dt)) / 2, (dt * (cos(psi) * sin(phi) - cos(phi) * sin(psi) * sin(theta)) * (2 * w + a_w * dt)) / 2 - (dt * (cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta)) * (2 * v + a_v * dt)) / 2 - (dt * cos(theta) * sin(psi) * (2 * u + a_u * dt)) / 2, dt * cos(psi) * cos(theta), dt * cos(psi) * sin(phi) * sin(theta) - dt * cos(phi) * sin(psi), dt * sin(phi) * sin(psi) + dt * cos(phi) * cos(psi) * sin(theta), 0.0, 0.0, 0.0,
+                    0.0, 1.0, 0.0, -(dt * (cos(psi) * sin(phi) - cos(phi) * sin(psi) * sin(theta)) * (2 * v + a_v * dt)) / 2 - (dt * (cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta)) * (2 * w + a_w * dt)) / 2, (dt * cos(phi) * cos(theta) * sin(psi) * (2 * w + a_w * dt)) / 2 - (dt * sin(psi) * sin(theta) * (2 * u + a_u * dt)) / 2 + (dt * cos(theta) * sin(phi) * sin(psi) * (2 * v + a_v * dt)) / 2, (dt * (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta)) * (2 * w + a_w * dt)) / 2 - (dt * (cos(phi) * sin(psi) - cos(psi) * sin(phi) * sin(theta)) * (2 * v + a_v * dt)) / 2 + (dt * cos(psi) * cos(theta) * (2 * u + a_u * dt)) / 2, dt * cos(theta) * sin(psi), dt * cos(phi) * cos(psi) + dt * sin(phi) * sin(psi) * sin(theta), dt * cos(phi) * sin(psi) * sin(theta) - dt * cos(psi) * sin(phi), 0.0, 0.0, 0.0,
+                    0.0, 0.0, 1.0, (dt * cos(phi) * cos(theta) * (2 * v + a_v * dt)) / 2 - (dt * cos(theta) * sin(phi) * (2 * w + a_w * dt)) / 2, -(dt * cos(theta) * (2 * u + a_u * dt)) / 2 - (dt * cos(phi) * sin(theta) * (2 * w + a_w * dt)) / 2 - (dt * sin(phi) * sin(theta) * (2 * v + a_v * dt)) / 2, 0.0, -dt * sin(theta), dt * cos(theta) * sin(phi), dt * cos(phi) * cos(theta), 0.0, 0.0, 0.0,
                     0.0, 0.0, 0.0, dt * q * cos(phi) * tan(theta) - dt * r * sin(phi) * tan(theta) + 1, (dt * (r * cos(phi) + q * sin(phi))) / (cos(theta) * cos(theta)), 0.0, 0.0, 0.0, 0.0, dt, dt * sin(phi) * tan(theta), dt * cos(phi) * tan(theta),
                     0.0, 0.0, 0.0, -dt * (r * cos(phi) + q * sin(phi)), 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, dt * cos(phi), -dt * sin(phi),
                     0.0, 0.0, 0.0, (dt * (q * cos(phi) - r * sin(phi))) / cos(theta), (dt * sin(theta) * (r * (2 * sin(phi / 2) * sin(phi / 2) - 1) - q * sin(phi))) / (sin(theta) * sin(theta) - 1), 1.0, 0.0, 0.0, 0.0, 0.0, (dt * sin(phi)) / cos(theta), (dt * cos(phi)) / cos(theta),
@@ -442,9 +448,9 @@ int main(int argc, char **argv)
 
                 Eigen::MatrixXd D_k(12, 6);
 
-                D_k << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                D_k << (dt * dt * cos(psi) * cos(theta)) / 2, -(dt * dt * (cos(phi) * sin(psi) - cos(psi) * sin(phi) * sin(theta))) / 2, (dt * dt * (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta))) / 2, 0.0, 0.0, 0.0,
+                    (dt * dt * cos(theta) * sin(psi)) / 2, (dt * dt * (cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta))) / 2, -(dt * dt * (cos(psi) * sin(phi) - cos(phi) * sin(psi) * sin(theta))) / 2, 0.0, 0.0, 0.0,
+                    -(dt * dt * sin(theta)) / 2, (dt * dt * cos(theta) * sin(phi)) / 2, (dt * dt * cos(phi) * cos(theta)) / 2, 0.0, 0.0, 0.0,
                     0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                     0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                     0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -461,8 +467,10 @@ int main(int argc, char **argv)
                     0, 0, 0, 1, sin(phi) * tan(theta), cos(phi) * tan(theta),
                     0, 0, 0, 0, cos(phi), -sin(phi),
                     0, 0, 0, 0, sin(phi) / cos(theta), cos(phi) / cos(theta);
+                Eigen::VectorXd a_m(6);
+                a_m << a_u, a_v, a_w, 0, 0, 0;
 
-                eta_pred = dt * Jacobian * xi_curr.tail(6) + xi_curr.head(6);
+                eta_pred = Jacobian * (dt * xi_curr.tail(6) + dt * dt / 2 * a_m) + xi_curr.head(6);
 
                 double u_pred = dt * a_u + u;
                 double v_pred = dt * a_v + v;
@@ -638,9 +646,9 @@ int main(int argc, char **argv)
 
             Eigen::MatrixXd F_k(12, 12);
 
-            F_k << 1.0, 0.0, 0.0, dt * v * (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta)) + dt * w * (cos(phi) * sin(psi) - cos(psi) * sin(phi) * sin(theta)), dt * cos(psi) * (w * cos(phi) * cos(theta) - u * sin(theta) + v * cos(theta) * sin(phi)), dt * w * (cos(psi) * sin(phi) - cos(phi) * sin(psi) * sin(theta)) - dt * v * (cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta)) - dt * u * cos(theta) * sin(psi), dt * cos(psi) * cos(theta), dt * cos(psi) * sin(phi) * sin(theta) - dt * cos(phi) * sin(psi), dt * sin(phi) * sin(psi) + dt * cos(phi) * cos(psi) * sin(theta), 0.0, 0.0, 0.0,
-                0.0, 1.0, 0.0, -dt * v * (cos(psi) * sin(phi) - cos(phi) * sin(psi) * sin(theta)) - dt * w * (cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta)), dt * sin(psi) * (w * cos(phi) * cos(theta) - u * sin(theta) + v * cos(theta) * sin(phi)), dt * w * (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta)) - dt * v * (cos(phi) * sin(psi) - cos(psi) * sin(phi) * sin(theta)) + dt * u * cos(psi) * cos(theta), dt * cos(theta) * sin(psi), dt * cos(phi) * cos(psi) + dt * sin(phi) * sin(psi) * sin(theta), dt * cos(phi) * sin(psi) * sin(theta) - dt * cos(psi) * sin(phi), 0.0, 0.0, 0.0,
-                0.0, 0.0, 1.0, dt * cos(theta) * (v * cos(phi) - w * sin(phi)), -dt * (u * cos(theta) + w * cos(phi) * sin(theta) + v * sin(phi) * sin(theta)), 0.0, -dt * sin(theta), dt * cos(theta) * sin(phi), dt * cos(phi) * cos(theta), 0.0, 0.0, 0.0,
+            F_k << 1.0, 0.0, 0.0, (dt * (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta)) * (2 * v + a_v * dt)) / 2 + (dt * (cos(phi) * sin(psi) - cos(psi) * sin(phi) * sin(theta)) * (2 * w + a_w * dt)) / 2, (dt * cos(phi) * cos(psi) * cos(theta) * (2 * w + a_w * dt)) / 2 - (dt * cos(psi) * sin(theta) * (2 * u + a_u * dt)) / 2 + (dt * cos(psi) * cos(theta) * sin(phi) * (2 * v + a_v * dt)) / 2, (dt * (cos(psi) * sin(phi) - cos(phi) * sin(psi) * sin(theta)) * (2 * w + a_w * dt)) / 2 - (dt * (cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta)) * (2 * v + a_v * dt)) / 2 - (dt * cos(theta) * sin(psi) * (2 * u + a_u * dt)) / 2, dt * cos(psi) * cos(theta), dt * cos(psi) * sin(phi) * sin(theta) - dt * cos(phi) * sin(psi), dt * sin(phi) * sin(psi) + dt * cos(phi) * cos(psi) * sin(theta), 0.0, 0.0, 0.0,
+                0.0, 1.0, 0.0, -(dt * (cos(psi) * sin(phi) - cos(phi) * sin(psi) * sin(theta)) * (2 * v + a_v * dt)) / 2 - (dt * (cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta)) * (2 * w + a_w * dt)) / 2, (dt * cos(phi) * cos(theta) * sin(psi) * (2 * w + a_w * dt)) / 2 - (dt * sin(psi) * sin(theta) * (2 * u + a_u * dt)) / 2 + (dt * cos(theta) * sin(phi) * sin(psi) * (2 * v + a_v * dt)) / 2, (dt * (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta)) * (2 * w + a_w * dt)) / 2 - (dt * (cos(phi) * sin(psi) - cos(psi) * sin(phi) * sin(theta)) * (2 * v + a_v * dt)) / 2 + (dt * cos(psi) * cos(theta) * (2 * u + a_u * dt)) / 2, dt * cos(theta) * sin(psi), dt * cos(phi) * cos(psi) + dt * sin(phi) * sin(psi) * sin(theta), dt * cos(phi) * sin(psi) * sin(theta) - dt * cos(psi) * sin(phi), 0.0, 0.0, 0.0,
+                0.0, 0.0, 1.0, (dt * cos(phi) * cos(theta) * (2 * v + a_v * dt)) / 2 - (dt * cos(theta) * sin(phi) * (2 * w + a_w * dt)) / 2, -(dt * cos(theta) * (2 * u + a_u * dt)) / 2 - (dt * cos(phi) * sin(theta) * (2 * w + a_w * dt)) / 2 - (dt * sin(phi) * sin(theta) * (2 * v + a_v * dt)) / 2, 0.0, -dt * sin(theta), dt * cos(theta) * sin(phi), dt * cos(phi) * cos(theta), 0.0, 0.0, 0.0,
                 0.0, 0.0, 0.0, dt * q * cos(phi) * tan(theta) - dt * r * sin(phi) * tan(theta) + 1, (dt * (r * cos(phi) + q * sin(phi))) / (cos(theta) * cos(theta)), 0.0, 0.0, 0.0, 0.0, dt, dt * sin(phi) * tan(theta), dt * cos(phi) * tan(theta),
                 0.0, 0.0, 0.0, -dt * (r * cos(phi) + q * sin(phi)), 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, dt * cos(phi), -dt * sin(phi),
                 0.0, 0.0, 0.0, (dt * (q * cos(phi) - r * sin(phi))) / cos(theta), (dt * sin(theta) * (r * (2 * sin(phi / 2) * sin(phi / 2) - 1) - q * sin(phi))) / (sin(theta) * sin(theta) - 1), 1.0, 0.0, 0.0, 0.0, 0.0, (dt * sin(phi)) / cos(theta), (dt * cos(phi)) / cos(theta),
@@ -653,9 +661,9 @@ int main(int argc, char **argv)
 
             Eigen::MatrixXd D_k(12, 6);
 
-            D_k << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            D_k << (dt * dt * cos(psi) * cos(theta)) / 2, -(dt * dt * (cos(phi) * sin(psi) - cos(psi) * sin(phi) * sin(theta))) / 2, (dt * dt * (sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta))) / 2, 0.0, 0.0, 0.0,
+                (dt * dt * cos(theta) * sin(psi)) / 2, (dt * dt * (cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta))) / 2, -(dt * dt * (cos(psi) * sin(phi) - cos(phi) * sin(psi) * sin(theta))) / 2, 0.0, 0.0, 0.0,
+                -(dt * dt * sin(theta)) / 2, (dt * dt * cos(theta) * sin(phi)) / 2, (dt * dt * cos(phi) * cos(theta)) / 2, 0.0, 0.0, 0.0,
                 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
                 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -673,7 +681,10 @@ int main(int argc, char **argv)
                 0, 0, 0, 0, cos(phi), -sin(phi),
                 0, 0, 0, 0, sin(phi) / cos(theta), cos(phi) / cos(theta);
 
-            eta_pred = dt * Jacobian * xi_curr.tail(6) + xi_curr.head(6);
+            Eigen::VectorXd a_m(6);
+            a_m << a_u, a_v, a_w, 0, 0, 0;
+
+            eta_pred = Jacobian * (dt * xi_curr.tail(6) + dt * dt / 2 * a_m) + xi_curr.head(6);
 
             double u_pred = dt * a_u + u;
             double v_pred = dt * a_v + v;
@@ -707,12 +718,16 @@ int main(int argc, char **argv)
         valid_depth_sensor = 0;
 
         // Let ROS handle all incoming messages in a callback function
+        if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
+        {
+            bag.write("state/est_state_topic_no_dyn", ros::Time::now(), msg);
+        }
 
         ros::spinOnce();
 
         // Sleep for the remaining time to hit our 10Hz target
         loop_rate.sleep();
     }
-
+    bag.close();
     return 0;
 }

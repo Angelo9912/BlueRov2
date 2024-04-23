@@ -8,6 +8,7 @@
 #include "yaml-cpp/yaml.h" // for yaml
 #include "UnscentedOutput.h"
 #include <random>
+#include <rosbag/bag.h>
 
 double a_u = 0.0;
 double a_v = 0.0;
@@ -123,6 +124,7 @@ double N_r_dot = 0.0;
 
 // Distanza di Mahalanobis
 double mahalanobis_distance = 0.0;
+rosbag::Bag bag;
 
 // Function to generate Gaussian random number
 double gaussianNoise(double mean, double var)
@@ -166,7 +168,7 @@ double angleDifference(double e)
 UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::VectorXd acc_k, Eigen::MatrixXd P_kk, Eigen::MatrixXd Q, double dt)
 {
 
-    //ROS_WARN_STREAM("acc_k " << acc_k);
+    // ROS_WARN_STREAM("acc_k " << acc_k);
 
     // Il vettore utilizzato effettivamente nella trasformata
     Eigen::VectorXd xi_prediction(xi_k.size() + Q.rows());
@@ -253,16 +255,16 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
 
         // Dinamica del sistema
 
-        double u_pred = dt * acc_k(0) + u;
-        double v_pred = dt * acc_k(1) + v;
-        double w_pred = dt * acc_k(2) + w;
+        double u_pred = dt * (acc_k(0) + acc_noise(0)) + u;
+        double v_pred = dt * (acc_k(1) + acc_noise(1)) + v;
+        double w_pred = dt * (acc_k(2) + acc_noise(2)) + w;
         double p_pred = p + acc_noise(3);
         double q_pred = q + acc_noise(4);
         double r_pred = r + acc_noise(5);
 
         Eigen::Matrix<double, 6, 1> nu_k1;
 
-        nu_k1<< u_pred, v_pred, w_pred, p_pred, q_pred, r_pred;
+        nu_k1 << u_pred, v_pred, w_pred, p_pred, q_pred, r_pred;
 
         // VETTORE DELLE POSIZIONI
         Eigen::Matrix<double, 6, 6> Jacobian;
@@ -274,7 +276,10 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
             0, 0, 0, 0, sin(phi) / cos(theta), cos(phi) / cos(theta);
 
         Eigen::VectorXd eta_k1(6);
-        eta_k1 = dt * (Jacobian * nu) + eta;
+        Eigen::VectorXd a_m(6);
+        a_m << acc_k(0) + acc_noise(0), acc_k(1) + acc_noise(1), acc_k(2) + acc_noise(2), 0, 0, 0;
+
+        eta_k1 = Jacobian * (dt * nu + dt * dt / 2 * a_m) + eta;
 
         // wrapToPi(eta_k1(phi));
         eta_k1(3) = atan2(sin(eta_k1(3)), cos(eta_k1(3)));
@@ -648,7 +653,6 @@ int main(int argc, char **argv)
 {
     // Initialize the ROS system and become a node.
     ros::init(argc, argv, "UKF_dynamics");
-
     // Create a ROS node handle
     ros::NodeHandle n;
     n.getParam("var_x_GPS", var_x_GPS);
@@ -690,6 +694,8 @@ int main(int argc, char **argv)
     // Time step
     double freq = 50;
     double dt = 1 / freq;
+    std::string path = ros::package::getPath("tesi_bluerov2");
+    bag.open(path + "/bag/ukf_kinematics.bag", rosbag::bagmode::Write);
 
     bool is_init = false;
 
@@ -953,13 +959,16 @@ int main(int argc, char **argv)
         valid_IMU = 0;
         valid_DVL = 0;
         valid_depth_sensor = 0;
-
+        if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
+        {
+            bag.write("state/est_state_UKF_no_dyn_topic", ros::Time::now(), msg);
+        }
         // Let ROS handle all incoming messages in a callback function
         ros::spinOnce();
 
         // Sleep for the remaining time to hit our 10Hz target
         loop_rate.sleep();
     }
-
+    bag.close();
     return 0;
 }

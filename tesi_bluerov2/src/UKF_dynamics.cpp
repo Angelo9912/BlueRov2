@@ -8,6 +8,7 @@
 #include "yaml-cpp/yaml.h" // for yaml
 #include "UnscentedOutput.h"
 #include <random>
+#include <rosbag/bag.h>
 
 double tau_u = 0.0;
 double tau_v = 0.0;
@@ -63,6 +64,8 @@ double var_q_IMU = 0.0;
 double var_r_IMU = 0.0;
 
 // Parameters for the Unscented Kalman Filter
+
+rosbag::Bag bag;
 
 // Import parameters from YAML file
 double m = 0.0;
@@ -781,6 +784,9 @@ int main(int argc, char **argv)
     n.getParam("var_tau_q", var_tau_q);
     n.getParam("var_tau_r", var_tau_r);
 
+    std::string path = ros::package::getPath("tesi_bluerov2");
+    bag.open(path + "/bag/ukf_dynamics.bag", rosbag::bagmode::Write);
+
     // Current corrected state vector (12x1)
     Eigen::VectorXd xi_curr(12);
     xi_curr.setZero();
@@ -1085,6 +1091,10 @@ int main(int argc, char **argv)
         valid_IMU = 0;
         valid_DVL = 0;
         valid_depth_sensor = 0;
+        if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
+        {
+            bag.write("state/est_state_UKF_topic", ros::Time::now(), msg);
+        }
 
         // Let ROS handle all incoming messages in a callback function
         ros::spinOnce();
@@ -1092,6 +1102,6 @@ int main(int argc, char **argv)
         // Sleep for the remaining time to hit our 10Hz target
         loop_rate.sleep();
     }
-
+    bag.close();
     return 0;
 }

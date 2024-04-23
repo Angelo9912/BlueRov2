@@ -321,13 +321,13 @@ int main(int argc, char **argv)
     waypoints_to_go = {0.0, 2.0, 0.0, 4.0, 2.0, 0.0, 2.0, -2.0, 0.0, 0.0, -2.0, 0.0, 0.0, 0.0, 4.0, 0.0, 2.0, 4.0, 4.0, 2.0, 4.0, 2.0, -2.0, 4.0, 0.0, -2.0, 4.0, 0.0, 0.0, 4.0};
     for (int i = 0; i < waypoints_to_go.size(); i++)
     {
-        waypoints_to_go[i] = waypoints_to_go[i] * 3.0;
+        waypoints_to_go[i] = waypoints_to_go[i] * 1.0;
     }
-    waypoints_to_go[2] = 1.0;
-    waypoints_to_go[5] = 1.0;
-    waypoints_to_go[8] = 1.0;
-    waypoints_to_go[11] = 1.0;
-    waypoints_to_go[13] = 1.0;
+    waypoints_to_go[2] = 0.0;
+    waypoints_to_go[5] = 0.0;
+    waypoints_to_go[8] = 0.0;
+    waypoints_to_go[11] = 0.0;
+    waypoints_to_go[13] = 0.0;
     waypoints_to_go[14] = 4.0;
     waypoints_to_go[17] = 4.0;
     waypoints_to_go[20] = 4.0;

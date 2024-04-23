@@ -393,6 +393,10 @@ int main(int argc, char **argv)
         // des_msg.data = des;
         // pub3.publish(des_msg);
 
+        if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
+        {
+            bag.write("error_topic", ros::Time::now(), error_msg);
+        }
 
         ros::spinOnce();
         loop_rate.sleep();

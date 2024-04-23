@@ -1,6 +1,7 @@
 #include "ros/ros.h"
 #include "tesi_bluerov2/Floats.h" // for accessing -- tesi_bluerov2 Floats()
 #include <random>
+#include <rosbag/bag.h>
 
 double u_dot = 0.0;
 double v_dot = 0.0;
@@ -10,7 +11,7 @@ double var_u_dot = 0.000096236;
 double var_v_dot = 0.000096236;
 double var_w_dot = 0.000096236;
 
-
+rosbag::Bag bag;
 // Function to generate Gaussian random number
 double gaussianNoise(double mean, double var)
 {
@@ -42,6 +43,9 @@ int main(int argc, char **argv)
 {
     // Initialize the ROS system and become a node.
     ros::init(argc, argv, "accelerometer_publisher");
+
+    std::string path = ros::package::getPath("tesi_bluerov2");
+    bag.open(path + "/bag/acc.bag", rosbag::bagmode::Write);
 
     // Create a handle to this process' node.
     ros::NodeHandle nh;
@@ -79,6 +83,10 @@ int main(int argc, char **argv)
             // Publish the message.
             pub.publish(msg);
         }
+        if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
+        {
+            bag.write("sensors/acc_topic", ros::Time::now(), msg);
+        }
 
         // Send any pending callbacks.
         ros::spinOnce();
@@ -86,6 +94,7 @@ int main(int argc, char **argv)
         // Wait until it's time for another iteration.
         rate.sleep();
     }
+    bag.close();
 
     return 0;
 }
