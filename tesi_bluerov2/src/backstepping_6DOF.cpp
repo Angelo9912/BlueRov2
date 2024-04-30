@@ -365,11 +365,11 @@ int main(int argc, char **argv)
             theta_hat_dot = est_pose_dot(4);
             psi_hat_dot = est_pose_dot(5);
 
-            LAMBDA << 3.0 * Eigen::Matrix<double, 6, 6>::Identity();
-            LAMBDA(0, 0) = 1.0;
-            LAMBDA(1, 1) = 1.0;
+            LAMBDA << Eigen::Matrix<double, 6, 6>::Identity();
+            LAMBDA(0, 0) = 30.0;
+            LAMBDA(1, 1) = 30.0;
             LAMBDA(2, 2) = 10.0;
-            LAMBDA(5, 5) = 1.0;
+            LAMBDA(5, 5) = 20.0;
 
             q_r_dot = J.inverse() * (des_pos_dot + LAMBDA * error);
 
@@ -462,10 +462,10 @@ int main(int argc, char **argv)
             Eigen::Matrix<double, 6, 6> K_d;
             K_d << Eigen::Matrix<double, 6, 6>::Identity();
 
-            K_d(0, 0) = 20;
-            K_d(1, 1) = 20;
-            K_d(2, 2) = 10;
-            K_d(5, 5) = 1;
+            K_d(0, 0) = 10.0;
+            K_d(1, 1) = 10.0;
+            K_d(2, 2) = 5.0;
+            K_d(5, 5) = 5.0;
 
             Eigen::Matrix<double, 6, 4> B;
 
