@@ -316,3 +316,7 @@ add_dependencies(planner ${catkin_EXPORTED_TARGETS})
 add_executable(camera src/camera.cpp)
 target_link_libraries(camera ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(camera ${catkin_EXPORTED_TARGETS})
+
+add_executable(GNC_manager src/GNC_manager.cpp)
+target_link_libraries(GNC_manager ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(GNC_manager ${catkin_EXPORTED_TARGETS})

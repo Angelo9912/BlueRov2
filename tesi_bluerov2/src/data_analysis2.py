@@ -23,9 +23,9 @@ print("This script will read the bag file and plot the data")
 
 # Load the bag file
 
-tau_bag = rosbag.Bag(os.getcwd() + '/bag/simulazione_quadrati/tau.bag')
-state_bag = rosbag.Bag(os.getcwd() +'/bag/simulazione_quadrati/state.bag')
-des_state_bag = rosbag.Bag(os.getcwd() +'/bag/simulazione_quadrati/des_state.bag')
+tau_bag = rosbag.Bag(os.getcwd() + '/bag/tau.bag')
+state_bag = rosbag.Bag(os.getcwd() +'/bag/state.bag')
+des_state_bag = rosbag.Bag(os.getcwd() +'/bag/des_state.bag')
 
 
 ############################################################################

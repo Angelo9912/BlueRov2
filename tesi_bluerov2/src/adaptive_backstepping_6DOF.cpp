@@ -365,10 +365,10 @@ int main(int argc, char **argv)
         psi_hat_dot = est_pose_dot(5);
 
         LAMBDA << 3.0 * Eigen::Matrix<double, 6, 6>::Identity();
-        LAMBDA(5, 5) = 10.0;
-        LAMBDA(0, 0) = 10.0;
-        LAMBDA(1, 1) = 10.0;
-        LAMBDA(2, 2) = 10.0;
+        LAMBDA(0, 0) = 18000.0;
+        LAMBDA(1, 1) = 18000.0;
+        LAMBDA(2, 2) = 10000.0;
+        LAMBDA(5, 5) = 10000.0;
 
         nu_r = J.inverse() * (des_pos_dot + LAMBDA * error);
 
@@ -388,10 +388,10 @@ int main(int argc, char **argv)
         Eigen::Matrix<double, 6, 6> K_d;
         K_d << Eigen::Matrix<double, 6, 6>::Identity();
 
-        K_d(0, 0) = 20;
-        K_d(1, 1) = 5;
-        K_d(2, 2) = 20;
-        K_d(5, 5) = 10;
+        K_d(0, 0) = 50000;
+        K_d(1, 1) = 50000;
+        K_d(2, 2) = 20000;
+        K_d(5, 5) = 10000;
 
         Eigen::Matrix<double, 6, 4> B;
 
@@ -452,7 +452,7 @@ int main(int argc, char **argv)
 
         Eigen::Matrix<double, 25, 25> R;
 
-        R << 300 * Eigen::Matrix<double, 25, 25>::Identity();
+        R << 1000 * Eigen::Matrix<double, 25, 25>::Identity();
         pi_d = dt * R.inverse() * Y.transpose() * s + pi_d;
 
         if (torques_vec(3) > 37.471)

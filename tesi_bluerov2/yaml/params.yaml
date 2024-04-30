@@ -84,9 +84,12 @@ var_psi_IMU : 0.01
 var_u_DVL : 0.0189375
 var_v_DVL : 0.0189375
 var_w_DVL : 0.0189375
-var_p_IMU : 0.0007
-var_q_IMU : 0.0007
-var_r_IMU : 0.0007
+# var_p_IMU : 0.0007
+# var_q_IMU : 0.0007
+# var_r_IMU : 0.0007
+var_p_IMU : 0.0019
+var_q_IMU : 0.0019
+var_r_IMU : 0.0019
 
 # Varianze del rumore di processo
 var_tau_u : 0.5
@@ -101,9 +104,9 @@ var_model_x: 0.01
 var_model_y: 0.01
 var_model_z: 0.01
 
-var_model_p: 0.05
-var_model_q: 0.05
-var_model_r: 0.05
+var_model_p: 0.1
+var_model_q: 0.1
+var_model_r: 0.1
 
 var_acc_u: 0.000096236
 var_acc_v: 0.000096236
@@ -123,4 +126,6 @@ coord_4_long : 9.864693489139816
 
 start_lat : 44.09610021334762 
 start_long : 9.864990204688155
+
+wait_for_controller : 15
 

@@ -41,6 +41,8 @@ double r_hat = 0.0;
 double phi_hat_dot;
 double theta_hat_dot;
 double psi_hat_dot;
+double wait_for_controller = 0.0;
+std::string GNC_status = "NOT_READY";
 
 double gaussianNoise(double mean, double var)
 {
@@ -146,6 +148,10 @@ void estStateCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
         r_hat = msg->data[11];
     }
 }
+void GNCstatusCallback(const std_msgs::String::ConstPtr &msg) // CALLBACK che riceve lo stato del GNC
+{
+    GNC_status = msg->data;
+}
 
 int main(int argc, char **argv)
 {
@@ -156,14 +162,16 @@ int main(int argc, char **argv)
     tau_bag.open(path + "/bag/tau.bag", rosbag::bagmode::Write);
 
     ros::Publisher chatter_pub = n.advertise<tesi_bluerov2::Floats>("tau_topic", 1);
-    ros::Subscriber sub_des_state = n.subscribe("state/desired_state_topic", 1, desStateCallback);
-    ros::Subscriber sub_est_state = n.subscribe("state/est_state_UKF_topic", 1, estStateCallback);
+    ros::Publisher publisher_gnc_status = n.advertise<std_msgs::String>("manager/GNC_status_requested_topic", 10); // publisher stato richiesto al GNC
 
+    ros::Subscriber sub_gnc_status = n.subscribe("manager/GNC_status_topic", 1, GNCstatusCallback); // sottoscrizione alla topic di stato del GNC
+    ros::Subscriber sub_des_state = n.subscribe("state/desired_state_topic", 1, desStateCallback);
+    // ros::Subscriber sub_est_state = n.subscribe("state/est_state_UKF_topic", 1, estStateCallback);
+
+    ros::Subscriber sub_est_state = n.subscribe("state/est_state_topic_no_dyn", 1, estStateCallback);
     double freq = 200;
     double dt = 1 / freq;
     ros::Rate loop_rate(freq);
-
-    ros::Duration(60).sleep();
 
     // Import parameters from YAML file
 
@@ -298,6 +306,7 @@ int main(int argc, char **argv)
     n.getParam("var_tau_p", var_tau_p);
     n.getParam("var_tau_q", var_tau_q);
     n.getParam("var_tau_r", var_tau_r);
+    n.getParam("wait_for_controller", wait_for_controller);
 
     bool is_init = true;
     double init_time;
@@ -355,102 +364,106 @@ int main(int argc, char **argv)
 
     while (ros::ok())
     {
-        // Calcolo il tempo iniziale in maniera periodica fino a che non diventa maggiore di 0 in modo tale da non avere falsi positivi nella
-        // condizione sulla differenza temporale di 5 secondi
-        if (is_init)
+        if (GNC_status == "NAVIGATION_READY")
         {
-            init_time = ros::Time::now().toSec();
-            if (init_time > 0.0)
+            std_msgs::String msg;
+            msg.data = "CONTROLLER_READY";
+            ros::Duration(wait_for_controller).sleep();
+            publisher_gnc_status.publish(msg);
+        }
+        else if (GNC_status == "CONTROLLER_READY" || GNC_status == "GNC_READY")
+        {
+
+            des_pose << x_d, y_d, z_d, phi_d, theta_d, psi_d;
+            des_pos_dot << x_dot_d, y_dot_d, z_dot_d, phi_dot_d, theta_dot_d, psi_dot_d;
+            est_pose << x_hat, y_hat, z_hat, phi_hat, theta_hat, psi_hat;
+
+            // Define Jacobian Matrix
+            J1 << cos(psi_hat) * cos(theta_hat), cos(psi_hat) * sin(phi_hat) * sin(theta_hat) - cos(phi_hat) * sin(psi_hat), sin(phi_hat) * sin(psi_hat) + cos(phi_hat) * cos(psi_hat) * sin(theta_hat),
+                cos(theta_hat) * sin(psi_hat), cos(phi_hat) * cos(psi_hat) + sin(phi_hat) * sin(psi_hat) * sin(theta_hat), cos(phi_hat) * sin(psi_hat) * sin(theta_hat) - cos(psi_hat) * sin(phi_hat),
+                -sin(theta_hat), cos(theta_hat) * sin(phi_hat), cos(phi_hat) * cos(theta_hat);
+
+            nu << u_hat, v_hat, w_hat, p_hat, q_hat, r_hat;
+
+            // Define the error vector
+            error_lin = J1.transpose() * (des_pose.head(3) - est_pose.head(3));
+
+            error_lin_dot = J1.transpose() * (des_pos_dot.head(3)) - nu.head(3);
+
+            error_lin_int += error_lin * dt;
+
+            error_psi = angleDifference(des_pose(5) - est_pose(5));
+            error_psi_dot = des_pos_dot(5) - nu(5);
+            error_psi_int += error_psi * dt;
+
+            tau_lin = K_p_lin * error_lin + K_d_lin * error_lin_dot + K_i_lin * (error_lin_int + anti_windup_lin);
+            tau_psi = K_p_psi * error_psi + K_d_psi * error_psi_dot + K_i_psi * (error_psi_int + anti_windup_psi);
+
+            // Define the torques vector
+            Eigen::Matrix<double, 4, 1> torques_vec;
+
+            torques_vec << tau_lin(0), tau_lin(1), tau_lin(2), tau_psi;
+
+            double tau_u;
+            double tau_v;
+            double tau_w;
+            double tau_r;
+
+            std::vector<double> torques = {torques_vec(0), torques_vec(1), torques_vec(2), 0.0, 0.0, torques_vec(3)};
+
+            if (torques_vec(3) > 37.471)
             {
-                is_init = false;
+                tau_r = 37.471;
+                torques[5] = tau_r;
             }
-        }
+            else if (torques_vec(3) < -37.471)
+            {
+                tau_r = -37.471;
+                torques[5] = tau_r;
+            }
 
-        des_pose << x_d, y_d, z_d, phi_d, theta_d, psi_d;
-        des_pos_dot << x_dot_d, y_dot_d, z_dot_d, phi_dot_d, theta_dot_d, psi_dot_d;
-        est_pose << x_hat, y_hat, z_hat, phi_hat, theta_hat, psi_hat;
+            if (torques_vec(0) > 141.42)
+            {
+                tau_u = 141.42;
+                torques[0] = tau_u;
+            }
+            else if (torques_vec(0) < -141.42)
+            {
+                tau_u = -141.42;
+                torques[0] = tau_u;
+            }
 
-        // Define Jacobian Matrix
-        J1 << cos(psi_hat) * cos(theta_hat), cos(psi_hat) * sin(phi_hat) * sin(theta_hat) - cos(phi_hat) * sin(psi_hat), sin(phi_hat) * sin(psi_hat) + cos(phi_hat) * cos(psi_hat) * sin(theta_hat),
-            cos(theta_hat) * sin(psi_hat), cos(phi_hat) * cos(psi_hat) + sin(phi_hat) * sin(psi_hat) * sin(theta_hat), cos(phi_hat) * sin(psi_hat) * sin(theta_hat) - cos(psi_hat) * sin(phi_hat),
-            -sin(theta_hat), cos(theta_hat) * sin(phi_hat), cos(phi_hat) * cos(theta_hat);
+            if (torques_vec(1) > 141.42)
+            {
+                tau_v = 141.42;
+                torques[1] = tau_v;
+            }
+            else if (torques_vec(1) < -141.42)
+            {
+                tau_v = -141.42;
+                torques[1] = tau_v;
+            }
 
-        nu << u_hat, v_hat, w_hat, p_hat, q_hat, r_hat;
+            if (torques_vec(2) > 70.71)
+            {
+                tau_w = 70.71;
+                torques[2] = tau_w;
+            }
+            else if (torques_vec(2) < -70.71)
+            {
+                tau_w = -70.71;
+                torques[2] = tau_w;
+            }
 
-        // Define the error vector
-        error_lin = J1.transpose() * (des_pose.head(3) - est_pose.head(3));
+            Eigen::Vector4d tau_out_sat;
+            tau_out_sat << tau_u, tau_v, tau_w, tau_r;
+            anti_windup_lin = tau_out_sat.head(3) - tau_lin;
+            anti_windup_psi = tau_out_sat(3) - tau_psi;
 
-        error_lin_dot = J1.transpose() * (des_pos_dot.head(3)) - nu.head(3);
+            // Publishing the torques
+            tesi_bluerov2::Floats torques_msg;
+            torques_msg.data = torques;
 
-        error_lin_int += error_lin * dt;
-
-        error_psi = angleDifference(des_pose(5) - est_pose(5));
-        error_psi_dot = des_pos_dot(5) - nu(5);
-        error_psi_int += error_psi * dt;
-
-        tau_lin = K_p_lin * error_lin + K_d_lin * error_lin_dot + K_i_lin * (error_lin_int + anti_windup_lin);
-        tau_psi = K_p_psi * error_psi + K_d_psi * error_psi_dot + K_i_psi * (error_psi_int + anti_windup_psi);
-
-        // Define the torques vector
-        Eigen::Matrix<double, 4, 1> torques_vec;
-
-        torques_vec << tau_lin(0), tau_lin(1), tau_lin(2), tau_psi;
-
-        double tau_u;
-        double tau_v;
-        double tau_w;
-        double tau_r;
-
-        if (torques_vec(3) > 37.471)
-        {
-            tau_r = 37.471;
-        }
-        else if (torques_vec(3) < -37.471)
-        {
-            tau_r = -37.471;
-        }
-
-        if (torques_vec(0) > 141.42)
-        {
-            tau_u = 141.42;
-        }
-        else if (torques_vec(0) < -141.42)
-        {
-            tau_u = -141.42;
-        }
-
-        if (torques_vec(1) > 141.42)
-        {
-            tau_v = 141.42;
-        }
-        else if (torques_vec(1) < -141.42)
-        {
-            tau_v = -141.42;
-        }
-
-        if (torques_vec(2) > 70.71)
-        {
-            tau_w = 70.71;
-        }
-        else if (torques_vec(2) < -70.71)
-        {
-            tau_w = -70.71;
-        }
-
-        Eigen::Vector4d tau_out_sat;
-        tau_out_sat << tau_u, tau_v, tau_w, tau_r;
-        anti_windup_lin = tau_out_sat.head(3) - tau_lin;
-        anti_windup_psi = tau_out_sat(3) - tau_psi;
-
-        std::vector<double> torques = {torques_vec(0) + gaussianNoise(0.0, var_tau_u), torques_vec(1) + gaussianNoise(0.0, var_tau_v), torques_vec(2) + gaussianNoise(0.0, var_tau_w), 0.0, 0.0, torques_vec(3) + gaussianNoise(0.0, var_tau_r)};
-
-        // Publishing the torques
-        tesi_bluerov2::Floats torques_msg;
-        torques_msg.data = torques;
-
-        // Pubblico i dati solo dopo 5 secondi e se il tempo iniziale è stato calcolato correttamente
-        if (ros::Time::now().toSec() - init_time > 5.0 && !is_init)
-        {
             chatter_pub.publish(torques_msg);
 
             if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())

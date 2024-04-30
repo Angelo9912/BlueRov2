@@ -236,12 +236,12 @@ int main(int argc, char **argv)
 
     ////////////////////////// Create a publisher object //////////////////////////
     ros::Publisher publisher = nh.advertise<tesi_bluerov2::waypoints>("waypoints_topic", 10);
-    ros::Publisher publisher_status = nh.advertise<std_msgs::String>("manager/status_requested_topic", 10);
+    ros::Publisher publisher_status = nh.advertise<std_msgs::String>("manager/mission_status_requested_topic", 10);
 
     ////////////////////////// Create a subscriber object //////////////////////////
     ros::Subscriber subscriber = nh.subscribe("sensors/buoy_topic", 10, buoyCallback);
-    ros::Subscriber subscriber_state = nh.subscribe("state/est_state_UKF_topic", 10, estStateCallback);
-    ros::Subscriber subscriber_status = nh.subscribe("manager/status_topic", 10, statusCallback);
+    ros::Subscriber subscriber_state = nh.subscribe("state/est_state_topic_no_dyn", 10, estStateCallback);
+    ros::Subscriber subscriber_status = nh.subscribe("manager/mission_status_topic", 10, statusCallback);
 
     ////////////////////////// Get parameters from YAML file //////////////////////////
 
@@ -601,7 +601,7 @@ int main(int argc, char **argv)
                 if (waypoint_passed(i) == 0)
                 {
                     dist_to_next_waypoint = sqrt(pow((x_hat - waypoints_x(i)), 2) + pow((y_hat - waypoints_y(i)), 2) + pow((z_hat - waypoints_z(i)), 2));
-                    if (dist_to_next_waypoint < 0.1)
+                    if (dist_to_next_waypoint < 0.3)
                     {
                         if (i == 0)
                         {

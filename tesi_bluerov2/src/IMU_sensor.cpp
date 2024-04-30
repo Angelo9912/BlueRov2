@@ -96,7 +96,7 @@ int main(int argc, char **argv)
         double r_m = r_hat + gaussianNoise(0, var_r);
 
         // Add noise to the IMU data and fill the message
-        std::vector<double> imu_data = {phi_m, theta_m, psi_m, p_m, q_m, r_m, valid};
+        std::vector<double> imu_data = {phi_m, theta_m, psi_m, valid};
         msg.data = imu_data;
 
         if (ros::Time::now().toSec() - start_time > 5)

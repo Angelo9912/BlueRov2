@@ -48,6 +48,19 @@ double p_hat_UKF = 0.0;
 double q_hat_UKF = 0.0;
 double r_hat_UKF = 0.0;
 
+double x_hat_UKF_kin = 0.0;
+double y_hat_UKF_kin = 0.0;
+double z_hat_UKF_kin = 0.0;
+double phi_hat_UKF_kin = 0.0;
+double theta_hat_UKF_kin = 0.0;
+double psi_hat_UKF_kin = 0.0;
+double u_hat_UKF_kin = 0.0;
+double v_hat_UKF_kin = 0.0;
+double w_hat_UKF_kin = 0.0;
+double p_hat_UKF_kin = 0.0;
+double q_hat_UKF_kin = 0.0;
+double r_hat_UKF_kin = 0.0;
+
 double mahalanobis_EKF = 0.0;
 double mahalanobis_UKF = 0.0;
 
@@ -55,6 +68,7 @@ double DELTA = 20;
 double w_d = -0.1;
 
 bool flag = true;
+bool first_nan_EKF = true;
 
 // Function to generate Gaussian random number
 double gaussianNoise(double mean, double var)
@@ -116,7 +130,11 @@ void est_state_callback(const tesi_bluerov2::Floats::ConstPtr &msg)
         p_hat_EKF = 0.0;
         q_hat_EKF = 0.0;
         r_hat_EKF = 0.0;
-        ROS_WARN("NaN KF error");
+        if(first_nan_EKF)
+        {
+            first_nan_EKF = false;
+            ROS_WARN("NaN EKF error");
+        }
     }
     else
     {
@@ -153,7 +171,7 @@ void est_state_UKF_callback(const tesi_bluerov2::Floats::ConstPtr &msg)
         q_hat_UKF = 0.0;
         r_hat_UKF = 0.0;
 
-        ROS_WARN("NaN UKF error");
+        //ROS_WARN("NaN UKF error");
     }
     else
     {
@@ -170,6 +188,41 @@ void est_state_UKF_callback(const tesi_bluerov2::Floats::ConstPtr &msg)
         q_hat_UKF = msg->data[10];
         r_hat_UKF = msg->data[11];
         mahalanobis_UKF = msg->data[12];
+    }
+}
+
+void estStateUKFKinCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
+{
+    if (msg->data[0] != msg->data[0])
+    {
+        x_hat_UKF_kin = 0.0;
+        y_hat_UKF_kin = 0.0;
+        z_hat_UKF_kin = 0.0;
+        phi_hat_UKF_kin = 0.0;
+        theta_hat_UKF_kin = 0.0;
+        psi_hat_UKF_kin = 0.0;
+        u_hat_UKF_kin = 0.0;
+        v_hat_UKF_kin = 0.0;
+        w_hat_UKF_kin = 0.0;
+        p_hat_UKF_kin = 0.0;
+        q_hat_UKF_kin = 0.0;
+        r_hat_UKF_kin = 0.0;
+        ROS_WARN("NaN UKF kin error");
+    }
+    else
+    {
+        x_hat_UKF_kin = msg->data[0];
+        y_hat_UKF_kin = msg->data[1];
+        z_hat_UKF_kin = msg->data[2];
+        phi_hat_UKF_kin = msg->data[3];
+        theta_hat_UKF_kin = msg->data[4];
+        psi_hat_UKF_kin = msg->data[5];
+        u_hat_UKF_kin = msg->data[6];
+        v_hat_UKF_kin = msg->data[7];
+        w_hat_UKF_kin = msg->data[8];
+        p_hat_UKF_kin = msg->data[9];
+        q_hat_UKF_kin = msg->data[10];
+        r_hat_UKF_kin = msg->data[11];
     }
 }
 
@@ -210,6 +263,7 @@ int main(int argc, char **argv)
     ros::Subscriber sub1 = n.subscribe("state/state_topic", 1000, state_callback);
     ros::Subscriber sub2 = n.subscribe("state/est_state_topic", 1000, est_state_callback);
     ros::Subscriber sub3 = n.subscribe("state/est_state_UKF_topic", 1000, est_state_UKF_callback);
+    ros::Subscriber sub4 = n.subscribe("state/est_state_UKF_no_dyn_topic", 1000, estStateUKFKinCallback);
     ros::Publisher pub = n.advertise<tesi_bluerov2::Floats>("error_topic", 1000);
     // ros::Publisher pub2 = n.advertise<tesi_bluerov2::Floats>("tau_topic", 1000);
     // ros::Publisher pub3 = n.advertise<tesi_bluerov2::Floats>("desired_state_topic", 1000);
@@ -274,13 +328,31 @@ int main(int argc, char **argv)
         double err_q_UKF = q - q_hat_UKF;
         double err_r_UKF = r - r_hat_UKF;
 
-        std::vector<double> error = {err_x_EKF, err_y_EKF, err_z_EKF, err_phi_EKF, err_theta_EKF, err_psi_EKF, err_u_EKF, err_v_EKF, err_w_EKF, err_p_EKF, err_q_EKF, err_r_EKF, mahalanobis_EKF, err_x_UKF, err_y_UKF, err_z_UKF, err_phi_UKF, err_theta_UKF, err_psi_UKF, err_u_UKF, err_v_UKF, err_w_UKF, err_p_UKF, err_q_UKF, err_r_UKF, mahalanobis_UKF};
+        double err_x_UKF_kin = x - x_hat_UKF_kin;
+        double err_y_UKF_kin = y - y_hat_UKF_kin;
+        double err_z_UKF_kin = z - z_hat_UKF_kin;
+        double err_phi_UKF_kin = phi - phi_hat_UKF_kin;
+        double err_theta_UKF_kin = theta - theta_hat_UKF_kin;
+        double err_psi_UKF_kin = psi - psi_hat_UKF_kin;
+        double err_u_UKF_kin = u - u_hat_UKF_kin;
+        double err_v_UKF_kin = v - v_hat_UKF_kin;
+        double err_w_UKF_kin = w - w_hat_UKF_kin;
+        double err_p_UKF_kin = p - p_hat_UKF_kin;
+        double err_q_UKF_kin = q - q_hat_UKF_kin;
+        double err_r_UKF_kin = r - r_hat_UKF_kin;
 
+
+        std::vector<double> error = {err_x_EKF, err_y_EKF, err_z_EKF, err_phi_EKF, err_theta_EKF, err_psi_EKF, err_u_EKF, err_v_EKF, err_w_EKF, err_p_EKF, err_q_EKF, err_r_EKF, mahalanobis_EKF, err_x_UKF, err_y_UKF, err_z_UKF, err_phi_UKF, err_theta_UKF, err_psi_UKF, err_u_UKF, err_v_UKF, err_w_UKF, err_p_UKF, err_q_UKF, err_r_UKF, mahalanobis_UKF};
+        std::vector<double> error_UKF_kin = {err_x_UKF_kin, err_y_UKF_kin, err_z_UKF_kin, err_phi_UKF_kin, err_theta_UKF_kin, err_psi_UKF_kin, err_u_UKF_kin, err_v_UKF_kin, err_w_UKF_kin, err_p_UKF_kin, err_q_UKF_kin, err_r_UKF_kin,err_x_UKF, err_y_UKF, err_z_UKF, err_phi_UKF, err_theta_UKF, err_psi_UKF, err_u_UKF, err_v_UKF, err_w_UKF, err_p_UKF, err_q_UKF, err_r_UKF};
         for (int i = 3; i < 6; i++)
         {
             error[i] = angleDifference(error[i]);
+            error_UKF_kin[i] = angleDifference(error_UKF_kin[i]);
         }
-
+        for(int i = 15; i < 18; i++)
+        {
+            error_UKF_kin[i] = angleDifference(error_UKF_kin[i]);
+        }
         for (int i = 16; i < 19; i++)
         {
             error[i] = angleDifference(error[i]);
@@ -302,8 +374,24 @@ int main(int argc, char **argv)
         error[23] = error[23] * 180 / M_PI;
         error[24] = error[24] * 180 / M_PI;
 
+        error_UKF_kin[3] = error_UKF_kin[3] * 180 / M_PI;
+        error_UKF_kin[4] = error_UKF_kin[4] * 180 / M_PI;
+        error_UKF_kin[5] = error_UKF_kin[5] * 180 / M_PI;
+        error_UKF_kin[9] = error_UKF_kin[9] * 180 / M_PI;
+        error_UKF_kin[10] = error_UKF_kin[10] * 180 / M_PI;
+        error_UKF_kin[11] = error_UKF_kin[11] * 180 / M_PI;
+
+        error_UKF_kin[15] = error_UKF_kin[16] * 180 / M_PI;
+        error_UKF_kin[16] = error_UKF_kin[17] * 180 / M_PI;
+        error_UKF_kin[17] = error_UKF_kin[18] * 180 / M_PI;
+        error_UKF_kin[21] = error_UKF_kin[22] * 180 / M_PI;
+        error_UKF_kin[22] = error_UKF_kin[23] * 180 / M_PI;
+        error_UKF_kin[23] = error_UKF_kin[24] * 180 / M_PI;
+        
+
+
         tesi_bluerov2::Floats error_msg;
-        error_msg.data = error;
+        error_msg.data = error_UKF_kin;
         pub.publish(error_msg);
         std::vector<double> des;
 

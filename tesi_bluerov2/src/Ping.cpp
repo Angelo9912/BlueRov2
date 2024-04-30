@@ -4,6 +4,7 @@
 
 double x_hat = 0.0;
 double y_hat = 0.0;
+double z_hat = 0.0;
 
 double var_x = 4;
 double var_y = 4;
@@ -25,11 +26,13 @@ void stateCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
     {
         x_hat = 0.0;
         y_hat = 0.0;
+        z_hat = 0.0;
     }
     else
     {
         x_hat = msg->data[0];
         y_hat = msg->data[1];
+        z_hat = msg->data[2];
     }
 }
 
@@ -58,8 +61,12 @@ int main(int argc, char **argv)
     while (ros::ok())
     {
         tesi_bluerov2::Floats msg;
-        double valid = 1.0;
 
+        double valid;
+        if (z_hat <= 0.5)
+            valid = 0.0;
+        else
+            valid = 1.0;
         // Add noise to the scanner data and fill the message
         std::vector<double> scanner_data = {x_hat + gaussianNoise(0, var_x), y_hat + gaussianNoise(0, var_y), valid};
         msg.data = scanner_data;

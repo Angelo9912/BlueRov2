@@ -59,6 +59,41 @@ void tauCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
         tau_p = msg->data[3];
         tau_q = msg->data[4];
         tau_r = msg->data[5];
+        if (tau_r > 37.471)
+        {
+            tau_r = 37.471;
+        }
+        else if (tau_r < -37.471)
+        {
+            tau_r = -37.471;
+        }
+
+        if (tau_u > 141.42)
+        {
+            tau_u = 141.42;
+        }
+        else if (tau_u < -141.42)
+        {
+            tau_u = -141.42;
+        }
+
+        if (tau_v > 141.42)
+        {
+            tau_v = 141.42;
+        }
+        else if (tau_v < -141.42)
+        {
+            tau_v = -141.42;
+        }
+
+        if (tau_w > 70.71)
+        {
+            tau_w = 70.71;
+        }
+        else if (tau_w < -70.71)
+        {
+            tau_w = -70.71;
+        }
     }
 }
 
@@ -306,7 +341,7 @@ int main(int argc, char **argv)
             (z_g - z_b) * W * sin(theta) + (x_g - x_b) * W * cos(theta) * cos(phi),
             -(x_g - x_b) * W * cos(theta) * sin(phi) - (y_g - y_b) * W * sin(theta);
 
-        if(eta(2) < 0)
+        if (eta(2) < 0)
         {
             G(2) = -W;
         }
@@ -349,7 +384,7 @@ int main(int argc, char **argv)
         tesi_bluerov2::Floats acc_msg;
         acc_msg.data = {nu_dot(0), nu_dot(1), nu_dot(2)};
         acc_pub.publish(acc_msg);
-        
+
         chatter_pub.publish(state_msg);
 
         eta = eta_k1;

@@ -22,10 +22,10 @@ int main(int argc, char **argv)
     ros::NodeHandle nh;
 
     // Create a publisher
-    ros::Publisher pub = nh.advertise<std_msgs::String>("manager/status_topic", 10);
+    ros::Publisher pub = nh.advertise<std_msgs::String>("manager/mission_status_topic", 10);
 
     // Create a subscriber
-    ros::Subscriber sub = nh.subscribe("manager/status_requested_topic", 10, statusReqCallback);
+    ros::Subscriber sub = nh.subscribe("manager/mission_status_requested_topic", 10, statusReqCallback);
 
     // Loop at 10Hz
     ros::Rate rate(20);

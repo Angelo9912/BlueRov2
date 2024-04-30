@@ -10,6 +10,8 @@
 #include <random>
 #include <rosbag/bag.h>
 
+rosbag::Bag bag;
+
 double a_u = 0.0;
 double a_v = 0.0;
 double a_w = 0.0;
@@ -124,7 +126,6 @@ double N_r_dot = 0.0;
 
 // Distanza di Mahalanobis
 double mahalanobis_distance = 0.0;
-rosbag::Bag bag;
 
 // Function to generate Gaussian random number
 double gaussianNoise(double mean, double var)
@@ -952,6 +953,10 @@ int main(int argc, char **argv)
             msg.data = {xi_curr(0), xi_curr(1), xi_curr(2), xi_curr(3), xi_curr(4), xi_curr(5), xi_curr(6), xi_curr(7), xi_curr(8), xi_curr(9), xi_curr(10), xi_curr(11), mahalanobis_distance};
 
             est_state_pub.publish(msg);
+            if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
+            {
+                bag.write("state/est_state_UKF_no_dyn_topic", ros::Time::now(), msg);
+            }
         }
 
         valid_GPS = 0;
@@ -959,10 +964,7 @@ int main(int argc, char **argv)
         valid_IMU = 0;
         valid_DVL = 0;
         valid_depth_sensor = 0;
-        if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
-        {
-            bag.write("state/est_state_UKF_no_dyn_topic", ros::Time::now(), msg);
-        }
+
         // Let ROS handle all incoming messages in a callback function
         ros::spinOnce();
 

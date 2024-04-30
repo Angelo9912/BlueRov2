@@ -310,7 +310,6 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
 
         Eigen::Matrix<double, 6, 1> nu_k1;
         nu_k1 = (dt * M.inverse() * (tau_k + tau_noise - C * nu - D * nu - G)) + nu;
-
         // VETTORE DELLE POSIZIONI
         Eigen::Matrix<double, 6, 6> Jacobian;
         Jacobian << cos(psi) * cos(theta), cos(psi) * sin(phi) * sin(theta) - cos(phi) * sin(psi), sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta), 0, 0, 0,
@@ -626,9 +625,6 @@ void IMUCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
         phi_IMU = 0.0;
         theta_IMU = 0.0;
         psi_IMU = 0.0;
-        p_IMU = 0.0;
-        q_IMU = 0.0;
-        r_IMU = 0.0;
         valid_IMU = 0;
     }
     else
@@ -636,10 +632,7 @@ void IMUCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
         phi_IMU = msg->data[0];
         theta_IMU = msg->data[1];
         psi_IMU = msg->data[2];
-        p_IMU = msg->data[3];
-        q_IMU = msg->data[4];
-        r_IMU = msg->data[5];
-        valid_IMU = msg->data[6];
+        valid_IMU = msg->data[3];
     }
 }
 
@@ -833,8 +826,8 @@ int main(int argc, char **argv)
     bool is_depth_init = false;
     bool is_IMU_init = false;
 
-    Eigen::VectorXd var_sensors(14);
-    var_sensors << var_x_GPS, var_y_GPS, var_x_scanner, var_y_scanner, var_z_depth_sensor, var_phi_IMU, var_theta_IMU, var_psi_IMU, var_u_DVL, var_v_DVL, var_w_DVL, var_p_IMU, var_q_IMU, var_r_IMU;
+    Eigen::VectorXd var_sensors(11);
+    var_sensors << var_x_GPS, var_y_GPS, var_x_scanner, var_y_scanner, var_z_depth_sensor, var_phi_IMU, var_theta_IMU, var_psi_IMU, var_u_DVL, var_v_DVL, var_w_DVL;
 
     Eigen::MatrixXd Q(6, 6);
     Q << var_tau_u, 0.0, 0.0, 0.0, 0.0, 0.0,
@@ -910,16 +903,15 @@ int main(int argc, char **argv)
                 xi_curr(4) = theta_IMU;
                 xi_curr(5) = psi_IMU;
 
-                xi_curr(9) = p_IMU;
-                xi_curr(10) = q_IMU;
-                xi_curr(11) = r_IMU;
-
                 is_IMU_init = true;
             }
 
             xi_curr(6) = 0.0 + gaussianNoise(0, var_u_DVL);
             xi_curr(7) = 0.0 + gaussianNoise(0, var_v_DVL);
             xi_curr(8) = 0.0 + gaussianNoise(0, var_w_DVL);
+            xi_curr(9) = 0.0 + gaussianNoise(0, var_p_IMU);
+            xi_curr(10) = 0.0 + gaussianNoise(0, var_q_IMU);
+            xi_curr(11) = 0.0 + gaussianNoise(0, var_r_IMU);
 
             P_curr << var_x, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, var_y, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -965,11 +957,11 @@ int main(int argc, char **argv)
             ///////////////////////////////////////////////////////////////////////
 
             // VETTORE DI MISURA
-            Eigen::VectorXd z(14);
-            z << x_GPS, y_GPS, x_scanner, y_scanner, z_depth_sensor, phi_IMU, theta_IMU, psi_IMU, u_DVL, v_DVL, w_DVL, p_IMU, q_IMU, r_IMU;
+            Eigen::VectorXd z(11);
+            z << x_GPS, y_GPS, x_scanner, y_scanner, z_depth_sensor, phi_IMU, theta_IMU, psi_IMU, u_DVL, v_DVL, w_DVL;
 
-            Eigen::VectorXd valid(14);
-            valid << valid_GPS, valid_GPS, valid_scanner, valid_scanner, valid_depth_sensor, valid_IMU, valid_IMU, valid_IMU, valid_DVL, valid_DVL, valid_DVL, valid_IMU, valid_IMU, valid_IMU;
+            Eigen::VectorXd valid(11);
+            valid << valid_GPS, valid_GPS, valid_scanner, valid_scanner, valid_depth_sensor, valid_IMU, valid_IMU, valid_IMU, valid_DVL, valid_DVL, valid_DVL;
 
             // Pesco le misure valide
             Eigen::VectorXd z_valid(1);
@@ -995,7 +987,6 @@ int main(int argc, char **argv)
                     }
                 }
             }
-
             Eigen::VectorXd var_used(z_valid.size());
             var_used.setZero();
             int j = 0;
@@ -1084,6 +1075,10 @@ int main(int argc, char **argv)
             msg.data = {xi_curr(0), xi_curr(1), xi_curr(2), xi_curr(3), xi_curr(4), xi_curr(5), xi_curr(6), xi_curr(7), xi_curr(8), xi_curr(9), xi_curr(10), xi_curr(11), mahalanobis_distance};
 
             est_state_pub.publish(msg);
+            if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
+            {
+                bag.write("state/est_state_UKF_topic", ros::Time::now(), msg);
+            }
         }
 
         valid_GPS = 0;
@@ -1091,10 +1086,6 @@ int main(int argc, char **argv)
         valid_IMU = 0;
         valid_DVL = 0;
         valid_depth_sensor = 0;
-        if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
-        {
-            bag.write("state/est_state_UKF_topic", ros::Time::now(), msg);
-        }
 
         // Let ROS handle all incoming messages in a callback function
         ros::spinOnce();

@@ -373,29 +373,29 @@ int main(int argc, char **argv)
             C * A * A * A;
 
         Eigen::Matrix<double, 4, 4> Zero_4;
-        Eigen::Matrix<double, 12, 12> Rc = 0.01 * Eigen::Matrix<double, 12, 12>::Identity();
+        Eigen::Matrix<double, 12, 12> Rc = 0.008 * Eigen::Matrix<double, 12, 12>::Identity();
 
         Eigen::Matrix<double, 24, 24> Qc = 10.0 * Eigen::Matrix<double, 24, 24>::Identity();
 
         // Coefficienti per la x
-        Qc(0, 0) = 100.0;
-        Qc(8, 8) = 100.0;
-        Qc(16, 16) = 100.0;
+        Qc(0, 0) = 2200.0;
+        Qc(8, 8) = 2200.0;
+        Qc(16, 16) = 2200.0;
 
         // Coefficienti per la y
-        Qc(2, 2) = 100.0;
-        Qc(10, 10) = 100.0;
-        Qc(18, 18) = 100.0;
-
+        Qc(2, 2) = 2200.0;
+        Qc(10, 10) = 2200.0;
+        Qc(18, 18) = 2200.0;
+ 
         // Coefficienti per la z
-        Qc(4, 4) = 500.0;
-        Qc(12, 12) = 500.0;
-        Qc(20, 20) = 500.0;
+        Qc(4, 4) = 1500.0;
+        Qc(12, 12) = 1500.0;
+        Qc(20, 20) = 1500.0;
 
         // Coefficienti per la psi
-        Qc(6, 6) = 1000.0;
-        Qc(14, 14) = 1000.0;
-        Qc(22, 22) = 1000.0;
+        Qc(6, 6) = 8000.0;
+        Qc(14, 14) = 8000.0;
+        Qc(22, 22) = 8000.0;
 
         // Estrazione valori desired state
 
