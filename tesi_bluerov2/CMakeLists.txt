@@ -249,6 +249,10 @@ add_executable(imu src/IMU_sensor.cpp)
 target_link_libraries(imu ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(imu ${catkin_EXPORTED_TARGETS})
 
+add_executable(imu_camera src/IMU_camera.cpp)
+target_link_libraries(imu_camera ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(imu_camera ${catkin_EXPORTED_TARGETS})
+
 add_executable(gps src/GPS.cpp)
 target_link_libraries(gps ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(gps ${catkin_EXPORTED_TARGETS})

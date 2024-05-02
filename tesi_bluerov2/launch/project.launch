@@ -30,6 +30,7 @@
     <node name="dynamics" pkg="tesi_bluerov2" type="dynamics6DOF" />
 
     <node name="imu" pkg="tesi_bluerov2" type="imu" />
+    <node name="imu_camera" pkg="tesi_bluerov2" type="imu_camera" />
     <node name="depth" pkg="tesi_bluerov2" type="depth" />
     <node name="gps" pkg="tesi_bluerov2" type="gps" />
     <node name="ping" pkg="tesi_bluerov2" type="ping" />

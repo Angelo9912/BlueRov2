@@ -210,7 +210,7 @@ int main(int argc, char **argv)
     ros::Publisher publisher_gnc_status = n.advertise<std_msgs::String>("manager/GNC_status_requested_topic", 10);   // publisher stato richiesto al GNC
     
     ros::Subscriber sub_gnc_status = n.subscribe("manager/GNC_status_topic", 1, GNCstatusCallback); // sottoscrizione alla topic di stato del GNC
-    ros::Subscriber sub_est_state = n.subscribe("state/est_state_topic_no_dyn", 1, estStateCallback); // sottoscrizione alla topic di stato stimato
+    ros::Subscriber sub_est_state = n.subscribe("state/est_state_topic", 1, estStateCallback); // sottoscrizione alla topic di stato stimato
     ros::Subscriber sub_waypoint = n.subscribe("waypoints_topic", 1, waypointCallback);            // sottoscrizione alla topic di waypoint
     ros::Subscriber sub_status = n.subscribe("manager/mission_status_topic", 1, statusCallback);           // sottoscrizione alla topic di mission status
     double freq = 50.0;                                                                            // frequenza di lavoro

@@ -87,9 +87,9 @@ var_w_DVL : 0.0189375
 # var_p_IMU : 0.0007
 # var_q_IMU : 0.0007
 # var_r_IMU : 0.0007
-var_p_IMU : 0.0019
-var_q_IMU : 0.0019
-var_r_IMU : 0.0019
+var_p_IMU_camera : 0.0019
+var_q_IMU_camera : 0.0019
+var_r_IMU_camera : 0.0019
 
 # Varianze del rumore di processo
 var_tau_u : 0.5
