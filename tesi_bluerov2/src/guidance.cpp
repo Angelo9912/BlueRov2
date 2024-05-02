@@ -216,7 +216,7 @@ int main(int argc, char **argv)
     double freq = 50.0;                                                                            // frequenza di lavoro
     double dt = 1 / freq;                                                                          // tempo di campionamento
     ros::Rate loop_rate(freq);
-    int i_psi = 0;
+    double i_psi = 0.0;
     int post_up_down = 0;        // intero che mi dice se la guida rect deve ripartire a seguito di un up_down
     double post_up_down_x = 0.0; // x del punto di ripartenza
     double post_up_down_y = 0.0; // y del punto di ripartenza
@@ -669,11 +669,11 @@ int main(int argc, char **argv)
 
                         if (angleDifference(psi_to_go(way_counter - 1) - psi_1) > 10 * (M_PI / 180))
                         {
-                            dim1(way_counter - 1) = (int)(angleDifference(psi_to_go(way_counter - 1) - psi_1) * freq / (10 * (M_PI / 180)));
+                            dim1(way_counter - 1) = (int)(angleDifference(psi_to_go(way_counter - 1) - psi_1) * freq / (5 * (M_PI / 180)));
                         }
                         else if (angleDifference(psi_to_go(way_counter - 1) - psi_1) < -10 * (M_PI / 180))
                         {
-                            dim1(way_counter - 1) = (int)(angleDifference(psi_1 - psi_to_go(way_counter - 1)) * freq / (10 * (M_PI / 180)));
+                            dim1(way_counter - 1) = (int)(angleDifference(psi_1 - psi_to_go(way_counter - 1)) * freq / (5 * (M_PI / 180)));
                         }
                         else
                         {
@@ -690,7 +690,7 @@ int main(int argc, char **argv)
                             theta_d = 0.0;
                             psi_d = psi_1 + i_psi * delta_psi(way_counter - 1);
                             psi_d = atan2(sin(psi_d), cos(psi_d));
-                            i_psi++;
+                            i_psi = i_psi + 0.5;
                             if (i_psi >= dim1(way_counter - 1) - 1)
                             {
                                 is_psi_adjusted = true;
@@ -704,11 +704,11 @@ int main(int argc, char **argv)
                             r_d = 0.0;
                             if (psi_d > psi_1)
                             {
-                                r_d = 10.0 * M_PI / 180;
+                                r_d = 5.0 * M_PI / 180;
                             }
                             else if (psi_d < psi_1)
                             {
-                                r_d = -10.0 * M_PI / 180;
+                                r_d = -5.0 * M_PI / 180;
                             }
                         }
                         else
@@ -732,7 +732,7 @@ int main(int argc, char **argv)
                             pos_rel_z(way_counter - 1) = way_spline_z(way_counter) - way_spline_z(way_counter - 1);
 
                             dist_to_targ(way_counter - 1) = sqrt(pow(pos_rel_x(way_counter - 1), 2) + pow(pos_rel_y(way_counter - 1), 2) + pow(pos_rel_z(way_counter - 1), 2));
-                            double step = 1.0 / 50.0;
+                            double step = 0.5;
                             middle_waypoints(way_counter - 1) = (int)(floor(dist_to_targ(way_counter - 1) / step)); // numero di waypoint intermedi
 
                             dx(way_counter - 1) = pos_rel_x(way_counter - 1) / middle_waypoints(way_counter - 1);

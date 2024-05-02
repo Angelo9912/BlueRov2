@@ -320,3 +320,7 @@ add_dependencies(camera ${catkin_EXPORTED_TARGETS})
 add_executable(GNC_manager src/GNC_manager.cpp)
 target_link_libraries(GNC_manager ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(GNC_manager ${catkin_EXPORTED_TARGETS})
+
+add_executable(trajectory_publisher src/trajectory_publisher.cpp)
+target_link_libraries(trajectory_publisher ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(trajectory_publisher ${catkin_EXPORTED_TARGETS})

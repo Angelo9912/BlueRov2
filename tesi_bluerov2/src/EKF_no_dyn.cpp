@@ -73,6 +73,8 @@ double var_r_IMU = 0.0;
 
 rosbag::Bag bag;
 
+std::string GNC_status = "";
+
 // Distanza di Mahalanobis
 double mahalanobis_distance = 0.0;
 
@@ -133,6 +135,11 @@ double gaussianNoise(double mean, double var)
 }
 
 // Callback function for the subscriber
+void GNCstatusCallback(const std_msgs::String::ConstPtr &msg) // CALLBACK che riceve lo stato del GNC
+{
+    GNC_status = msg->data;
+}
+
 void GPSCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
 {
     if (msg->data[0] != msg->data[0])
@@ -283,7 +290,7 @@ int main(int argc, char **argv)
     // MATRICE DI MASSA
 
     // Time step
-    double freq = 100;
+    double freq = 50;
     double dt = 1 / freq;
 
     std::string path = ros::package::getPath("tesi_bluerov2");
@@ -296,8 +303,8 @@ int main(int argc, char **argv)
     bool is_depth_init = false;
     bool is_IMU_init = false;
 
-    Eigen::VectorXd var_sensors(14);
-    var_sensors << var_x_GPS, var_y_GPS, var_x_scanner, var_y_scanner, var_z_depth_sensor, var_phi_IMU, var_theta_IMU, var_psi_IMU, var_u_DVL, var_v_DVL, var_w_DVL, var_p_IMU, var_q_IMU, var_r_IMU;
+    Eigen::VectorXd var_sensors(11);
+    var_sensors << var_x_GPS, var_y_GPS, var_x_scanner, var_y_scanner, var_z_depth_sensor, var_phi_IMU, var_theta_IMU, var_psi_IMU, var_u_DVL, var_v_DVL, var_w_DVL;
 
     Eigen::MatrixXd Q(6, 6);
     Q << var_acc_u, 0, 0, 0, 0, 0,
@@ -312,8 +319,11 @@ int main(int argc, char **argv)
 
     // Create a publisher object
     ros::Publisher est_state_pub = n.advertise<tesi_bluerov2::Floats>("state/est_state_topic_no_dyn", 1000);
+    ros::Publisher publisher_gnc_status = n.advertise<std_msgs::String>("manager/GNC_status_requested_topic", 10); // publisher stato richiesto al GNC
 
     // Create subscriber objects
+
+    ros::Subscriber gnc_status_sub = n.subscribe("manager/GNC_status_topic", 1, GNCstatusCallback); // sottoscrizione alla topic di stato del GNC
 
     ros::Subscriber acc_sub = n.subscribe("sensors/acc_topic", 1000, acc_callback);
 
@@ -337,8 +347,16 @@ int main(int argc, char **argv)
         ///////////////////////////////////////////////////////////////////////
         ///////////////// INITIALIZATION OF THE FILTER ////////////////////////
         ///////////////////////////////////////////////////////////////////////
+        if (GNC_status == "NOT_READY")
+        {
+            std::string status_req = "NAVIGATION_READY";
+            std_msgs::String msg;
+            msg.data = status_req;
 
-        if (!is_init)
+            // Publish the message on the "topic1" topic
+            publisher_gnc_status.publish(msg);
+        }
+        else if (!is_init && GNC_status != "NOT_READY")
         {
             double var_x;
             double var_y;
@@ -374,12 +392,14 @@ int main(int argc, char **argv)
                 is_IMU_init = true;
             }
 
-            xi_curr(6) = 0.0 + gaussianNoise(0, var_u_DVL);
-            xi_curr(7) = 0.0 + gaussianNoise(0, var_v_DVL);
-            xi_curr(8) = 0.0 + gaussianNoise(0, var_w_DVL);
-            xi_curr(9) = 0.0 + gaussianNoise(0, var_p_IMU);
-            xi_curr(10) = 0.0 + gaussianNoise(0, var_q_IMU);
-            xi_curr(11) = 0.0 + gaussianNoise(0, var_r_IMU);
+            xi_curr.setZero();
+
+            // xi_curr(6) = 0.0 + gaussianNoise(0, var_u_DVL);
+            // xi_curr(7) = 0.0 + gaussianNoise(0, var_v_DVL);
+            // xi_curr(8) = 0.0 + gaussianNoise(0, var_w_DVL);
+            // xi_curr(9) = 0.0 + gaussianNoise(0, var_p_IMU);
+            // xi_curr(10) = 0.0 + gaussianNoise(0, var_q_IMU);
+            // xi_curr(11) = 0.0 + gaussianNoise(0, var_r_IMU);
 
             P_curr << var_x, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, var_y, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,

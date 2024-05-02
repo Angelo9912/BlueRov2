@@ -482,7 +482,7 @@ int main(int argc, char **argv)
 
     // Create subscriber objects
 
-    ros::Subscriber sub_gnc_status = n.subscribe("manager/GNC_status_topic", 1, GNCstatusCallback); // sottoscrizione alla topic di stato del GNC
+    ros::Subscriber gnc_status_sub = n.subscribe("manager/GNC_status_topic", 1, GNCstatusCallback); // sottoscrizione alla topic di stato del GNC
     ros::Subscriber tau_sub = n.subscribe("tau_topic", 1000, tau_callback);
     ros::Subscriber GPS_sub = n.subscribe("sensors/GPS_topic", 1000, GPSCallback);
     ros::Subscriber scanner_sub = n.subscribe("sensors/scanner_topic", 1000, ScannerCallback);
@@ -552,11 +552,6 @@ int main(int argc, char **argv)
             xi_curr(10) = 0.0 + gaussianNoise(0, var_q_IMU);
             xi_curr(11) = 0.0 + gaussianNoise(0, var_r_IMU);
 
-            /*ROS_WARN_STREAM("EKF nu_0: \n"
-                            << xi_curr(6) << "\n"
-                            << xi_curr(7) << "\n"
-                            << xi_curr(8) << "\n"
-                            << "\n");*/
 
             P_curr << var_x, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, var_y, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -656,29 +651,35 @@ int main(int argc, char **argv)
 
                 C = C_rb + C_a;
 
-                D << A_x * abs(u), 0, 0, 0, 0, 0,
-                    0, A_y * abs(v), 0, 0, 0, 0,
-                    0, 0, A_z * abs(w), 0, 0, 0,
-                    0, 0, 0, A_p * abs(p), 0, 0,
-                    0, 0, 0, 0, A_q * abs(q), 0,
-                    0, 0, 0, 0, 0, A_r * abs(r);
+                D << A_x * abs(u), 0.0, 0.0, 0.0, 0.0, 0.0,
+                    0.0, A_y * abs(v), 0.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, A_z * abs(w), 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, A_p * abs(p), 0.0, 0.0,
+                    0.0, 0.0, 0.0, 0.0, A_q * abs(q), 0.0,
+                    0.0, 0.0, 0.0, 0.0, 0.0, A_r * abs(r);
 
                 D = 0.5 * 1000 * D;
 
+                double W = m * 9.81;
+
                 // VETTORE DEI TERMINI GRAVITAZIONALI
-                G << 0,
-                    0,
-                    0,
+                G << 0.0,
+                    0.0,
+                    0.0,
                     -(y_g - y_b) * W * cos(phi) * cos(theta) + (z_g - z_b) * W * sin(phi) * cos(theta),
                     (z_g - z_b) * W * sin(theta) + (x_g - x_b) * W * cos(theta) * cos(phi),
                     -(x_g - x_b) * W * cos(theta) * sin(phi) - (y_g - y_b) * W * sin(theta);
 
-                Jacobian << cos(psi) * cos(theta), cos(psi) * sin(phi) * sin(theta) - cos(phi) * sin(psi), sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta), 0, 0, 0,
-                    cos(theta) * sin(psi), cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta), cos(phi) * sin(psi) * sin(theta) - cos(psi) * sin(phi), 0, 0, 0,
-                    -sin(theta), cos(theta) * sin(phi), cos(phi) * cos(theta), 0, 0, 0,
-                    0, 0, 0, 1, sin(phi) * tan(theta), cos(phi) * tan(theta),
-                    0, 0, 0, 0, cos(phi), -sin(phi),
-                    0, 0, 0, 0, sin(phi) / cos(theta), cos(phi) / cos(theta);
+                if(xi_curr(2) < 0.0){
+                    G(2) = -W;
+                }
+
+                Jacobian << cos(psi) * cos(theta), cos(psi) * sin(phi) * sin(theta) - cos(phi) * sin(psi), sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta), 0.0, 0.0, 0.0,
+                    cos(theta) * sin(psi), cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta), cos(phi) * sin(psi) * sin(theta) - cos(psi) * sin(phi), 0.0, 0.0, 0.0,
+                    -sin(theta), cos(theta) * sin(phi), cos(phi) * cos(theta), 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 1.0, sin(phi) * tan(theta), cos(phi) * tan(theta),
+                    0.0, 0.0, 0.0, 0.0, cos(phi), -sin(phi),
+                    0.0, 0.0, 0.0, 0.0, sin(phi) / cos(theta), cos(phi) / cos(theta);
 
                 eta_pred = dt * Jacobian * xi_curr.tail(6) + xi_curr.head(6);
                 nu_pred = dt * M.inverse() * (tau - C * xi_curr.tail(6) - D * xi_curr.tail(6) - G) + xi_curr.tail(6);
@@ -832,9 +833,9 @@ int main(int argc, char **argv)
                 mahalanobis_distance = sqrt((e_k.transpose() * S_k.inverse() * e_k));
             }
 
-            ////////////////////////////////////////////////////////////////////
-            /////////////////////////PREDICTION/////////////////////////////////
-            ////////////////////////////////////////////////////////////////////
+            ////////////////////////////////////////////////////////////////////////
+            /////////////////////////////PREDICTION/////////////////////////////////
+            ////////////////////////////////////////////////////////////////////////
 
             // VETTORE DI FORZE E MOMENTI
             Eigen::VectorXd tau(6);
@@ -925,6 +926,10 @@ int main(int argc, char **argv)
                 -(y_g - y_b) * W * cos(phi) * cos(theta) + (z_g - z_b) * W * sin(phi) * cos(theta),
                 (z_g - z_b) * W * sin(theta) + (x_g - x_b) * W * cos(theta) * cos(phi),
                 -(x_g - x_b) * W * cos(theta) * sin(phi) - (y_g - y_b) * W * sin(theta);
+            
+            if(xi_curr(2) < 0.0){
+                G(2) = -W;
+            }
 
             Jacobian << cos(psi) * cos(theta), cos(psi) * sin(phi) * sin(theta) - cos(phi) * sin(psi), sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta), 0, 0, 0,
                 cos(theta) * sin(psi), cos(phi) * cos(psi) + sin(phi) * sin(psi) * sin(theta), cos(phi) * sin(psi) * sin(theta) - cos(psi) * sin(phi), 0, 0, 0,

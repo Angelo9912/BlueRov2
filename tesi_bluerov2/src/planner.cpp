@@ -111,6 +111,9 @@ bool buoy_seen_prec = false;  // variabile di stato per capire se la camera ha v
 // strategia di guida con cui raggiungere i waypoint (Rect o Spline)
 std::string exploration_strategy = "Rect";
 
+// variabili per la gestione della missione
+std::string GNC_status = "";
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////// Subscriber callback function //////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -156,6 +159,11 @@ void estStateCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
         q_hat = msg->data[10];
         r_hat = msg->data[11];
     }
+}
+
+void GNCstatusCallback(const std_msgs::String::ConstPtr &msg) // CALLBACK che riceve lo stato del GNC
+{
+    GNC_status = msg->data;
 }
 
 // callback dei dati ricevuti dalla camera
@@ -237,8 +245,10 @@ int main(int argc, char **argv)
     ////////////////////////// Create a publisher object //////////////////////////
     ros::Publisher publisher = nh.advertise<tesi_bluerov2::waypoints>("waypoints_topic", 10);
     ros::Publisher publisher_status = nh.advertise<std_msgs::String>("manager/mission_status_requested_topic", 10);
+    ros::Publisher publisher_gnc_status = nh.advertise<std_msgs::String>("manager/GNC_status_requested_topic", 10); // publisher stato richiesto al GNC
 
     ////////////////////////// Create a subscriber object //////////////////////////
+    ros::Subscriber gnc_status_sub = nh.subscribe("manager/GNC_status_topic", 1, GNCstatusCallback); // sottoscrizione alla topic di stato del GNC
     ros::Subscriber subscriber = nh.subscribe("sensors/buoy_topic", 10, buoyCallback);
     ros::Subscriber subscriber_state = nh.subscribe("state/est_state_topic_no_dyn", 10, estStateCallback);
     ros::Subscriber subscriber_status = nh.subscribe("manager/mission_status_topic", 10, statusCallback);
@@ -355,77 +365,57 @@ int main(int argc, char **argv)
     ros::Rate loop_rate(20); // 20 Hz
     while (ros::ok())
     {
-        x_1 = x_hat;
-        y_1 = y_hat;
-        z_1 = z_hat;
-
-        // Calcolo delle coordinate della boa in terna body
-        double pos_rel_x = cos(psi_hat) * (x_b - x_hat) + sin(psi_hat) * (y_b - y_hat);
-        double pos_rel_y = -sin(psi_hat) * (x_b - x_hat) + cos(psi_hat) * (y_b - y_hat);
-        double pos_rel_z = z_b - z_hat;
-
-        // Condizione che deve essere rispettata per considerare la boa all'interno del range di visione della camera
-        bool buoy_seen = (pos_rel_x <= camera_range) && (pos_rel_y <= tan(camera_angle_horizontal / 2) * pos_rel_x) && (pos_rel_y >= -tan(camera_angle_horizontal / 2) * pos_rel_x) && (pos_rel_z <= tan(camera_angle_vertical / 2) * pos_rel_x) && (pos_rel_z >= -tan(camera_angle_vertical / 2));
-
-        // Compute distance from walls
-        dist_wall_up = abs(MAP_NE_y - y_hat);
-        dist_wall_down = abs(MAP_SW_y - y_hat);
-        dist_wall_left = abs(MAP_SW_x - x_hat);
-        dist_wall_right = abs(MAP_NE_x - x_hat);
-        dist_wall[0] = dist_wall_up;
-        dist_wall[1] = dist_wall_right;
-        dist_wall[2] = dist_wall_down;
-        dist_wall[3] = dist_wall_left;
-
-        // Calcolo del muro a distanza minima
-        int i_wall_min = 0;
-        for (int i = 0; i < 4; i++)
+        if (GNC_status == "GNC_READY")
         {
-            if (dist_wall[i] < dist_wall[i_wall_min])
+            x_1 = x_hat;
+            y_1 = y_hat;
+            z_1 = z_hat;
+
+            // Calcolo delle coordinate della boa in terna body
+            double pos_rel_x = cos(psi_hat) * (x_b - x_hat) + sin(psi_hat) * (y_b - y_hat);
+            double pos_rel_y = -sin(psi_hat) * (x_b - x_hat) + cos(psi_hat) * (y_b - y_hat);
+            double pos_rel_z = z_b - z_hat;
+
+            // Condizione che deve essere rispettata per considerare la boa all'interno del range di visione della camera
+            bool buoy_seen = (pos_rel_x <= camera_range) && (pos_rel_y <= tan(camera_angle_horizontal / 2) * pos_rel_x) && (pos_rel_y >= -tan(camera_angle_horizontal / 2) * pos_rel_x) && (pos_rel_z <= tan(camera_angle_vertical / 2) * pos_rel_x) && (pos_rel_z >= -tan(camera_angle_vertical / 2));
+
+            // Compute distance from walls
+            dist_wall_up = abs(MAP_NE_y - y_hat);
+            dist_wall_down = abs(MAP_SW_y - y_hat);
+            dist_wall_left = abs(MAP_SW_x - x_hat);
+            dist_wall_right = abs(MAP_NE_x - x_hat);
+            dist_wall[0] = dist_wall_up;
+            dist_wall[1] = dist_wall_right;
+            dist_wall[2] = dist_wall_down;
+            dist_wall[3] = dist_wall_left;
+
+            // Calcolo del muro a distanza minima
+            int i_wall_min = 0;
+            for (int i = 0; i < 4; i++)
             {
-                i_wall_min = i;
+                if (dist_wall[i] < dist_wall[i_wall_min])
+                {
+                    i_wall_min = i;
+                }
             }
-        }
 
-        if (n_buoys == 0)
-        {
-            condition_to_run = false;
-        }
-        else
-        {
-            // definisco il valore booleano della condizione per ripianificazione
-            condition_to_run = buoys_pos(n_buoys - 1, 0) == x_b && buoys_pos(n_buoys - 1, 1) == y_b && buoys_pos(n_buoys - 1, 2) == z_b && !is_used(n_buoys - 1, 0);
-        }
-        ///////////////////////////////////////////////////////////////////////////////////////////
-        //////////////////////////////// GESTIONE MACCHINA A STATI ////////////////////////////////
-        ///////////////////////////////////////////////////////////////////////////////////////////
-
-        if (mission_status == "IDLE")
-        {
-            /* Condizione idle solo a inizio missione, appena parte il pianificatore ci deve portare
-            in stato ready per poter caricare i waypoint */
-            status_req = "READY";
-
-            // Publish the message
-            std_msgs::String status_req_msg;
-            status_req_msg.data = status_req;
-
-            // Publish the message
-            publisher_status.publish(status_req_msg);
-        }
-
-        else if (mission_status == "PAUSED")
-        {
-            // se la posizione del robot è nell'intorno dell'ultimo waypoint, significa che questa
-            // parte di missione è stata completata e posso caricare nuovi waypoint, quindi vado a ready
-            Eigen::Vector3d last_waypoint;
-            last_waypoint << waypoints_x.tail(1), waypoints_y.tail(1), waypoints_z.tail(1);
-            double dist_to_last_waypoint = sqrt(pow((x_hat - last_waypoint(0)), 2) + pow((y_hat - last_waypoint(0)), 2) + pow((z_hat - last_waypoint(0)), 2));
-            if (dist_to_last_waypoint < 0.5)
-                delete_mission = true;
-
-            if (delete_mission)
+            if (n_buoys == 0)
             {
+                condition_to_run = false;
+            }
+            else
+            {
+                // definisco il valore booleano della condizione per ripianificazione
+                condition_to_run = buoys_pos(n_buoys - 1, 0) == x_b && buoys_pos(n_buoys - 1, 1) == y_b && buoys_pos(n_buoys - 1, 2) == z_b && !is_used(n_buoys - 1, 0);
+            }
+            ///////////////////////////////////////////////////////////////////////////////////////////
+            //////////////////////////////// GESTIONE MACCHINA A STATI ////////////////////////////////
+            ///////////////////////////////////////////////////////////////////////////////////////////
+
+            if (mission_status == "IDLE")
+            {
+                /* Condizione idle solo a inizio missione, appena parte il pianificatore ci deve portare
+                in stato ready per poter caricare i waypoint */
                 status_req = "READY";
 
                 // Publish the message
@@ -434,216 +424,239 @@ int main(int argc, char **argv)
 
                 // Publish the message
                 publisher_status.publish(status_req_msg);
-                delete_mission = false;
-                ros::Duration(2).sleep(); // sleep
             }
-            else
+
+            else if (mission_status == "PAUSED")
             {
-                status_req = "RUNNING";
+                // se la posizione del robot è nell'intorno dell'ultimo waypoint, significa che questa
+                // parte di missione è stata completata e posso caricare nuovi waypoint, quindi vado a ready
+                Eigen::Vector3d last_waypoint;
+                last_waypoint << waypoints_x.tail(1), waypoints_y.tail(1), waypoints_z.tail(1);
+                double dist_to_last_waypoint = sqrt(pow((x_hat - last_waypoint(0)), 2) + pow((y_hat - last_waypoint(0)), 2) + pow((z_hat - last_waypoint(0)), 2));
+                if (dist_to_last_waypoint < 0.5)
+                    delete_mission = true;
 
-                // Publish the message
-                std_msgs::String status_req_msg;
-                status_req_msg.data = status_req;
-
-                // Publish the message
-                publisher_status.publish(status_req_msg);
-            }
-        }
-
-        else if (mission_status == "READY")
-        {
-            if (to_target)
-            {
-                waypoint_msg.strategy = "Target";
-                std::vector<double> waypoint_pos = {target_x, target_y, target_z};
-                waypoint_msg.waypoints = waypoint_pos;
-                waypoint_msg.speed = surge_speed;
-                publisher.publish(waypoint_msg);
-                ROS_WARN("MAPPA ESPLORATA, POSSO ANDARE AL TARGET FINALE");
-                status_req = "RUNNING";
-
-                // Publish the message
-                std_msgs::String status_req_msg;
-                status_req_msg.data = status_req;
-
-                // Publish the message
-                publisher_status.publish(status_req_msg);
-
-                ros::Duration(0.5).sleep(); // sleep
-            }
-            else if (strategy == "Circumference" && buoy_seen_prec && condition_to_run)
-            {
-                delete_mission = true;
-                buoy_seen_prec = false;
-                ROS_WARN("CIRCUMFERENCE");
-                is_used(n_buoys - 1, 0) = true;
-                waypoint_msg.strategy = "Circumference";
-
-                // Calcolo dei punti in terna body
-
-                double x_boa_body = cos(psi_hat) * (x_b - x_hat) + sin(psi_hat) * (y_b - y_hat);
-                double y_boa_body = -sin(psi_hat) * (x_b - x_hat) + cos(psi_hat) * (y_b - y_hat);
-                double z_boa_body = z_b - z_hat;
-
-                double alpha = atan2(y_boa_body, x_boa_body);
-
-                // Calcolo del punto di tangenza alla circonferenza in terna body
-                double x_p_body = x_boa_body + cos(alpha);
-                double y_p_body = y_boa_body + sin(alpha);
-                double z_p_body = z_boa_body;
-
-                // Trasformazione in terna NED
-
-                double x_p = cos(psi_hat) * x_p_body - sin(psi_hat) * y_p_body + x_hat;
-                double y_p = sin(psi_hat) * x_p_body + cos(psi_hat) * y_p_body + y_hat;
-                double z_p = z_p_body + z_hat;
-
-                std::vector<double> waypoint_pos = {x_b, y_b, z_b, x_p, y_p, z_p};
-                waypoint_msg.waypoints = waypoint_pos;
-                waypoint_msg.speed = surge_speed_replanning;
-                waypoint_msg.approach = approach;
-                status_req = "RUNNING";
-                // Publish the message
-                std_msgs::String status_req_msg;
-                status_req_msg.data = status_req;
-                // Publish the message
-                publisher_status.publish(status_req_msg);
-                publisher.publish(waypoint_msg);
-                ros::Duration(0.5).sleep(); // sleep
-            }
-            else if (strategy == "UP_DOWN" && buoy_seen_prec && condition_to_run)
-            {
-                delete_mission = true;
-                buoy_seen_prec = false;
-                ROS_WARN("UP_DOWN");
-                is_used(n_buoys - 1, 0) = true;
-                waypoint_msg.strategy = "UP_DOWN";
-
-                // Calcolo dei punti in terna body
-
-                double x_boa_body = cos(psi_hat) * (x_b - x_hat) + sin(psi_hat) * (y_b - y_hat);
-                double y_boa_body = -sin(psi_hat) * (x_b - x_hat) + cos(psi_hat) * (y_b - y_hat);
-                double z_boa_body = z_b - z_hat;
-
-                double alpha = atan2(y_boa_body, x_boa_body);
-
-                if (y_boa_body > 0)
+                if (delete_mission)
                 {
-                    alpha = alpha - M_PI / 2;
+                    status_req = "READY";
+
+                    // Publish the message
+                    std_msgs::String status_req_msg;
+                    status_req_msg.data = status_req;
+
+                    // Publish the message
+                    publisher_status.publish(status_req_msg);
+                    delete_mission = false;
+                    ros::Duration(2).sleep(); // sleep
                 }
                 else
                 {
-                    alpha = alpha + M_PI / 2;
+                    status_req = "RUNNING";
+
+                    // Publish the message
+                    std_msgs::String status_req_msg;
+                    status_req_msg.data = status_req;
+
+                    // Publish the message
+                    publisher_status.publish(status_req_msg);
                 }
-
-                // Calcolo del punto di tangenza alla circonferenza in terna body
-                double x_p_body = x_boa_body + cos(alpha);
-                double y_p_body = y_boa_body + sin(alpha);
-                double z_p_body = z_boa_body;
-
-                // Trasformazione in terna mondo
-
-                double x_p = cos(psi_hat) * x_p_body - sin(psi_hat) * y_p_body + x_hat;
-                double y_p = sin(psi_hat) * x_p_body + cos(psi_hat) * y_p_body + y_hat;
-                double z_p = z_p_body + z_hat;
-
-                std::vector<double> waypoint_pos = {x_p, y_p, z_p};
-                waypoint_msg.waypoints = waypoint_pos;
-                waypoint_msg.speed = surge_speed;
-                waypoint_msg.approach = approach;
-
-                status_req = "RUNNING";
-
-                // Publish the message
-                std_msgs::String status_req_msg;
-                status_req_msg.data = status_req;
-
-                // Publish the message
-                publisher_status.publish(status_req_msg);
-                publisher.publish(waypoint_msg);
-                ros::Duration(2).sleep(); // sleep for half a second
             }
-            else
-            {
-                std::vector<double> waypoint_pos = {};
-                ROS_WARN("WAYPOINT MANCANTI \n");
 
+            else if (mission_status == "READY")
+            {
+                if (to_target)
+                {
+                    waypoint_msg.strategy = "Target";
+                    std::vector<double> waypoint_pos = {target_x, target_y, target_z};
+                    waypoint_msg.waypoints = waypoint_pos;
+                    waypoint_msg.speed = surge_speed;
+                    publisher.publish(waypoint_msg);
+                    ROS_WARN("MAPPA ESPLORATA, POSSO ANDARE AL TARGET FINALE");
+                    status_req = "RUNNING";
+
+                    // Publish the message
+                    std_msgs::String status_req_msg;
+                    status_req_msg.data = status_req;
+
+                    // Publish the message
+                    publisher_status.publish(status_req_msg);
+
+                    ros::Duration(0.5).sleep(); // sleep
+                }
+                else if (strategy == "Circumference" && buoy_seen_prec && condition_to_run)
+                {
+                    delete_mission = true;
+                    buoy_seen_prec = false;
+                    ROS_WARN("CIRCUMFERENCE");
+                    is_used(n_buoys - 1, 0) = true;
+                    waypoint_msg.strategy = "Circumference";
+
+                    // Calcolo dei punti in terna body
+
+                    double x_boa_body = cos(psi_hat) * (x_b - x_hat) + sin(psi_hat) * (y_b - y_hat);
+                    double y_boa_body = -sin(psi_hat) * (x_b - x_hat) + cos(psi_hat) * (y_b - y_hat);
+                    double z_boa_body = z_b - z_hat;
+
+                    double alpha = atan2(y_boa_body, x_boa_body);
+
+                    // Calcolo del punto di tangenza alla circonferenza in terna body
+                    double x_p_body = x_boa_body + cos(alpha);
+                    double y_p_body = y_boa_body + sin(alpha);
+                    double z_p_body = z_boa_body;
+
+                    // Trasformazione in terna NED
+
+                    double x_p = cos(psi_hat) * x_p_body - sin(psi_hat) * y_p_body + x_hat;
+                    double y_p = sin(psi_hat) * x_p_body + cos(psi_hat) * y_p_body + y_hat;
+                    double z_p = z_p_body + z_hat;
+
+                    std::vector<double> waypoint_pos = {x_b, y_b, z_b, x_p, y_p, z_p};
+                    waypoint_msg.waypoints = waypoint_pos;
+                    waypoint_msg.speed = surge_speed_replanning;
+                    waypoint_msg.approach = approach;
+                    status_req = "RUNNING";
+                    // Publish the message
+                    std_msgs::String status_req_msg;
+                    status_req_msg.data = status_req;
+                    // Publish the message
+                    publisher_status.publish(status_req_msg);
+                    publisher.publish(waypoint_msg);
+                    ros::Duration(0.5).sleep(); // sleep
+                }
+                else if (strategy == "UP_DOWN" && buoy_seen_prec && condition_to_run)
+                {
+                    delete_mission = true;
+                    buoy_seen_prec = false;
+                    ROS_WARN("UP_DOWN");
+                    is_used(n_buoys - 1, 0) = true;
+                    waypoint_msg.strategy = "UP_DOWN";
+
+                    // Calcolo dei punti in terna body
+
+                    double x_boa_body = cos(psi_hat) * (x_b - x_hat) + sin(psi_hat) * (y_b - y_hat);
+                    double y_boa_body = -sin(psi_hat) * (x_b - x_hat) + cos(psi_hat) * (y_b - y_hat);
+                    double z_boa_body = z_b - z_hat;
+
+                    double alpha = atan2(y_boa_body, x_boa_body);
+
+                    if (y_boa_body > 0)
+                    {
+                        alpha = alpha - M_PI / 2;
+                    }
+                    else
+                    {
+                        alpha = alpha + M_PI / 2;
+                    }
+
+                    // Calcolo del punto di tangenza alla circonferenza in terna body
+                    double x_p_body = x_boa_body + cos(alpha);
+                    double y_p_body = y_boa_body + sin(alpha);
+                    double z_p_body = z_boa_body;
+
+                    // Trasformazione in terna mondo
+
+                    double x_p = cos(psi_hat) * x_p_body - sin(psi_hat) * y_p_body + x_hat;
+                    double y_p = sin(psi_hat) * x_p_body + cos(psi_hat) * y_p_body + y_hat;
+                    double z_p = z_p_body + z_hat;
+
+                    std::vector<double> waypoint_pos = {x_p, y_p, z_p};
+                    waypoint_msg.waypoints = waypoint_pos;
+                    waypoint_msg.speed = surge_speed;
+                    waypoint_msg.approach = approach;
+
+                    status_req = "RUNNING";
+
+                    // Publish the message
+                    std_msgs::String status_req_msg;
+                    status_req_msg.data = status_req;
+
+                    // Publish the message
+                    publisher_status.publish(status_req_msg);
+                    publisher.publish(waypoint_msg);
+                    ros::Duration(2).sleep(); // sleep for half a second
+                }
+                else
+                {
+                    std::vector<double> waypoint_pos = {};
+                    ROS_WARN("WAYPOINT MANCANTI \n");
+
+                    for (int i = 0; i < n_waypoints; i++)
+                    {
+                        if (waypoint_passed(i) == 0)
+                        {
+                            ROS_WARN("WAYPOINT %d", i);
+                            waypoint_msg.strategy = exploration_strategy;
+                            std::vector<double> waypoint_tmp = {waypoints_x(i), waypoints_y(i), waypoints_z(i)};
+                            waypoint_pos.insert(waypoint_pos.end(), waypoint_tmp.begin(), waypoint_tmp.end());
+                        }
+                    }
+                    waypoint_msg.waypoints = waypoint_pos;
+                    waypoint_msg.speed = surge_speed;
+
+                    publisher.publish(waypoint_msg);
+                    status_req = "RUNNING";
+
+                    // Publish the message
+                    std_msgs::String status_req_msg;
+                    status_req_msg.data = status_req;
+                    // Publish the message
+                    publisher_status.publish(status_req_msg);
+                    ros::Duration(2).sleep(); // sleep
+                }
+            }
+            // CASO DI EMERGENZA (se il robot si trova troppo vicino al muro)
+            else if (mission_status == "RUNNING")
+            {
+                double dist_to_next_waypoint;
                 for (int i = 0; i < n_waypoints; i++)
                 {
                     if (waypoint_passed(i) == 0)
                     {
-                        ROS_WARN("WAYPOINT %d", i);
-                        waypoint_msg.strategy = exploration_strategy;
-                        std::vector<double> waypoint_tmp = {waypoints_x(i), waypoints_y(i), waypoints_z(i)};
-                        waypoint_pos.insert(waypoint_pos.end(), waypoint_tmp.begin(), waypoint_tmp.end());
-                    }
-                }
-                waypoint_msg.waypoints = waypoint_pos;
-                waypoint_msg.speed = surge_speed;
-
-                publisher.publish(waypoint_msg);
-                status_req = "RUNNING";
-
-                // Publish the message
-                std_msgs::String status_req_msg;
-                status_req_msg.data = status_req;
-                // Publish the message
-                publisher_status.publish(status_req_msg);
-                ros::Duration(2).sleep(); // sleep
-            }
-        }
-        // CASO DI EMERGENZA (se il robot si trova troppo vicino al muro)
-        else if (mission_status == "RUNNING")
-        {
-            double dist_to_next_waypoint;
-            for (int i = 0; i < n_waypoints; i++)
-            {
-                if (waypoint_passed(i) == 0)
-                {
-                    dist_to_next_waypoint = sqrt(pow((x_hat - waypoints_x(i)), 2) + pow((y_hat - waypoints_y(i)), 2) + pow((z_hat - waypoints_z(i)), 2));
-                    if (dist_to_next_waypoint < 0.3)
-                    {
-                        if (i == 0)
+                        dist_to_next_waypoint = sqrt(pow((x_hat - waypoints_x(i)), 2) + pow((y_hat - waypoints_y(i)), 2) + pow((z_hat - waypoints_z(i)), 2));
+                        if (dist_to_next_waypoint < 0.3)
                         {
-                            ROS_WARN("SONO PASSATO DAL WAYPOINT %d", i);
-                            waypoint_passed(i) = 1;
-                        }
-                        else
-                        {
-                            if (waypoint_passed(i - 1) == 1)
+                            if (i == 0)
                             {
                                 ROS_WARN("SONO PASSATO DAL WAYPOINT %d", i);
                                 waypoint_passed(i) = 1;
                             }
+                            else
+                            {
+                                if (waypoint_passed(i - 1) == 1)
+                                {
+                                    ROS_WARN("SONO PASSATO DAL WAYPOINT %d", i);
+                                    waypoint_passed(i) = 1;
+                                }
+                            }
                         }
                     }
                 }
-            }
-            /*if (dist_wall[i_wall_direction] <= SAFE_DIST && !to_target)
-            {
-            }
-            // PASSAGGIO DA SPLINE A BOA
-            else */
-            if (buoy_seen && waypoint_msg.strategy == exploration_strategy && condition_to_run)
-            {
-                delete_mission = true;
-                ROS_WARN("BUOY SEEN");
-                buoy_seen_prec = true;
+                /*if (dist_wall[i_wall_direction] <= SAFE_DIST && !to_target)
+                {
+                }
+                // PASSAGGIO DA SPLINE A BOA
+                else */
+                if (buoy_seen && waypoint_msg.strategy == exploration_strategy && condition_to_run)
+                {
+                    delete_mission = true;
+                    ROS_WARN("BUOY SEEN");
+                    buoy_seen_prec = true;
 
-                std_msgs::String status_req_msg;
-                status_req = "PAUSED";
+                    std_msgs::String status_req_msg;
+                    status_req = "PAUSED";
 
-                status_req_msg.data = status_req;
-                // Publish the message
-                publisher_status.publish(status_req_msg);
-                ros::Duration(0.5).sleep(); // sleep for half a second
-            }
-            Eigen::Vector3d last_waypoint;
-            last_waypoint << waypoints_x.tail(1), waypoints_y.tail(1), waypoints_z.tail(1);
-            double dist_to_last_waypoint = sqrt(pow((x_hat - last_waypoint(0)), 2) + pow((y_hat - last_waypoint(0)), 2) + pow((z_hat - last_waypoint(0)), 2));
-            if (dist_to_last_waypoint < 0.5)
-            {
-                delete_mission = false;
+                    status_req_msg.data = status_req;
+                    // Publish the message
+                    publisher_status.publish(status_req_msg);
+                    ros::Duration(0.5).sleep(); // sleep for half a second
+                }
+                Eigen::Vector3d last_waypoint;
+                last_waypoint << waypoints_x.tail(1), waypoints_y.tail(1), waypoints_z.tail(1);
+                double dist_to_last_waypoint = sqrt(pow((x_hat - last_waypoint(0)), 2) + pow((y_hat - last_waypoint(0)), 2) + pow((z_hat - last_waypoint(0)), 2));
+                if (dist_to_last_waypoint < 0.5)
+                {
+                    delete_mission = false;
+                }
             }
         }
         // Process any incoming messages

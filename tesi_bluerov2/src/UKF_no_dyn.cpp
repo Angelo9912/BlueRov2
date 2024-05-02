@@ -124,6 +124,8 @@ double N_p_dot = 0.0;
 double N_q_dot = 0.0;
 double N_r_dot = 0.0;
 
+std::string GNC_status = "NOT_READY";
+
 // Distanza di Mahalanobis
 double mahalanobis_distance = 0.0;
 
@@ -545,6 +547,11 @@ UnscentedOutput UnscentedTransform_Correction(Eigen::VectorXd xi_k, Eigen::Vecto
     return UnscentedOutput(e_k, Pzz_out + R, Pxz_out);
 }
 
+void GNCstatusCallback(const std_msgs::String::ConstPtr &msg) // CALLBACK che riceve lo stato del GNC
+{
+    GNC_status = msg->data;
+}
+
 // Callback function for the subscriber
 void GPSCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
 {
@@ -585,9 +592,6 @@ void IMUCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
         phi_IMU = 0.0;
         theta_IMU = 0.0;
         psi_IMU = 0.0;
-        p_IMU = 0.0;
-        q_IMU = 0.0;
-        r_IMU = 0.0;
         valid_IMU = 0;
     }
     else
@@ -595,10 +599,7 @@ void IMUCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
         phi_IMU = msg->data[0];
         theta_IMU = msg->data[1];
         psi_IMU = msg->data[2];
-        p_IMU = msg->data[3];
-        q_IMU = msg->data[4];
-        r_IMU = msg->data[5];
-        valid_IMU = msg->data[6];
+        valid_IMU = msg->data[3];
     }
 }
 
@@ -705,8 +706,8 @@ int main(int argc, char **argv)
     bool is_depth_init = false;
     bool is_IMU_init = false;
 
-    Eigen::VectorXd var_sensors(14);
-    var_sensors << var_x_GPS, var_y_GPS, var_x_scanner, var_y_scanner, var_z_depth_sensor, var_phi_IMU, var_theta_IMU, var_psi_IMU, var_u_DVL, var_v_DVL, var_w_DVL, var_p_IMU, var_q_IMU, var_r_IMU;
+    Eigen::VectorXd var_sensors(11);
+    var_sensors << var_x_GPS, var_y_GPS, var_x_scanner, var_y_scanner, var_z_depth_sensor, var_phi_IMU, var_theta_IMU, var_psi_IMU, var_u_DVL, var_v_DVL, var_w_DVL;
 
     Eigen::MatrixXd Q(6, 6);
     Q << var_acc_u, 0, 0, 0, 0, 0,
@@ -722,7 +723,11 @@ int main(int argc, char **argv)
     // Create a publisher object
     ros::Publisher est_state_pub = n.advertise<tesi_bluerov2::Floats>("state/est_state_UKF_no_dyn_topic", 1000);
 
+    ros::Publisher publisher_gnc_status = n.advertise<std_msgs::String>("manager/GNC_status_requested_topic", 10); // publisher stato richiesto al GNC
+
     // Create subscriber objects
+
+    ros::Subscriber gnc_status_sub = n.subscribe("manager/GNC_status_topic", 1, GNCstatusCallback); // sottoscrizione alla topic di stato del GNC
 
     ros::Subscriber acc_sub = n.subscribe("sensors/acc_topic", 1000, acc_callback);
 
@@ -747,8 +752,16 @@ int main(int argc, char **argv)
         ///////////////////////////////////////////////////////////////////////
         ///////////////// INITIALIZATION OF THE FILTER ////////////////////////
         ///////////////////////////////////////////////////////////////////////
+        if (GNC_status == "NOT_READY")
+        {
+            std::string status_req = "NAVIGATION_READY";
+            std_msgs::String msg;
+            msg.data = status_req;
 
-        if (!is_init)
+            // Publish the message on the "topic1" topic
+            publisher_gnc_status.publish(msg);
+        }
+        else if (!is_init && GNC_status != "NOT_READY")
         {
             double var_x;
             double var_y;
@@ -782,16 +795,15 @@ int main(int argc, char **argv)
                 xi_curr(4) = theta_IMU;
                 xi_curr(5) = psi_IMU;
 
-                xi_curr(9) = p_IMU;
-                xi_curr(10) = q_IMU;
-                xi_curr(11) = r_IMU;
-
                 is_IMU_init = true;
             }
-
-            xi_curr(6) = 0.0 + gaussianNoise(0, var_u_DVL);
-            xi_curr(7) = 0.0 + gaussianNoise(0, var_v_DVL);
-            xi_curr(8) = 0.0 + gaussianNoise(0, var_w_DVL);
+            xi_curr.setZero();
+            // xi_curr(6) = 0.0 + gaussianNoise(0, var_u_DVL);
+            // xi_curr(7) = 0.0 + gaussianNoise(0, var_v_DVL);
+            // xi_curr(8) = 0.0 + gaussianNoise(0, var_w_DVL);
+            // xi_curr(9) = 0.0 + gaussianNoise(0, var_p_IMU);
+            // xi_curr(10) = 0.0 + gaussianNoise(0, var_q_IMU);
+            // xi_curr(11) = 0.0 + gaussianNoise(0, var_r_IMU);
 
             P_curr << var_x, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, var_y, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -822,6 +834,7 @@ int main(int argc, char **argv)
                 // VETTORE DI FORZE E MOMENTI
                 Eigen::VectorXd acc(3);
                 acc << a_u, a_v, a_w;
+
                 // Predizione
                 UnscentedOutput Prediction_out = UnscentedTransform_Prediction(xi_curr, acc, P_curr, Q, dt);
 
@@ -837,11 +850,11 @@ int main(int argc, char **argv)
             ///////////////////////////////////////////////////////////////////////
 
             // VETTORE DI MISURA
-            Eigen::VectorXd z(14);
-            z << x_GPS, y_GPS, x_scanner, y_scanner, z_depth_sensor, phi_IMU, theta_IMU, psi_IMU, u_DVL, v_DVL, w_DVL, p_IMU, q_IMU, r_IMU;
+            Eigen::VectorXd z(11);
+            z << x_GPS, y_GPS, x_scanner, y_scanner, z_depth_sensor, phi_IMU, theta_IMU, psi_IMU, u_DVL, v_DVL, w_DVL;
 
-            Eigen::VectorXd valid(14);
-            valid << valid_GPS, valid_GPS, valid_scanner, valid_scanner, valid_depth_sensor, valid_IMU, valid_IMU, valid_IMU, valid_DVL, valid_DVL, valid_DVL, valid_IMU, valid_IMU, valid_IMU;
+            Eigen::VectorXd valid(11);
+            valid << valid_GPS, valid_GPS, valid_scanner, valid_scanner, valid_depth_sensor, valid_IMU, valid_IMU, valid_IMU, valid_DVL, valid_DVL, valid_DVL;
 
             // Pesco le misure valide
             Eigen::VectorXd z_valid(1);
