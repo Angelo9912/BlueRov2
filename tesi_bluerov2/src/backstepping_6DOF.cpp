@@ -147,20 +147,24 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "backstepping_6DOF");
     ros::NodeHandle n;
     rosbag::Bag tau_bag;
+    rosbag::Bag error_bag;
     std::string path = ros::package::getPath("tesi_bluerov2");
     tau_bag.open(path + "/bag/tau.bag", rosbag::bagmode::Write);
+    error_bag.open(path + "/bag/error.bag", rosbag::bagmode::Write);
 
     ros::Publisher chatter_pub = n.advertise<tesi_bluerov2::Floats>("tau_topic", 1);
     ros::Publisher publisher_gnc_status = n.advertise<std_msgs::String>("manager/GNC_status_requested_topic", 10); // publisher stato richiesto al GNC
+    ros::Publisher pub_error = n.advertise<tesi_bluerov2::Floats>("error_topic", 1);
 
     ros::Subscriber sub_gnc_status = n.subscribe("manager/GNC_status_topic", 1, GNCstatusCallback); // sottoscrizione alla topic di stato del GNC
     ros::Subscriber sub_des_state = n.subscribe("state/desired_state_topic", 1, desStateCallback);
-    ros::Subscriber sub_est_state = n.subscribe("state/est_state_topic", 1, estStateCallback);
-    //ros::Subscriber sub_est_state = n.subscribe("state/state_topic", 1, estStateCallback);
+    // ros::Subscriber sub_est_state = n.subscribe("state/est_state_topic", 1, estStateCallback);
+    ros::Subscriber sub_est_state = n.subscribe("state/state_topic", 1, estStateCallback);
 
-    double freq = 200;
+    double freq = 60;
     double dt = 1 / freq;
     ros::Rate loop_rate(freq);
+    tesi_bluerov2::Floats error_to_plot_msg;
 
     // Import parameters from YAML file
     double m = 0.0;
@@ -522,16 +526,17 @@ int main(int argc, char **argv)
             }
 
             std::vector<double> torques = {torques_vec(0), torques_vec(1), torques_vec(2), 0.0, 0.0, torques_vec(3)};
-
+            std::vector<double> error_to_plot = {error(0), error(1), error(2), error(3), error(4), error(5), s(0), s(1), s(2), s(3), s(4), s(5)};
             // Publishing the torques
             tesi_bluerov2::Floats torques_msg;
             torques_msg.data = torques;
-
+            error_to_plot_msg.data = error_to_plot;
             chatter_pub.publish(torques_msg);
-
+            pub_error.publish(error_to_plot_msg);
             if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
             {
                 tau_bag.write("tau_topic", ros::Time::now(), torques_msg);
+                error_bag.write("error_topic", ros::Time::now(), error_to_plot_msg);
             }
         }
 
@@ -540,5 +545,6 @@ int main(int argc, char **argv)
         loop_rate.sleep();
     }
     tau_bag.close();
+    error_bag.close();
     return 0;
 }

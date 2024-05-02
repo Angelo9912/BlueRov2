@@ -205,16 +205,16 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "guidance");
     ros::NodeHandle n;
     // Definisco publisher e subscriber
-    ros::Publisher guidance_pub = n.advertise<tesi_bluerov2::Floats>("state/desired_state_topic", 1);      // publisher stato desiderato
+    ros::Publisher guidance_pub = n.advertise<tesi_bluerov2::Floats>("state/desired_state_topic", 1);              // publisher stato desiderato
     ros::Publisher publisher_status = n.advertise<std_msgs::String>("manager/mission_status_requested_topic", 10); // publisher stato richiesto al manager di missione
-    ros::Publisher publisher_gnc_status = n.advertise<std_msgs::String>("manager/GNC_status_requested_topic", 10);   // publisher stato richiesto al GNC
-    
+    ros::Publisher publisher_gnc_status = n.advertise<std_msgs::String>("manager/GNC_status_requested_topic", 10); // publisher stato richiesto al GNC
+
     ros::Subscriber sub_gnc_status = n.subscribe("manager/GNC_status_topic", 1, GNCstatusCallback); // sottoscrizione alla topic di stato del GNC
-    ros::Subscriber sub_est_state = n.subscribe("state/est_state_topic", 1, estStateCallback); // sottoscrizione alla topic di stato stimato
-    ros::Subscriber sub_waypoint = n.subscribe("waypoints_topic", 1, waypointCallback);            // sottoscrizione alla topic di waypoint
-    ros::Subscriber sub_status = n.subscribe("manager/mission_status_topic", 1, statusCallback);           // sottoscrizione alla topic di mission status
-    double freq = 50.0;                                                                            // frequenza di lavoro
-    double dt = 1 / freq;                                                                          // tempo di campionamento
+    ros::Subscriber sub_est_state = n.subscribe("state/state_topic", 1, estStateCallback);      // sottoscrizione alla topic di stato stimato
+    ros::Subscriber sub_waypoint = n.subscribe("waypoints_topic", 1, waypointCallback);             // sottoscrizione alla topic di waypoint
+    ros::Subscriber sub_status = n.subscribe("manager/mission_status_topic", 1, statusCallback);    // sottoscrizione alla topic di mission status
+    double freq = 50.0;                                                                             // frequenza di lavoro
+    double dt = 1 / freq;                                                                           // tempo di campionamento
     ros::Rate loop_rate(freq);
     double i_psi = 0.0;
     int post_up_down = 0;        // intero che mi dice se la guida rect deve ripartire a seguito di un up_down
@@ -669,11 +669,11 @@ int main(int argc, char **argv)
 
                         if (angleDifference(psi_to_go(way_counter - 1) - psi_1) > 10 * (M_PI / 180))
                         {
-                            dim1(way_counter - 1) = (int)(angleDifference(psi_to_go(way_counter - 1) - psi_1) * freq / (5 * (M_PI / 180)));
+                            dim1(way_counter - 1) = (int)(angleDifference(psi_to_go(way_counter - 1) - psi_1) * freq / (10 * (M_PI / 180)));
                         }
                         else if (angleDifference(psi_to_go(way_counter - 1) - psi_1) < -10 * (M_PI / 180))
                         {
-                            dim1(way_counter - 1) = (int)(angleDifference(psi_1 - psi_to_go(way_counter - 1)) * freq / (5 * (M_PI / 180)));
+                            dim1(way_counter - 1) = (int)(angleDifference(psi_1 - psi_to_go(way_counter - 1)) * freq / (10 * (M_PI / 180)));
                         }
                         else
                         {
@@ -690,7 +690,7 @@ int main(int argc, char **argv)
                             theta_d = 0.0;
                             psi_d = psi_1 + i_psi * delta_psi(way_counter - 1);
                             psi_d = atan2(sin(psi_d), cos(psi_d));
-                            i_psi = i_psi + 0.5;
+                            i_psi++;
                             if (i_psi >= dim1(way_counter - 1) - 1)
                             {
                                 is_psi_adjusted = true;
@@ -704,11 +704,11 @@ int main(int argc, char **argv)
                             r_d = 0.0;
                             if (psi_d > psi_1)
                             {
-                                r_d = 5.0 * M_PI / 180;
+                                r_d = 10.0 * M_PI / 180;
                             }
                             else if (psi_d < psi_1)
                             {
-                                r_d = -5.0 * M_PI / 180;
+                                r_d = -10.0 * M_PI / 180;
                             }
                         }
                         else
@@ -732,7 +732,7 @@ int main(int argc, char **argv)
                             pos_rel_z(way_counter - 1) = way_spline_z(way_counter) - way_spline_z(way_counter - 1);
 
                             dist_to_targ(way_counter - 1) = sqrt(pow(pos_rel_x(way_counter - 1), 2) + pow(pos_rel_y(way_counter - 1), 2) + pow(pos_rel_z(way_counter - 1), 2));
-                            double step = 0.5;
+                            double step = 1.0 / 50.0;
                             middle_waypoints(way_counter - 1) = (int)(floor(dist_to_targ(way_counter - 1) / step)); // numero di waypoint intermedi
 
                             dx(way_counter - 1) = pos_rel_x(way_counter - 1) / middle_waypoints(way_counter - 1);
@@ -785,9 +785,13 @@ int main(int argc, char **argv)
 
                             double dist_to_waypoint = sqrt(pow(error_x_to_waypoint, 2) + pow(error_y_to_waypoint, 2) + pow(error_z_to_waypoint, 2));
 
-                            if (dist_to_waypoint < 0.1 || sqrt(pow(pos_rel_x(way_counter - 1), 2) + pow(pos_rel_y(way_counter - 1), 2)) < 0.1)
+                            if (dist_to_waypoint < 0.3 || sqrt(pow(pos_rel_x(way_counter - 1), 2) + pow(pos_rel_y(way_counter - 1), 2)) < 0.3)
                             {
                                 u_d = 0.0;
+                            }
+                            else if (dist_to_waypoint < 0.75 || sqrt(pow(pos_rel_x(way_counter - 1), 2) + pow(pos_rel_y(way_counter - 1), 2)) < 0.75)
+                            {
+                                u_d = speed/2;
                             }
                             else
                             {

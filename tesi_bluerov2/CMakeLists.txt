@@ -277,9 +277,17 @@ add_executable(EKF_dynamics src/EKF_dynamics.cpp)
 target_link_libraries(EKF_dynamics ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(EKF_dynamics ${catkin_EXPORTED_TARGETS})
 
+add_executable(EKF_dynamics_imu src/EKF_dynamics_imu.cpp)
+target_link_libraries(EKF_dynamics_imu ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(EKF_dynamics_imu ${catkin_EXPORTED_TARGETS})
+
 add_executable(EKF_no_dyn src/EKF_no_dyn.cpp)
 target_link_libraries(EKF_no_dyn ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(EKF_no_dyn ${catkin_EXPORTED_TARGETS})
+
+add_executable(EKF_no_dyn_imu src/EKF_no_dyn_imu.cpp)
+target_link_libraries(EKF_no_dyn_imu ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(EKF_no_dyn_imu ${catkin_EXPORTED_TARGETS})
 
 add_executable(UKF_dynamics src/UKF_dynamics.cpp)
 target_link_libraries(UKF_dynamics ${catkin_LIBRARIES} ${roscpp_LIBRARIES})

@@ -104,9 +104,9 @@ var_model_x: 0.01
 var_model_y: 0.01
 var_model_z: 0.01
 
-var_model_p: 0.01
-var_model_q: 0.01
-var_model_r: 0.01
+var_model_p: 0.1
+var_model_q: 0.1
+var_model_r: 0.1
 
 var_acc_u: 0.000096236
 var_acc_v: 0.000096236

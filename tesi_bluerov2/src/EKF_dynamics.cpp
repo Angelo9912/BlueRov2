@@ -201,6 +201,13 @@ double gaussianNoise(double mean, double var)
     return d(gen);
 }
 
+double wrapToPi(double x){
+    x = fmod(x*180/M_PI + 180,360);
+    if (x < 0)
+        x += 360;
+    return (x - 180)*M_PI/180;
+}
+
 //////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////// CALLBACKS //////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////
@@ -508,7 +515,7 @@ int main(int argc, char **argv)
 
             // Publish the message on the "topic1" topic
             publisher_gnc_status.publish(msg);
-        }   
+        }
         else if (!is_init && GNC_status != "NOT_READY")
         {
             double var_x;
@@ -551,7 +558,6 @@ int main(int argc, char **argv)
             xi_curr(9) = 0.0 + gaussianNoise(0, var_p_IMU);
             xi_curr(10) = 0.0 + gaussianNoise(0, var_q_IMU);
             xi_curr(11) = 0.0 + gaussianNoise(0, var_r_IMU);
-
 
             P_curr << var_x, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, var_y, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -670,7 +676,8 @@ int main(int argc, char **argv)
                     (z_g - z_b) * W * sin(theta) + (x_g - x_b) * W * cos(theta) * cos(phi),
                     -(x_g - x_b) * W * cos(theta) * sin(phi) - (y_g - y_b) * W * sin(theta);
 
-                if(xi_curr(2) < 0.0){
+                if (xi_curr(2) < 0.0)
+                {
                     G(2) = -W;
                 }
 
@@ -684,11 +691,18 @@ int main(int argc, char **argv)
                 eta_pred = dt * Jacobian * xi_curr.tail(6) + xi_curr.head(6);
                 nu_pred = dt * M.inverse() * (tau - C * xi_curr.tail(6) - D * xi_curr.tail(6) - G) + xi_curr.tail(6);
                 xi_pred << eta_pred, nu_pred;
+                // wrapToPi
+
+                for (int i = 3; i < 6; i++)
+                {
+                    xi_pred(i) = wrapToPi(xi_pred(i));
+
+                }
 
                 // wrapToPi
-                xi_pred(3) = atan2(sin(xi_pred(3)), cos(xi_pred(3)));
-                xi_pred(4) = atan2(sin(xi_pred(4)), cos(xi_pred(4)));
-                xi_pred(5) = atan2(sin(xi_pred(5)), cos(xi_pred(5)));
+                // xi_pred(3) = atan2(sin(xi_pred(3)), cos(xi_pred(3)));
+                // xi_pred(4) = atan2(sin(xi_pred(4)), cos(xi_pred(4)));
+                // xi_pred(5) = atan2(sin(xi_pred(5)), cos(xi_pred(5)));
 
                 P_pred = F_k * P_curr * F_k.transpose() + D_k * Q * D_k.transpose();
             }
@@ -819,9 +833,10 @@ int main(int argc, char **argv)
 
                 xi_corr = xi_pred + K * e_k;
 
-                xi_corr(3) = atan2(sin(xi_corr(3)), cos(xi_corr(3)));
-                xi_corr(4) = atan2(sin(xi_corr(4)), cos(xi_corr(4)));
-                xi_corr(5) = atan2(sin(xi_corr(5)), cos(xi_corr(5)));
+                for(int i = 3; i < 6; i++)
+                {
+                    xi_corr(i) = wrapToPi(xi_corr(i));
+                }
 
                 // Calcolo la matrice di covarianza corretta
                 Eigen::MatrixXd P_corr(12, 12);
@@ -926,8 +941,9 @@ int main(int argc, char **argv)
                 -(y_g - y_b) * W * cos(phi) * cos(theta) + (z_g - z_b) * W * sin(phi) * cos(theta),
                 (z_g - z_b) * W * sin(theta) + (x_g - x_b) * W * cos(theta) * cos(phi),
                 -(x_g - x_b) * W * cos(theta) * sin(phi) - (y_g - y_b) * W * sin(theta);
-            
-            if(xi_curr(2) < 0.0){
+
+            if (xi_curr(2) < 0.0)
+            {
                 G(2) = -W;
             }
 
@@ -970,11 +986,22 @@ int main(int argc, char **argv)
             xi_pred << eta_pred, nu_pred;
 
             // wrapToPi
-            xi_pred(3) = atan2(sin(xi_pred(3)), cos(xi_pred(3)));
-            xi_pred(4) = atan2(sin(xi_pred(4)), cos(xi_pred(4)));
-            xi_pred(5) = atan2(sin(xi_pred(5)), cos(xi_pred(5)));
+            for(int i = 3; i < 6; i++)
+            {
+                xi_pred(i) = wrapToPi(xi_pred(i));
+            }
 
             P_pred = F_k * P_curr * F_k.transpose() + D_k * Q * D_k.transpose();
+
+            Eigen::VectorXd P_pred_eig(12);
+            P_pred_eig = P_pred.eigenvalues().real();
+            double P_pred_min = P_pred_eig.minCoeff();
+
+            if((P_pred_min < 0.0) && (P_pred(0,0) == P_pred(0,0)))
+            {
+                ROS_WARN_STREAM("P_pred: \n"
+                                << P_pred);
+            }
 
             ///////////////////////////////////////////////////////////////////////
             ///////////////////////////// PUBLISHING //////////////////////////////

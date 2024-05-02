@@ -2,7 +2,7 @@
 <launch>
     <rosparam file="$(find tesi_bluerov2)/yaml/params.yaml" />
     <arg name="flag" default="back" />
-    <include file="$(find gazebo_ros)/launch/empty_world.launch"> -->
+    <include file="$(find gazebo_ros)/launch/empty_world.launch">
         <arg name="world_name" value="$(find tesi_bluerov2)/src/mondo_bluerov2_wall.world" />
         <arg name="paused" value="true" />
     </include>
@@ -37,11 +37,12 @@
     <node name="dvl" pkg="tesi_bluerov2" type="dvl" />
     <node name="accelerometer" pkg="tesi_bluerov2" type="accelerometer" />
     <node name="EKF_dynamics" pkg="tesi_bluerov2" type="EKF_dynamics" />
-    <node name="UKF_dynamics" pkg="tesi_bluerov2" type="UKF_dynamics" />
-    <node name="EKF_no_dyn" pkg="tesi_bluerov2" type="EKF_no_dyn" />
-    <node name="UKF_no_dyn" pkg="tesi_bluerov2" type="UKF_no_dyn" />
+    <!-- <node name="EKF_dynamics_imu" pkg="tesi_bluerov2" type="EKF_dynamics_imu" /> -->
+    <!-- <node name="UKF_dynamics" pkg="tesi_bluerov2" type="UKF_dynamics" /> -->
+    <!-- <node name="EKF_no_dyn_imu" pkg="tesi_bluerov2" type="EKF_no_dyn_imu" /> -->
+    <!-- <node name="UKF_no_dyn" pkg="tesi_bluerov2" type="UKF_no_dyn" /> -->
     <node name="manager" pkg="tesi_bluerov2" type="manager" />
-    <node name="err_vis" pkg="tesi_bluerov2" type="err_vis" /> 
+    <!-- <node name="err_vis" pkg="tesi_bluerov2" type="err_vis" />  -->
     <node name="guidance" pkg="tesi_bluerov2" type="guidance" />
     <node name="planner" pkg="tesi_bluerov2" type="planner" />    
     <node name="camera" pkg="tesi_bluerov2" type="camera" />

@@ -70,7 +70,7 @@ int main(int argc, char **argv)
     double start_time;
 
     // Loop at 10Hz, publishing messages until this node is shut down.
-    ros::Rate rate(300);
+    ros::Rate rate(400);
     while (ros::ok())
     {
         if (is_first_loop)
@@ -82,14 +82,6 @@ int main(int argc, char **argv)
 
         double valid = 1.0;
 
-        double phi_m = phi_hat + gaussianNoise(0, var_phi);
-        phi_m = atan2(sin(phi_m), cos(phi_m));
-
-        double theta_m = theta_hat + gaussianNoise(0, var_theta);
-        theta_m = atan2(sin(theta_m), cos(theta_m));
-
-        double psi_m = psi_hat + gaussianNoise(0, var_psi);
-        psi_m = atan2(sin(psi_m), cos(psi_m));
 
         double p_m = p_hat + gaussianNoise(0, var_p);
         double q_m = q_hat + gaussianNoise(0, var_q);
