@@ -124,6 +124,13 @@ double angleDifference(double e)
     return e;
 }
 
+double wrapToPi(double x)
+{
+    x = fmod(x * 180 / M_PI + 180, 360);
+    if (x < 0)
+        x += 360;
+    return (x - 180) * M_PI / 180;
+}
 // Function to generate Gaussian random number
 double gaussianNoise(double mean, double var)
 {
@@ -497,9 +504,9 @@ int main(int argc, char **argv)
                 xi_pred << eta_pred, nu_pred;
 
                 // wrapToPi
-                xi_pred(3) = atan2(sin(xi_pred(3)), cos(xi_pred(3)));
-                xi_pred(4) = atan2(sin(xi_pred(4)), cos(xi_pred(4)));
-                xi_pred(5) = atan2(sin(xi_pred(5)), cos(xi_pred(5)));
+                xi_pred(3) = wrapToPi(xi_pred(3));
+                xi_pred(4) = wrapToPi(xi_pred(4));
+                xi_pred(5) = wrapToPi(xi_pred(5));
 
                 P_pred = F_k * P_curr * F_k.transpose() + D_k * Q * D_k.transpose();
             }
@@ -711,9 +718,9 @@ int main(int argc, char **argv)
             xi_pred << eta_pred, nu_pred;
 
             // wrapToPi
-            xi_pred(3) = atan2(sin(xi_pred(3)), cos(xi_pred(3)));
-            xi_pred(4) = atan2(sin(xi_pred(4)), cos(xi_pred(4)));
-            xi_pred(5) = atan2(sin(xi_pred(5)), cos(xi_pred(5)));
+            xi_pred(3) = wrapToPi(xi_pred(3));
+            xi_pred(4) = wrapToPi(xi_pred(4));
+            xi_pred(5) = wrapToPi(xi_pred(5));
 
             P_pred = F_k * P_curr * F_k.transpose() + D_k * Q * D_k.transpose();
 

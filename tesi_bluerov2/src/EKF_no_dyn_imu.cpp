@@ -55,6 +55,9 @@ double var_acc_w = 0.0;
 double var_model_p = 0.0;
 double var_model_q = 0.0;
 double var_model_r = 0.0;
+double var_tau_p = 0.0;
+double var_tau_q = 0.0;
+double var_tau_r = 0.0;
 
 // Covariance values (sensor noise)
 double var_x_GPS = 0.0;
@@ -133,6 +136,14 @@ double gaussianNoise(double mean, double var)
     std::mt19937 gen(rd());
     std::normal_distribution<> d(mean, stddev);
     return d(gen);
+}
+
+double wrapToPi(double x)
+{
+    x = fmod(x * 180 / M_PI + 180, 360);
+    if (x < 0)
+        x += 360;
+    return (x - 180) * M_PI / 180;
 }
 
 // Callback function for the subscriber
@@ -284,6 +295,9 @@ int main(int argc, char **argv)
     n.getParam("var_model_p", var_model_p);
     n.getParam("var_model_q", var_model_q);
     n.getParam("var_model_r", var_model_r);
+    n.getParam("var_tau_p", var_tau_p);
+    n.getParam("var_tau_q", var_tau_q);
+    n.getParam("var_tau_r", var_tau_r);
 
     Eigen::Matrix<double, 6, 6> Jacobian;
     Eigen::Matrix<double, 6, 1> eta_pred;
@@ -312,7 +326,7 @@ int main(int argc, char **argv)
     double dt = 1 / freq;
 
     std::string path = ros::package::getPath("tesi_bluerov2");
-    bag.open(path + "/bag/ekf_kinematics.bag", rosbag::bagmode::Write);
+    bag.open(path + "/bag/ekf_kinematics_imu.bag", rosbag::bagmode::Write);
 
     bool is_init = false;
 
@@ -322,22 +336,22 @@ int main(int argc, char **argv)
     bool is_IMU_init = false;
     bool is_IMU_camera_init = false;
 
-    Eigen::VectorXd var_sensors(14);
-    var_sensors << var_x_GPS, var_y_GPS, var_x_scanner, var_y_scanner, var_z_depth_sensor, var_phi_IMU, var_theta_IMU, var_psi_IMU, var_u_DVL, var_v_DVL, var_w_DVL, var_p_IMU_camera, var_q_IMU_camera, var_r_IMU_camera;
+    Eigen::VectorXd var_sensors(11);
+    var_sensors << var_x_GPS, var_y_GPS, var_x_scanner, var_y_scanner, var_z_depth_sensor, var_phi_IMU, var_theta_IMU, var_psi_IMU, var_u_DVL, var_v_DVL, var_w_DVL;
 
     Eigen::MatrixXd Q(6, 6);
     Q << var_acc_u, 0, 0, 0, 0, 0,
         0, var_acc_v, 0, 0, 0, 0,
         0, 0, var_acc_w, 0, 0, 0,
-        0, 0, 0, var_model_p, 0, 0,
-        0, 0, 0, 0, var_model_q, 0,
-        0, 0, 0, 0, 0, var_model_r;
+        0, 0, 0, var_p_IMU_camera, 0, 0,
+        0, 0, 0, 0, var_q_IMU_camera, 0,
+        0, 0, 0, 0, 0, var_r_IMU_camera;
 
     // Set the loop rate
     ros::Rate loop_rate(freq);
 
     // Create a publisher object
-    ros::Publisher est_state_pub = n.advertise<tesi_bluerov2::Floats>("state/est_state_topic", 1000);
+    ros::Publisher est_state_pub = n.advertise<tesi_bluerov2::Floats>("state/est_state_topic_no_dyn_imu", 1000);
     ros::Publisher publisher_gnc_status = n.advertise<std_msgs::String>("manager/GNC_status_requested_topic", 10); // publisher stato richiesto al GNC
 
     // Create subscriber objects
@@ -517,18 +531,17 @@ int main(int argc, char **argv)
                 double u_pred = dt * a_u + u;
                 double v_pred = dt * a_v + v;
                 double w_pred = dt * a_w + w;
-                double p_pred = p;
-                double q_pred = q;
-                double r_pred = r;
+                double p_pred = p_IMU_camera;
+                double q_pred = q_IMU_camera;
+                double r_pred = r_IMU_camera;
 
                 nu_pred << u_pred, v_pred, w_pred, p_pred, q_pred, r_pred;
                 xi_pred << eta_pred, nu_pred;
 
                 // wrapToPi
-                xi_pred(3) = atan2(sin(xi_pred(3)), cos(xi_pred(3)));
-                xi_pred(4) = atan2(sin(xi_pred(4)), cos(xi_pred(4)));
-                xi_pred(5) = atan2(sin(xi_pred(5)), cos(xi_pred(5)));
-
+                xi_pred(3) = wrapToPi(xi_pred(3));
+                xi_pred(4) = wrapToPi(xi_pred(4));
+                xi_pred(5) = wrapToPi(xi_pred(5));
                 P_pred = F_k * P_curr * F_k.transpose() + D_k * Q * D_k.transpose();
             }
         }
@@ -539,11 +552,11 @@ int main(int argc, char **argv)
             ///////////////////////////////////////////////////////////////////////
 
             // VETTORE DI MISURA
-            Eigen::VectorXd z(14);
-            z << x_GPS, y_GPS, x_scanner, y_scanner, z_depth_sensor, phi_IMU, theta_IMU, psi_IMU, u_DVL, v_DVL, w_DVL, p_IMU_camera, q_IMU_camera, r_IMU_camera;
+            Eigen::VectorXd z(11);
+            z << x_GPS, y_GPS, x_scanner, y_scanner, z_depth_sensor, phi_IMU, theta_IMU, psi_IMU, u_DVL, v_DVL, w_DVL;
 
-            Eigen::VectorXd valid(14);
-            valid << valid_GPS, valid_GPS, valid_scanner, valid_scanner, valid_depth_sensor, valid_IMU, valid_IMU, valid_IMU, valid_DVL, valid_DVL, valid_DVL, valid_IMU_camera, valid_IMU_camera, valid_IMU_camera;
+            Eigen::VectorXd valid(11);
+            valid << valid_GPS, valid_GPS, valid_scanner, valid_scanner, valid_depth_sensor, valid_IMU, valid_IMU, valid_IMU, valid_DVL, valid_DVL, valid_DVL;
 
             Eigen::MatrixXd H(1, 12);
             H.setZero();
@@ -731,17 +744,17 @@ int main(int argc, char **argv)
             double u_pred = dt * a_u + u;
             double v_pred = dt * a_v + v;
             double w_pred = dt * a_w + w;
-            double p_pred = p;
-            double q_pred = q;
-            double r_pred = r;
+            double p_pred = p_IMU_camera;
+            double q_pred = q_IMU_camera;
+            double r_pred = r_IMU_camera;
 
             nu_pred << u_pred, v_pred, w_pred, p_pred, q_pred, r_pred;
             xi_pred << eta_pred, nu_pred;
 
             // wrapToPi
-            xi_pred(3) = atan2(sin(xi_pred(3)), cos(xi_pred(3)));
-            xi_pred(4) = atan2(sin(xi_pred(4)), cos(xi_pred(4)));
-            xi_pred(5) = atan2(sin(xi_pred(5)), cos(xi_pred(5)));
+            xi_pred(3) = wrapToPi(xi_pred(3));
+            xi_pred(4) = wrapToPi(xi_pred(4));
+            xi_pred(5) = wrapToPi(xi_pred(5));
 
             P_pred = F_k * P_curr * F_k.transpose() + D_k * Q * D_k.transpose();
 
@@ -763,7 +776,7 @@ int main(int argc, char **argv)
         // Let ROS handle all incoming messages in a callback function
         if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
         {
-            bag.write("state/est_state_topic", ros::Time::now(), msg);
+            bag.write("state/est_state_topic_no_dyn_imu", ros::Time::now(), msg);
         }
 
         ros::spinOnce();

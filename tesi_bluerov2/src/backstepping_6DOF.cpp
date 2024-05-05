@@ -158,7 +158,7 @@ int main(int argc, char **argv)
 
     ros::Subscriber sub_gnc_status = n.subscribe("manager/GNC_status_topic", 1, GNCstatusCallback); // sottoscrizione alla topic di stato del GNC
     ros::Subscriber sub_des_state = n.subscribe("state/desired_state_topic", 1, desStateCallback);
-    // ros::Subscriber sub_est_state = n.subscribe("state/est_state_topic", 1, estStateCallback);
+    // ros::Subscriber sub_est_state = n.subscribe("state/est_state_topic_no_dyn", 1, estStateCallback);
     ros::Subscriber sub_est_state = n.subscribe("state/state_topic", 1, estStateCallback);
 
     double freq = 60;

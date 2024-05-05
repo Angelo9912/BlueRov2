@@ -654,7 +654,7 @@ void acc_callback(const tesi_bluerov2::Floats::ConstPtr &msg)
 int main(int argc, char **argv)
 {
     // Initialize the ROS system and become a node.
-    ros::init(argc, argv, "UKF_dynamics");
+    ros::init(argc, argv, "UKF_no_dyn");
     // Create a ROS node handle
     ros::NodeHandle n;
     n.getParam("var_x_GPS", var_x_GPS);

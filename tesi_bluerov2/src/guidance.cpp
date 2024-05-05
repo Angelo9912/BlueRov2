@@ -785,7 +785,7 @@ int main(int argc, char **argv)
 
                             double dist_to_waypoint = sqrt(pow(error_x_to_waypoint, 2) + pow(error_y_to_waypoint, 2) + pow(error_z_to_waypoint, 2));
 
-                            if (dist_to_waypoint < 0.3 || sqrt(pow(pos_rel_x(way_counter - 1), 2) + pow(pos_rel_y(way_counter - 1), 2)) < 0.3)
+                            if (dist_to_waypoint < 0.2 || sqrt(pow(pos_rel_x(way_counter - 1), 2) + pow(pos_rel_y(way_counter - 1), 2)) < 0.2)
                             {
                                 u_d = 0.0;
                             }

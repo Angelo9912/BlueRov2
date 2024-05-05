@@ -36,7 +36,7 @@ int main(int argc, char **argv)
     double start_time;
     double freq = 300;
     double dt = 1.0 / freq;
-    ros::Duration(60).sleep();
+    ros::Duration(40).sleep();
 
     // Loop at 50Hz, publishing messages until this node is shut down.
     ros::Rate rate(freq);
@@ -51,7 +51,7 @@ int main(int argc, char **argv)
 
         double u;
         double w;
-
+        double r = 0.0; // 30*M_PI / 180;
         if (x >= 10.0)
         {
             u = 0.0;
@@ -59,6 +59,14 @@ int main(int argc, char **argv)
         else
         {
             u = 0.5;
+        }
+        if (psi > 1.0)
+        {
+            r = 0.0;
+        }
+        else
+        {
+            r = 0.05;
         }
 
         if (z >= 5.0)
@@ -73,7 +81,6 @@ int main(int argc, char **argv)
         double v = 0.0;
         double p = 0.0;
         double q = 0.0;
-        double r = 0.0; // 30*M_PI / 180;
 
         Eigen::Matrix<double, 6, 1> pos;
         pos << x, y, z, phi, theta, psi;

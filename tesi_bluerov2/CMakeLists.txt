@@ -293,9 +293,17 @@ add_executable(UKF_dynamics src/UKF_dynamics.cpp)
 target_link_libraries(UKF_dynamics ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(UKF_dynamics ${catkin_EXPORTED_TARGETS})
 
+add_executable(UKF_dynamics_imu src/UKF_dynamics_imu.cpp)
+target_link_libraries(UKF_dynamics_imu ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(UKF_dynamics_imu ${catkin_EXPORTED_TARGETS})
+
 add_executable(UKF_no_dyn src/UKF_no_dyn.cpp)
 target_link_libraries(UKF_no_dyn ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
 add_dependencies(UKF_no_dyn ${catkin_EXPORTED_TARGETS})
+
+add_executable(UKF_no_dyn_imu src/UKF_no_dyn_imu.cpp)
+target_link_libraries(UKF_no_dyn_imu ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
+add_dependencies(UKF_no_dyn_imu ${catkin_EXPORTED_TARGETS})
 
 add_executable(err_vis src/error_visualizer.cpp)
 target_link_libraries(err_vis ${catkin_LIBRARIES} ${roscpp_LIBRARIES})
