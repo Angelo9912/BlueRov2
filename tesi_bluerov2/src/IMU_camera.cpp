@@ -12,9 +12,9 @@ double r_hat = 0.0;
 double var_phi = 0.01;
 double var_theta = 0.01;
 double var_psi = 0.01;
-double var_p = 0.0019;
-double var_q = 0.0019;
-double var_r = 0.0019;
+double var_p = 0.0000078;
+double var_q = 0.0000078;
+double var_r = 0.0000078;
 
 // Function to generate Gaussian random number
 double gaussianNoise(double mean, double var)

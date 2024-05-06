@@ -109,7 +109,7 @@ double const SAFE_DIST = 2.6; // distanza di sicurezza che deve essere mantenuta
 bool buoy_seen_prec = false;  // variabile di stato per capire se la camera ha visto una boa nella scorsa iterazione
 
 // strategia di guida con cui raggiungere i waypoint (Rect o Spline)
-std::string exploration_strategy = "Rect";
+std::string exploration_strategy;
 
 // variabili per la gestione della missione
 std::string GNC_status = "";
@@ -250,7 +250,7 @@ int main(int argc, char **argv)
     ////////////////////////// Create a subscriber object //////////////////////////
     ros::Subscriber gnc_status_sub = nh.subscribe("manager/GNC_status_topic", 1, GNCstatusCallback); // sottoscrizione alla topic di stato del GNC
     ros::Subscriber subscriber = nh.subscribe("sensors/buoy_topic", 10, buoyCallback);
-    ros::Subscriber subscriber_state = nh.subscribe("state/state_topic", 10, estStateCallback);
+    ros::Subscriber subscriber_state = nh.subscribe("state/est_state_topic_no_dyn_imu", 10, estStateCallback);
     ros::Subscriber subscriber_status = nh.subscribe("manager/mission_status_topic", 10, statusCallback);
 
     ////////////////////////// Get parameters from YAML file //////////////////////////
@@ -268,6 +268,7 @@ int main(int argc, char **argv)
     nh.getParam("coord_3_long", coord_3_long);
     nh.getParam("coord_4_lat", coord_4_lat);
     nh.getParam("coord_4_long", coord_4_long);
+    nh.getParam("exploration_strategy", exploration_strategy);
 
     coord_1 << coord_1_lat, coord_1_long;
     coord_2 << coord_2_lat, coord_2_long;
@@ -331,7 +332,7 @@ int main(int argc, char **argv)
     waypoints_to_go = {0.0, 2.0, 0.0, 4.0, 2.0, 0.0, 2.0, -2.0, 0.0, 0.0, -2.0, 0.0, 0.0, 0.0, 4.0, 0.0, 2.0, 4.0, 4.0, 2.0, 4.0, 2.0, -2.0, 4.0, 0.0, -2.0, 4.0, 0.0, 0.0, 4.0};
     for (int i = 0; i < waypoints_to_go.size(); i++)
     {
-        waypoints_to_go[i] = waypoints_to_go[i] * 1.0;
+        waypoints_to_go[i] = waypoints_to_go[i] * 3.0;
     }
     waypoints_to_go[2] = 0.0;
     waypoints_to_go[5] = 0.0;

@@ -210,7 +210,7 @@ int main(int argc, char **argv)
     ros::Publisher publisher_gnc_status = n.advertise<std_msgs::String>("manager/GNC_status_requested_topic", 10); // publisher stato richiesto al GNC
 
     ros::Subscriber sub_gnc_status = n.subscribe("manager/GNC_status_topic", 1, GNCstatusCallback); // sottoscrizione alla topic di stato del GNC
-    ros::Subscriber sub_est_state = n.subscribe("state/state_topic", 1, estStateCallback);      // sottoscrizione alla topic di stato stimato
+    ros::Subscriber sub_est_state = n.subscribe("state/est_state_topic_no_dyn_imu", 1, estStateCallback);          // sottoscrizione alla topic di stato stimato
     ros::Subscriber sub_waypoint = n.subscribe("waypoints_topic", 1, waypointCallback);             // sottoscrizione alla topic di waypoint
     ros::Subscriber sub_status = n.subscribe("manager/mission_status_topic", 1, statusCallback);    // sottoscrizione alla topic di mission status
     double freq = 50.0;                                                                             // frequenza di lavoro
@@ -246,6 +246,12 @@ int main(int argc, char **argv)
     double p_d = 0.0;
     double q_d = 0.0;
     double r_d = 0.0;
+
+    double u_d_tmp; // velocità di surge per tenere conto della velocità a cui siamo arrivati
+    double w_d_tmp; // velocità di heave per tenere conto della velocità a cui siamo arrivati
+    bool is_u_d_tmp_initialized = false;
+    bool is_w_d_tmp_initialized = false;
+
     int CIRCUMFERENCE_phase = 0;
     double dist_min;
     double dist_min_psi;
@@ -293,7 +299,7 @@ int main(int argc, char **argv)
             std::string status_req = "GUIDANCE_READY";
             std_msgs::String msg;
             msg.data = status_req;
-            ros::Duration(10).sleep();
+            ros::Duration(20).sleep();
             // Publish the message on the "topic1" topic
             publisher_gnc_status.publish(msg);
         }
@@ -333,13 +339,6 @@ int main(int argc, char **argv)
                         way_spline_y(i + 1) = way_spline[i * 3 + 1];
                         way_spline_z(i + 1) = way_spline[i * 3 + 2];
                     }
-
-                    u_d = 0.5;
-                    v_d = 0.0;
-                    w_d = 0.0;
-                    p_d = 0.0;
-                    q_d = 0.0;
-                    r_d = 0.0;
 
                     waypoint_distance = 0;
                     Eigen::VectorXd waypoint_distance_vector(n_waypoints - 1);
@@ -533,10 +532,70 @@ int main(int argc, char **argv)
                         x_d = x2(i_dist_min);
                         y_d = y2(i_dist_min);
                         z_d = z2(i_dist_min);
+
+                        if(z_d <= 0.0)
+                        {
+                            z_d = 0.0;
+                        }
+
                         phi_d = phi2(i_dist_min);
                         theta_d = theta2(i_dist_min);
                         psi_d = psi2(i_dist_min);
-                        u_d = speed;
+                        double delta_u = 0.05;
+                        u_d = u_d + delta_u * dt;
+                        if (u_d >= speed)
+                        {
+                            u_d = speed;
+                        }
+                        p_d = 0.0;
+                        q_d = 0.0;
+                        r_d = 0.0;
+
+                        double error_x_to_waypoint = way_spline_x(way_counter) - x_hat;
+                        double error_y_to_waypoint = way_spline_y(way_counter) - y_hat;
+                        double error_z_to_waypoint = way_spline_z(way_counter) - z_hat;
+
+                        double dist_to_waypoint = sqrt(pow(error_x_to_waypoint, 2) + pow(error_y_to_waypoint, 2) + pow(error_z_to_waypoint, 2));
+                        double dist_to_waypoint_xy = sqrt(pow(error_x_to_waypoint, 2) + pow(error_y_to_waypoint, 2));
+
+                        Eigen::VectorXd pos_rel_z(way_counter);
+                        pos_rel_z(way_counter - 1) = way_spline_z(way_counter) - way_spline_z(way_counter - 1);
+                        
+                        //////////////////////////////////////////////////
+                        /////////////////Regolazione di u/////////////////
+                        //////////////////////////////////////////////////
+
+                        if (dist_to_waypoint_xy <= 1.25 && dist_to_waypoint_xy > 0.75)
+                        {
+                            if (!is_u_d_tmp_initialized)
+                            {
+                                u_d_tmp = u_d;
+                                is_u_d_tmp_initialized = true;
+                            }
+
+                            u_d = u_d_tmp / 1.5;
+                        }
+                        else if (dist_to_waypoint_xy <= 0.75 && dist_to_waypoint_xy > 0.5 && is_u_d_tmp_initialized)
+                        {
+                            u_d = u_d_tmp / 2;
+                        }
+                        else if (dist_to_waypoint_xy <= 0.5 && dist_to_waypoint_xy > 0.25 && is_u_d_tmp_initialized)
+                        {
+                            u_d = u_d_tmp / 3;
+                        }
+                        else if (dist_to_waypoint_xy <= 0.25 && dist_to_waypoint_xy > 0.15 && is_u_d_tmp_initialized)
+                        {
+                            u_d = u_d_tmp / 4;
+                        }
+
+                        if (u_d < 0.05)
+                        {
+                            u_d = 0.05; // Velocità minima di avanzamento
+                        }
+
+                        //////////////////////////////////////////////////
+                        /////////////////Regolazione di v/////////////////
+                        //////////////////////////////////////////////////
 
                         Eigen::MatrixXd Body2NED(3, 3);
                         Body2NED << cos(psi_hat) * cos(theta_hat), cos(psi_hat) * sin(phi_hat) * sin(theta_hat) - cos(phi_hat) * sin(psi_hat), sin(phi_hat) * sin(psi_hat) + cos(phi_hat) * cos(psi_hat) * sin(theta_hat),
@@ -550,54 +609,101 @@ int main(int argc, char **argv)
 
                         Eigen::VectorXd pose_error_body = Body2NED.transpose() * (pose_d - pose_hat);
 
-                        if (pose_error_body(1) > 0.4)
+                        if (pose_error_body(1) > 0.5)
                         {
-                            v_d = 0.1;
+                            v_d = 0.05;
                         }
-                        else if (pose_error_body(1) < -0.4)
+                        else if (pose_error_body(1) < -0.5)
                         {
-                            v_d = -0.1;
+                            v_d = -0.05;
                         }
                         else
                         {
                             v_d = 0.0;
                         }
 
-                        if (z_d - z_hat > 0.1)
+                        //////////////////////////////////////////////////
+                        /////////////////Regolazione di w/////////////////
+                        //////////////////////////////////////////////////
+
+                        double max_w_d = abs(pos_rel_z(way_counter - 1)) * speed / dist_to_waypoint_xy;
+                        double delta_w = abs(pos_rel_z(way_counter - 1)) * delta_u / dist_to_waypoint_xy;
+
+                        if (pos_rel_z(way_counter - 1) > 0.5)
                         {
-                            w_d = 0.1;
+                            w_d = w_d + delta_w * dt;
+                            if (w_d >= max_w_d)
+                            {
+                                w_d = max_w_d;
+                            }
+
+                            if (abs(error_z_to_waypoint) <= 1.0 && abs(error_z_to_waypoint) > 0.5)
+                            {
+                                if (!is_w_d_tmp_initialized)
+                                {
+                                    w_d_tmp = w_d;
+                                    is_w_d_tmp_initialized = true;
+                                }
+                                w_d = w_d_tmp / 2;
+                            }
+                            else if (abs(error_z_to_waypoint) <= 0.5 && abs(error_z_to_waypoint) > 0.2 && is_w_d_tmp_initialized)
+                            {
+                                w_d = w_d_tmp / 3;
+                            }
+
+                            if (abs(w_d) < 0.05)
+                            {
+                                w_d = 0.05; // Velocità minima di salita
+                            }
+
+                            if (abs(error_z_to_waypoint) <= 0.1 && is_w_d_tmp_initialized)
+                            {
+                                w_d = 0.0;
+                            }
                         }
-                        else if (z_d - z_hat < -0.1)
+                        else if (pos_rel_z(way_counter - 1) < -0.5)
                         {
-                            w_d = -0.1;
+                            w_d = w_d - delta_w * dt;
+                            if (w_d <= -max_w_d)
+                            {
+                                w_d = -max_w_d;
+                            }
+                            if (abs(error_z_to_waypoint) <= 1.0 && abs(error_z_to_waypoint) > 0.5)
+                            {
+                                if (!is_w_d_tmp_initialized)
+                                {
+                                    w_d_tmp = w_d;
+                                    is_w_d_tmp_initialized = true;
+                                }
+                                w_d = w_d_tmp / 2;
+                            }
+                            else if (abs(error_z_to_waypoint) <= 0.5 && abs(error_z_to_waypoint) > 0.2 && is_w_d_tmp_initialized)
+                            {
+                                w_d = w_d_tmp / 3;
+                            }
+
+                            if (abs(w_d) < 0.05)
+                            {
+                                w_d = -0.05; // Velocità minima di discesa
+                            }
+
+                            if (abs(error_z_to_waypoint) <= 0.1 && is_w_d_tmp_initialized)
+                            {
+                                w_d = 0.0;
+                            }
                         }
-                        else
+
+                        if (dist_to_waypoint < 0.2)
                         {
-                            w_d = 0.0;
-                        }
-
-                        p_d = 0.0;
-                        q_d = 0.0;
-                        r_d = 0.0;
-
-                        double error_x_to_waypoint = way_spline_x(way_counter) - x_hat;
-                        double error_y_to_waypoint = way_spline_y(way_counter) - y_hat;
-                        double error_z_to_waypoint = way_spline_z(way_counter) - z_hat;
-
-                        double dist_to_waypoint = sqrt(pow(error_x_to_waypoint, 2) + pow(error_y_to_waypoint, 2) + pow(error_z_to_waypoint, 2));
-
-                        if (dist_to_waypoint < 0.3)
-                        {
-                            if (way_counter < (n_waypoints - 1))
+                            is_u_d_tmp_initialized = false;
+                            is_w_d_tmp_initialized = false;
+                            if(way_counter < n_waypoints - 1)
                             {
                                 way_counter++;
                             }
                             else
                             {
-                                std::string status_req = "PAUSED";
-                                std_msgs::String msg;
-                                msg.data = status_req;
-                                publisher_status.publish(msg);
+                                u_d = 0.0;
                             }
                         }
 
@@ -714,7 +820,13 @@ int main(int argc, char **argv)
                         else
                         {
                             i_psi = 0;
-                            double u_d = speed;
+                            double delta_u = 0.05;
+                            u_d = u_d + delta_u * dt;
+                            if (u_d >= speed)
+                            {
+                                u_d = speed;
+                            }
+
                             double v_d = 0.0;
                             double w_d = 0.0;
                             double r_d = 0.0;
@@ -784,19 +896,48 @@ int main(int argc, char **argv)
                             double error_z_to_waypoint = way_spline_z(way_counter) - z_hat;
 
                             double dist_to_waypoint = sqrt(pow(error_x_to_waypoint, 2) + pow(error_y_to_waypoint, 2) + pow(error_z_to_waypoint, 2));
+                            double dist_to_waypoint_xy = sqrt(pow(error_x_to_waypoint, 2) + pow(error_y_to_waypoint, 2));
 
-                            if (dist_to_waypoint < 0.2 || sqrt(pow(pos_rel_x(way_counter - 1), 2) + pow(pos_rel_y(way_counter - 1), 2)) < 0.2)
+                            //////////////////////////////////////////////////
+                            /////////////////Regolazione di u/////////////////
+                            //////////////////////////////////////////////////
+
+                            if (dist_to_waypoint_xy <= 1.25 && dist_to_waypoint_xy > 0.75)
+                            {
+                                if (!is_u_d_tmp_initialized)
+                                {
+                                    u_d_tmp = u_d;
+                                    is_u_d_tmp_initialized = true;
+                                }
+
+                                u_d = u_d_tmp / 1.5;
+                            }
+                            else if (dist_to_waypoint_xy <= 0.75 && dist_to_waypoint_xy > 0.5 && is_u_d_tmp_initialized)
+                            {
+                                u_d = u_d_tmp / 2;
+                            }
+                            else if (dist_to_waypoint_xy <= 0.5 && dist_to_waypoint_xy > 0.25 && is_u_d_tmp_initialized)
+                            {
+                                u_d = u_d_tmp / 3;
+                            }
+                            else if (dist_to_waypoint_xy <= 0.25 && dist_to_waypoint_xy > 0.15 && is_u_d_tmp_initialized)
+                            {
+                                u_d = u_d_tmp / 4;
+                            }
+
+                            if (u_d < 0.05)
+                            {
+                                u_d = 0.05; // Velocità minima di avanzamento
+                            }
+
+                            if (dist_to_waypoint_xy <= 0.15 && is_u_d_tmp_initialized)
                             {
                                 u_d = 0.0;
                             }
-                            else if (dist_to_waypoint < 0.75 || sqrt(pow(pos_rel_x(way_counter - 1), 2) + pow(pos_rel_y(way_counter - 1), 2)) < 0.75)
-                            {
-                                u_d = speed/2;
-                            }
-                            else
-                            {
-                                u_d = speed;
-                            }
+
+                            //////////////////////////////////////////////////
+                            /////////////////Regolazione di v/////////////////
+                            //////////////////////////////////////////////////
 
                             Eigen::MatrixXd Body2NED(3, 3);
                             Body2NED << cos(psi_hat) * cos(theta_hat), cos(psi_hat) * sin(phi_hat) * sin(theta_hat) - cos(phi_hat) * sin(psi_hat), sin(phi_hat) * sin(psi_hat) + cos(phi_hat) * cos(psi_hat) * sin(theta_hat),
@@ -810,41 +951,99 @@ int main(int argc, char **argv)
 
                             Eigen::VectorXd pose_error_body = Body2NED.transpose() * (pose_d - pose_hat);
 
-                            if (pose_error_body(1) > 0.2)
+                            if (pose_error_body(1) > 0.5)
                             {
-                                v_d = 0.1;
+                                v_d = 0.05;
                             }
-                            else if (pose_error_body(1) < -0.2)
+                            else if (pose_error_body(1) < -0.5)
                             {
-                                v_d = -0.1;
+                                v_d = -0.05;
                             }
                             else
                             {
                                 v_d = 0.0;
                             }
 
+                            //////////////////////////////////////////////////
+                            /////////////////Regolazione di w/////////////////
+                            //////////////////////////////////////////////////
+
+                            double max_w_d = abs(pos_rel_z(way_counter - 1)) * speed / dist_to_waypoint_xy;
+                            double delta_w = abs(pos_rel_z(way_counter - 1)) * delta_u / dist_to_waypoint_xy;
+
                             if (pos_rel_z(way_counter - 1) > 0.5)
                             {
-                                w_d = 0.2;
+                                w_d = w_d + delta_w * dt;
+                                if (w_d >= max_w_d)
+                                {
+                                    w_d = max_w_d;
+                                }
+
+                                if (abs(error_z_to_waypoint) <= 1.0 && abs(error_z_to_waypoint) > 0.5)
+                                {
+                                    if (!is_w_d_tmp_initialized)
+                                    {
+                                        w_d_tmp = w_d;
+                                        is_w_d_tmp_initialized = true;
+                                    }
+                                    w_d = w_d_tmp / 2;
+                                }
+                                else if (abs(error_z_to_waypoint) <= 0.5 && abs(error_z_to_waypoint) > 0.2 && is_w_d_tmp_initialized)
+                                {
+                                    w_d = w_d_tmp / 3;
+                                }
+
+                                if (abs(w_d) < 0.05)
+                                {
+                                    w_d = 0.05; // Velocità minima di salita
+                                }
+
+                                if (abs(error_z_to_waypoint) <= 0.1 && is_w_d_tmp_initialized)
+                                {
+                                    w_d = 0.0;
+                                }
                             }
                             else if (pos_rel_z(way_counter - 1) < -0.5)
                             {
-                                w_d = -0.2;
-                            }
-                            else
-                            {
-                                w_d = 0.0;
+                                w_d = w_d - delta_w * dt;
+                                if (w_d <= -max_w_d)
+                                {
+                                    w_d = -max_w_d;
+                                }
+                                if (abs(error_z_to_waypoint) <= 1.0 && abs(error_z_to_waypoint) > 0.5)
+                                {
+                                    if (!is_w_d_tmp_initialized)
+                                    {
+                                        w_d_tmp = w_d;
+                                        is_w_d_tmp_initialized = true;
+                                    }
+                                    w_d = w_d_tmp / 2;
+                                }
+                                else if (abs(error_z_to_waypoint) <= 0.5 && abs(error_z_to_waypoint) > 0.2 && is_w_d_tmp_initialized)
+                                {
+                                    w_d = w_d_tmp / 3;
+                                }
+
+                                if (abs(w_d) < 0.05)
+                                {
+                                    w_d = -0.05; // Velocità minima di discesa
+                                }
+
+                                if (abs(error_z_to_waypoint) <= 0.1 && is_w_d_tmp_initialized)
+                                {
+                                    w_d = 0.0;
+                                }
                             }
 
                             if (dist_to_waypoint < 0.2)
                             {
                                 is_psi_adjusted = false;
+                                is_u_d_tmp_initialized = false;
+                                is_w_d_tmp_initialized = false;
                                 way_counter++;
                                 psi_1 = psi_d;
                             }
-                            // ROS_WARN("middle_waypoints(way_counter - 1): %f", (dist_to_targ(way_counter - 1) / step));
-                            // ROS_WARN("i_dist_min: %d", i_dist_min);
-                            // ROS_WARN("way_counter: %d", way_counter);
+
                             // Define Jacobian Matrix
                             J << cos(psi_d) * cos(theta_d), cos(psi_d) * sin(phi_d) * sin(theta_d) - cos(phi_d) * sin(psi_d), sin(phi_d) * sin(psi_d) + cos(phi_d) * cos(psi_d) * sin(theta_d), 0, 0, 0,
                                 cos(theta_d) * sin(psi_d), cos(phi_d) * cos(psi_d) + sin(phi_d) * sin(psi_d) * sin(theta_d), cos(phi_d) * sin(psi_d) * sin(theta_d) - cos(psi_d) * sin(phi_d), 0, 0, 0,

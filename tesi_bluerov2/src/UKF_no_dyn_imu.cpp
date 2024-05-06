@@ -259,12 +259,14 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
         double u = nu(0);
         double v = nu(1);
         double w = nu(2);
-        // double p = nu(3);
-        // double q = nu(4);
-        // double r = nu(5);
-        double p = gyro_k(0);
-        double q = gyro_k(1);
-        double r = gyro_k(2);
+        
+        nu(3) = gyro_k(0);
+        nu(4) = gyro_k(1);
+        nu(5) = gyro_k(2);
+
+        double p = nu(3);
+        double q = nu(4);
+        double r = nu(5);
         // Dinamica del sistema
 
         double u_pred = dt * (acc_k(0) + acc_noise(0)) + u;
@@ -273,6 +275,8 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
         double p_pred = p + acc_noise(3);
         double q_pred = q + acc_noise(4);
         double r_pred = r + acc_noise(5);
+
+    
 
         Eigen::Matrix<double, 6, 1> nu_k1;
 
@@ -846,7 +850,6 @@ int main(int argc, char **argv)
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, var_r_IMU_camera;
 
             is_init = ((is_GPS_init || is_scanner_init) && is_depth_init && is_IMU_init && is_IMU_camera_init);
-            ROS_WARN("UKF IMU init %d", is_init);
             if (is_init) // Se l'inizializzazione è completata pubblica lo stato stimato iniziale e passa alla predizione
             {
                 ROS_WARN_STREAM("UKF INITIALIZATION COMPLETED \n");
@@ -864,7 +867,7 @@ int main(int argc, char **argv)
                 Eigen::VectorXd gyro(3);
                 gyro << p_IMU_camera, q_IMU_camera, r_IMU_camera;
 
-                // Predizione
+                // Predizionegyro
                 UnscentedOutput Prediction_out = UnscentedTransform_Prediction(xi_curr, acc, gyro, P_curr, Q, dt);
 
                 xi_pred = Prediction_out.getX();

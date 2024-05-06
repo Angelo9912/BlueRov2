@@ -525,6 +525,7 @@ int main(int argc, char **argv)
 
                 Eigen::VectorXd a_m(6);
                 a_m << a_u, a_v, a_w, 0, 0, 0;
+                xi_curr.tail(3) << p_IMU_camera, q_IMU_camera, r_IMU_camera;
 
                 eta_pred = Jacobian * (dt * xi_curr.tail(6) + dt * dt / 2 * a_m) + xi_curr.head(6);
 
@@ -537,6 +538,12 @@ int main(int argc, char **argv)
 
                 nu_pred << u_pred, v_pred, w_pred, p_pred, q_pred, r_pred;
                 xi_pred << eta_pred, nu_pred;
+
+                // Controllo sulla coordinata "down"
+                if (xi_pred(2) < 0)
+                {
+                    xi_pred(2) = 0.0;
+                }
 
                 // wrapToPi
                 xi_pred(3) = wrapToPi(xi_pred(3));
@@ -738,6 +745,7 @@ int main(int argc, char **argv)
 
             Eigen::VectorXd a_m(6);
             a_m << a_u, a_v, a_w, 0, 0, 0;
+            xi_curr.tail(3) << p_IMU_camera, q_IMU_camera, r_IMU_camera;
 
             eta_pred = Jacobian * (dt * xi_curr.tail(6) + dt * dt / 2 * a_m) + xi_curr.head(6);
 
@@ -750,6 +758,12 @@ int main(int argc, char **argv)
 
             nu_pred << u_pred, v_pred, w_pred, p_pred, q_pred, r_pred;
             xi_pred << eta_pred, nu_pred;
+
+            // Controllo sulla coordinata "down"
+            if (xi_pred(2) < 0)
+            {
+                xi_pred(2) = 0.0;
+            }
 
             // wrapToPi
             xi_pred(3) = wrapToPi(xi_pred(3));

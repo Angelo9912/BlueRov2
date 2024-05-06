@@ -158,8 +158,8 @@ int main(int argc, char **argv)
 
     ros::Subscriber sub_gnc_status = n.subscribe("manager/GNC_status_topic", 1, GNCstatusCallback); // sottoscrizione alla topic di stato del GNC
     ros::Subscriber sub_des_state = n.subscribe("state/desired_state_topic", 1, desStateCallback);
-    // ros::Subscriber sub_est_state = n.subscribe("state/est_state_topic_no_dyn", 1, estStateCallback);
-    ros::Subscriber sub_est_state = n.subscribe("state/state_topic", 1, estStateCallback);
+    ros::Subscriber sub_est_state = n.subscribe("state/est_state_topic_no_dyn_imu", 1, estStateCallback);
+    //ros::Subscriber sub_est_state = n.subscribe("state/state_topic", 1, estStateCallback);
 
     double freq = 60;
     double dt = 1 / freq;
@@ -373,7 +373,7 @@ int main(int argc, char **argv)
             LAMBDA(0, 0) = 10.0;
             LAMBDA(1, 1) = 10.0;
             LAMBDA(2, 2) = 10.0;
-            LAMBDA(5, 5) = 5.0;
+            LAMBDA(5, 5) = 2.5;
 
             q_r_dot = J.inverse() * (des_pos_dot + LAMBDA * error);
 
@@ -471,10 +471,10 @@ int main(int argc, char **argv)
             Eigen::Matrix<double, 6, 6> K_d;
             K_d << Eigen::Matrix<double, 6, 6>::Identity();
 
-            K_d(0, 0) = 5.0;
-            K_d(1, 1) = 5.0;
-            K_d(2, 2) = 5.0;
-            K_d(5, 5) = 5.0;
+            K_d(0, 0) = 1.0;
+            K_d(1, 1) = 1.0;
+            K_d(2, 2) = 1.0;
+            K_d(5, 5) = 1.0;
 
             Eigen::Matrix<double, 6, 4> B;
 
