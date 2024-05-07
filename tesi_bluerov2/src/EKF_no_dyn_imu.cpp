@@ -540,7 +540,7 @@ int main(int argc, char **argv)
                 xi_pred << eta_pred, nu_pred;
 
                 // Controllo sulla coordinata "down"
-                if (xi_pred(2) < 0)
+                if (xi_pred(2) <= 0)
                 {
                     xi_pred(2) = 0.0;
                 }

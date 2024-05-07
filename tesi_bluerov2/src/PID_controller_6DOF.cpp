@@ -168,7 +168,7 @@ int main(int argc, char **argv)
     ros::Subscriber sub_des_state = n.subscribe("state/desired_state_topic", 1, desStateCallback);
     // ros::Subscriber sub_est_state = n.subscribe("state/est_state_UKF_topic", 1, estStateCallback);
 
-    ros::Subscriber sub_est_state = n.subscribe("state/est_state_topic_no_dyn", 1, estStateCallback);
+    ros::Subscriber sub_est_state = n.subscribe("state/est_state_topic_no_dyn_imu", 1, estStateCallback);
     double freq = 200;
     double dt = 1 / freq;
     ros::Rate loop_rate(freq);
@@ -338,22 +338,22 @@ int main(int argc, char **argv)
 
     // Define the gains
     Eigen::Matrix<double, 3, 3> K_p_lin;
-    K_p_lin = (400) * Eigen::Matrix<double, 3, 3>::Identity();
+    K_p_lin = (400.0) * Eigen::Matrix<double, 3, 3>::Identity();
 
     Eigen::Matrix<double, 3, 3> K_d_lin;
-    K_d_lin = (50) * Eigen::Matrix<double, 3, 3>::Identity();
+    K_d_lin = (200.0) * Eigen::Matrix<double, 3, 3>::Identity();
 
     Eigen::Matrix<double, 3, 3> K_i_lin;
-    K_i_lin = (0) * Eigen::Matrix<double, 3, 3>::Identity();
+    K_i_lin = (0.0) * Eigen::Matrix<double, 3, 3>::Identity();
 
     double K_p_psi;
-    K_p_psi = 200;
+    K_p_psi = 50.0;
 
     double K_d_psi;
-    K_d_psi = 20;
+    K_d_psi = 0.0;
 
     double K_i_psi;
-    K_i_psi = 0;
+    K_i_psi = 0.1;
 
     Eigen::Vector3d tau_lin;
     double tau_psi;
@@ -368,8 +368,15 @@ int main(int argc, char **argv)
         {
             std_msgs::String msg;
             msg.data = "CONTROLLER_READY";
-            ros::Duration(wait_for_controller).sleep();
-            publisher_gnc_status.publish(msg);
+            if (is_init)
+            {
+                init_time = ros::Time::now().toSec();
+                is_init = false;
+            }
+            if (ros::Time::now().toSec() - init_time >= 0.0/*wait_for_controller*/)
+            {
+                publisher_gnc_status.publish(msg);
+            }
         }
         else if (GNC_status == "CONTROLLER_READY" || GNC_status == "GNC_READY")
         {

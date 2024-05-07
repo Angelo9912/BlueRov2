@@ -41,6 +41,9 @@ double phi_hat_dot;
 double theta_hat_dot;
 double psi_hat_dot;
 
+std::string GNC_status = "NOT_READY";
+double wait_for_controller = 0.0;
+
 double angleDifference(double e)
 {
     if (e > 0)
@@ -137,6 +140,11 @@ void estStateCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
     }
 }
 
+void GNCstatusCallback(const std_msgs::String::ConstPtr &msg) // CALLBACK che riceve lo stato del GNC
+{
+    GNC_status = msg->data;
+}
+
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "adaptive_backstepping_6DOF");
@@ -146,14 +154,16 @@ int main(int argc, char **argv)
     tau_bag.open(path + "/bag/tau.bag", rosbag::bagmode::Write);
 
     ros::Publisher chatter_pub = n.advertise<tesi_bluerov2::Floats>("tau_topic", 1);
-    ros::Subscriber sub_des_state = n.subscribe("state/desired_state_topic", 1, desStateCallback);
-    ros::Subscriber sub_est_state = n.subscribe("state/est_state_UKF_topic", 1, estStateCallback);
+    ros::Publisher publisher_gnc_status = n.advertise<std_msgs::String>("manager/GNC_status_requested_topic", 10); // publisher stato richiesto al GNC
 
-    double freq = 200;
+    ros::Subscriber sub_des_state = n.subscribe("state/desired_state_topic", 1, desStateCallback);
+    ros::Subscriber sub_est_state = n.subscribe("state/est_state_topic_no_dyn_imu", 1, estStateCallback);
+    ros::Subscriber sub_gnc_status = n.subscribe("manager/GNC_status_topic", 1, GNCstatusCallback); // sottoscrizione alla topic di stato del GNC
+
+    double freq = 60;
     double dt = 1 / freq;
     ros::Rate loop_rate(freq);
 
-    ros::Duration(10).sleep();
     ROS_WARN("ADAPTIVE BACKSTEPPING INITIALIZED");
     // Import parameters from YAML file
 
@@ -288,9 +298,9 @@ int main(int argc, char **argv)
     n.getParam("var_tau_p", var_tau_p);
     n.getParam("var_tau_q", var_tau_q);
     n.getParam("var_tau_r", var_tau_r);
+    n.getParam("wait_for_controller", wait_for_controller);
 
     bool is_init = true;
-    double init_time;
 
     // Define the desired state and the estimated state vectors
     Eigen::Matrix<double, 6, 1> des_pose;
@@ -302,7 +312,41 @@ int main(int argc, char **argv)
     Eigen::Vector<double, 25> pi_d;
 
     pi_d << m, I_x, I_y, I_z, I_xy, I_xz, I_yz, x_g, y_g, z_g, x_b, y_b, z_b, X_u_dot, Y_v_dot, Z_w_dot, K_p_dot, M_q_dot, N_r_dot, A_x, A_y, A_z, A_p, A_q, A_r;
-    pi_d = pi_d + pi_d * (-0.20);
+    pi_d = pi_d + pi_d * (-0.10);
+
+    double u_r;
+    double v_r;
+    double w_r;
+    double p_r;
+    double q_r;
+    double r_r;
+
+    double u_r_dot;
+    double v_r_dot;
+    double w_r_dot;
+    double p_r_dot;
+    double q_r_dot;
+    double r_r_dot;
+
+    double m_hat = pi_d(0);
+    double I_x_hat = pi_d(1);
+    double I_y_hat = pi_d(2);
+    double I_z_hat = pi_d(3);
+    double I_xy_hat = pi_d(4);
+    double I_xz_hat = pi_d(5);
+    double I_yz_hat = pi_d(6);
+    double x_g_hat = pi_d(7);
+    double y_g_hat = pi_d(8);
+    double z_g_hat = pi_d(9);
+    double x_b_hat = pi_d(10);
+    double y_b_hat = pi_d(11);
+    double z_b_hat = pi_d(12);
+    double X_u_dot_hat = pi_d(13);
+    double Y_v_dot_hat = pi_d(14);
+    double Z_w_dot_hat = pi_d(15);
+    double K_p_dot_hat = pi_d(16);
+    double M_q_dot_hat = pi_d(17);
+    double N_r_dot_hat = pi_d(18);
 
     // Define error vector
     Eigen::Matrix<double, 6, 1> error;
@@ -320,186 +364,190 @@ int main(int argc, char **argv)
     Eigen::Matrix<double, 6, 6> J;
 
     Eigen::Matrix<double, 6, 6> LAMBDA;
+    LAMBDA << Eigen::Matrix<double, 6, 6>::Identity();
+    LAMBDA(0, 0) = 3.0;
+    LAMBDA(1, 1) = 3.0;
+    LAMBDA(2, 2) = 3.0;
+    LAMBDA(5, 5) = 2.0;
+
+    Eigen::Matrix<double, 6, 6> K_d;
+    K_d << Eigen::Matrix<double, 6, 6>::Identity();
+
+    K_d(0, 0) = 1.0;
+    K_d(1, 1) = 1.0;
+    K_d(2, 2) = 2.0;
+    K_d(5, 5) = 1.0;
+
+    Eigen::Matrix<double, 25, 25> R;
+
+    R << 10.0 * Eigen::Matrix<double, 25, 25>::Identity();
+
+    Eigen::Matrix<double, 4, 6> B_pinv;
+
+    B_pinv << 1, 0, 0, 0, 0, 0,
+        0, 1, 0, 0, 0, 0,
+        0, 0, 1, 0, 0, 0,
+        0, 0, 0, 0, 0, 1;
+
+    Eigen::Matrix<double, 4, 1> torques_vec;
 
     Eigen::Matrix<double, 6, 1> nu_r;
 
     Eigen::Matrix<double, 6, 6> J_inv_dot;
 
+    double init_time;
     while (ros::ok())
     {
-        // Calcolo il tempo iniziale in maniera periodica fino a che non diventa maggiore di 0 in modo tale da non avere falsi positivi nella
-        // condizione sulla differenza temporale di 5 secondi
-        if (is_init)
+
+        if (GNC_status == "NAVIGATION_READY")
         {
-            init_time = ros::Time::now().toSec();
-            if (init_time > 0.0)
+            std_msgs::String msg;
+            msg.data = "CONTROLLER_READY";
+            if (is_init)
             {
+                init_time = ros::Time::now().toSec();
                 is_init = false;
             }
+            if (ros::Time::now().toSec() - init_time >= wait_for_controller)
+            {
+                publisher_gnc_status.publish(msg);
+            }
         }
-
-        des_pose << x_d, y_d, z_d, phi_d, theta_d, psi_d;
-        des_pos_dot << x_dot_d, y_dot_d, z_dot_d, phi_dot_d, theta_dot_d, psi_dot_d;
-        est_pose << x_hat, y_hat, z_hat, phi_hat, theta_hat, psi_hat;
-
-        error = des_pose - est_pose;
-
-        error(3) = angleDifference(error(3));
-        error(4) = angleDifference(error(4));
-        error(5) = angleDifference(error(5));
-
-        // Define Jacobian Matrix
-        J << cos(psi_hat) * cos(theta_hat), cos(psi_hat) * sin(phi_hat) * sin(theta_hat) - cos(phi_hat) * sin(psi_hat), sin(phi_hat) * sin(psi_hat) + cos(phi_hat) * cos(psi_hat) * sin(theta_hat), 0, 0, 0,
-            cos(theta_hat) * sin(psi_hat), cos(phi_hat) * cos(psi_hat) + sin(phi_hat) * sin(psi_hat) * sin(theta_hat), cos(phi_hat) * sin(psi_hat) * sin(theta_hat) - cos(psi_hat) * sin(phi_hat), 0, 0, 0,
-            -sin(theta_hat), cos(theta_hat) * sin(phi_hat), cos(phi_hat) * cos(theta_hat), 0, 0, 0,
-            0, 0, 0, 1, sin(phi_hat) * tan(theta_hat), cos(phi_hat) * tan(theta_hat),
-            0, 0, 0, 0, cos(phi_hat), -sin(phi_hat),
-            0, 0, 0, 0, sin(phi_hat) / cos(theta_hat), cos(phi_hat) / cos(theta_hat);
-
-        nu << u_hat, v_hat, w_hat, p_hat, q_hat, r_hat;
-
-        est_pose_dot = J * nu;
-
-        phi_hat_dot = est_pose_dot(3);
-        theta_hat_dot = est_pose_dot(4);
-        psi_hat_dot = est_pose_dot(5);
-
-        LAMBDA << 3.0 * Eigen::Matrix<double, 6, 6>::Identity();
-        LAMBDA(0, 0) = 18000.0;
-        LAMBDA(1, 1) = 18000.0;
-        LAMBDA(2, 2) = 10000.0;
-        LAMBDA(5, 5) = 10000.0;
-
-        nu_r = J.inverse() * (des_pos_dot + LAMBDA * error);
-
-        J_inv_dot << -psi_hat_dot * cos(theta_hat) * sin(psi_hat) - theta_hat_dot * cos(psi_hat) * sin(theta_hat), psi_hat_dot * cos(psi_hat) * cos(theta_hat) - theta_hat_dot * sin(psi_hat) * sin(theta_hat), -theta_hat_dot * cos(theta_hat), 0, 0, 0,
-            phi_hat_dot * (sin(phi_hat) * sin(psi_hat) + cos(phi_hat) * cos(psi_hat) * sin(theta_hat)) - psi_hat_dot * (cos(phi_hat) * cos(psi_hat) + sin(phi_hat) * sin(psi_hat) * sin(theta_hat)) + theta_hat_dot * cos(psi_hat) * cos(theta_hat) * sin(phi_hat), theta_hat_dot * cos(theta_hat) * sin(phi_hat) * sin(psi_hat) - psi_hat_dot * (cos(phi_hat) * sin(psi_hat) - cos(psi_hat) * sin(phi_hat) * sin(theta_hat)) - phi_hat_dot * (cos(psi_hat) * sin(phi_hat) - cos(phi_hat) * sin(psi_hat) * sin(theta_hat)), phi_hat_dot * cos(phi_hat) * cos(theta_hat) - theta_hat_dot * sin(phi_hat) * sin(theta_hat), 0, 0, 0,
-            phi_hat_dot * (cos(phi_hat) * sin(psi_hat) - cos(psi_hat) * sin(phi_hat) * sin(theta_hat)) + psi_hat_dot * (cos(psi_hat) * sin(phi_hat) - cos(phi_hat) * sin(psi_hat) * sin(theta_hat)) + theta_hat_dot * cos(phi_hat) * cos(psi_hat) * cos(theta_hat), psi_hat_dot * (sin(phi_hat) * sin(psi_hat) + cos(phi_hat) * cos(psi_hat) * sin(theta_hat)) - phi_hat_dot * (cos(phi_hat) * cos(psi_hat) + sin(phi_hat) * sin(psi_hat) * sin(theta_hat)) + theta_hat_dot * cos(phi_hat) * cos(theta_hat) * sin(psi_hat), -phi_hat_dot * cos(theta_hat) * sin(phi_hat) - theta_hat_dot * cos(phi_hat) * sin(theta_hat), 0, 0, 0,
-            0, 0, 0, 0, 0, -theta_hat_dot * cos(theta_hat),
-            0, 0, 0, 0, -phi_hat_dot * sin(phi_hat), phi_hat_dot * cos(phi_hat) * cos(theta_hat) - theta_hat_dot * sin(phi_hat) * sin(theta_hat),
-            0, 0, 0, 0, -phi_hat_dot * cos(phi_hat), -phi_hat_dot * cos(theta_hat) * sin(phi_hat) - theta_hat_dot * cos(phi_hat) * sin(theta_hat);
-
-        error_dot = des_pos_dot - est_pose_dot;
-
-        nu_r_dot = J.inverse() * (des_pos_2dot + LAMBDA * error_dot) + J_inv_dot * (des_pos_dot + LAMBDA * error);
-
-        s = J.inverse() * (error_dot + LAMBDA * error);
-
-        Eigen::Matrix<double, 6, 6> K_d;
-        K_d << Eigen::Matrix<double, 6, 6>::Identity();
-
-        K_d(0, 0) = 50000;
-        K_d(1, 1) = 50000;
-        K_d(2, 2) = 20000;
-        K_d(5, 5) = 10000;
-
-        Eigen::Matrix<double, 6, 4> B;
-
-        Eigen::Matrix<double, 4, 6> B_pinv;
-
-        B_pinv << 1, 0, 0, 0, 0, 0,
-            0, 1, 0, 0, 0, 0,
-            0, 0, 1, 0, 0, 0,
-            0, 0, 0, 0, 0, 1;
-
-        double u_r = nu_r(0);
-        double v_r = nu_r(1);
-        double w_r = nu_r(2);
-        double p_r = nu_r(3);
-        double q_r = nu_r(4);
-        double r_r = nu_r(5);
-
-        double u_r_dot = nu_r_dot(0);
-        double v_r_dot = nu_r_dot(1);
-        double w_r_dot = nu_r_dot(2);
-        double p_r_dot = nu_r_dot(3);
-        double q_r_dot = nu_r_dot(4);
-        double r_r_dot = nu_r_dot(5);
-
-        double m_hat = pi_d(0);
-        double I_x_hat = pi_d(1);
-        double I_y_hat = pi_d(2);
-        double I_z_hat = pi_d(3);
-        double I_xy_hat = pi_d(4);
-        double I_xz_hat = pi_d(5);
-        double I_yz_hat = pi_d(6);
-        double x_g_hat = pi_d(7);
-        double y_g_hat = pi_d(8);
-        double z_g_hat = pi_d(9);
-        double x_b_hat = pi_d(10);
-        double y_b_hat = pi_d(11);
-        double z_b_hat = pi_d(12);
-        double X_u_dot_hat = pi_d(13);
-        double Y_v_dot_hat = pi_d(14);
-        double Z_w_dot_hat = pi_d(15);
-        double K_p_dot_hat = pi_d(16);
-        double M_q_dot_hat = pi_d(17);
-        double N_r_dot_hat = pi_d(18);
-
-        // Calcolo del Regressore sui parametri incogniti
-        Eigen::Matrix<double, 6, 25> Y;
-
-        Y << u_r_dot + q_r_dot * z_g_hat - r_r_dot * y_g_hat + p_r * (q_hat * y_g_hat + r_hat * z_g_hat) + q_r * (w_hat - q_hat * x_g_hat) - r_r * (v_hat + r_hat * x_g_hat), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -m * q_hat * q_r - m * r_hat * r_r, m * p_r * q_hat - m * r_r_dot, m * q_r_dot + m * p_r * r_hat, 0.0, 0.0, 0.0, u_r_dot, r_r * v_hat, -q_r * w_hat, 0.0, 0.0, 0.0, 500 * u_hat * abs(u_hat), 0.0, 0.0, 0.0, 0.0, 0.0,
-            v_r_dot - p_r_dot * z_g_hat + r_r_dot * x_g_hat + q_r * (p_hat * x_g_hat + r_hat * z_g_hat) - p_r * (w_hat + p_hat * y_g_hat) + r_r * (u_hat - r_hat * y_g_hat), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, m * r_r_dot + m * p_hat * q_r, -m * p_hat * p_r - m * r_hat * r_r, m * q_r * r_hat - m * p_r_dot, 0.0, 0.0, 0.0, -r_r * u_hat, v_r_dot, p_r * w_hat, 0.0, 0.0, 0.0, 0.0, 500 * v_hat * abs(v_hat), 0.0, 0.0, 0.0, 0.0,
-            w_r_dot + p_r_dot * y_g_hat - q_r_dot * x_g_hat + r_r * (p_hat * x_g_hat + q_hat * y_g_hat) + p_r * (v_hat - p_hat * z_g_hat) - q_r * (u_hat + q_hat * z_g_hat), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, m * p_hat * r_r - m * q_r_dot, m * p_r_dot + m * q_hat * r_r, -m * p_hat * p_r - m * q_hat * q_r, 0.0, 0.0, 0.0, q_r * u_hat, -p_r * v_hat, w_r_dot, 0.0, 0.0, 0.0, 0.0, 0.0, 500 * w_hat * abs(w_hat), 0.0, 0.0, 0.0,
-            w_r_dot * y_g_hat - v_r_dot * z_g_hat - u_r * (q_hat * y_g_hat + r_hat * z_g_hat) + v_r * (w_hat + p_hat * y_g_hat) - w_r * (v_hat - p_hat * z_g_hat) + (981 * cos(phi_hat) * cos(theta_hat) * (y_b_hat - y_g_hat)) / 100 - (981 * cos(theta_hat) * sin(phi_hat) * (z_b_hat - z_g_hat)) / 100, p_r_dot, -q_hat * r_r, q_r * r_hat, p_hat * r_r - q_r_dot, -r_r_dot - p_hat * q_r, r_hat * r_r - q_hat * q_r, 0.0, m * w_r_dot - (981 * m * cos(phi_hat) * cos(theta_hat)) / 100 + m * p_hat * v_r - m * q_hat * u_r, (981 * m * cos(theta_hat) * sin(phi_hat)) / 100 - m * v_r_dot + m * p_hat * w_r - m * r_hat * u_r, 0.0, (981 * m * cos(phi_hat) * cos(theta_hat)) / 100, -(981 * m * cos(theta_hat) * sin(phi_hat)) / 100, 0.0, v_hat * w_r, -v_r * w_hat, p_r_dot + p_hat * r_r, q_hat * r_r, -q_r * r_hat, 0.0, 0.0, 0.0, 500 * p_hat * abs(p_hat), 0.0, 0.0,
-            u_r_dot * z_g_hat - w_r_dot * x_g_hat - v_r * (p_hat * x_g_hat + r_hat * z_g_hat) - u_r * (w_hat - q_hat * x_g_hat) + w_r * (u_hat + q_hat * z_g_hat) - (981 * sin(theta_hat) * (z_b_hat - z_g_hat)) / 100 - (981 * cos(phi_hat) * cos(theta_hat) * (x_b_hat - x_g_hat)) / 100, p_hat * r_r, q_r_dot, -p_r * r_hat, -p_r_dot - q_hat * r_r, p_hat * p_r - r_hat * r_r, p_r * q_hat - r_r_dot, (981 * m * cos(phi_hat) * cos(theta_hat)) / 100 - m * w_r_dot - m * p_hat * v_r + m * q_hat * u_r, 0.0, m * u_r_dot + (981 * m * sin(theta_hat)) / 100 + m * q_hat * w_r - m * r_hat * v_r, -(981 * m * cos(phi_hat) * cos(theta_hat)) / 100, 0.0, -(981 * m * sin(theta_hat)) / 100, -u_hat * w_r, 0.0, u_r * w_hat, -p_hat * r_r, q_r_dot, p_r * r_hat, 0.0, 0.0, 0.0, 0.0, 500 * q_hat * abs(q_hat), 0.0,
-            v_r_dot * x_g_hat - u_r_dot * y_g_hat - w_r * (p_hat * x_g_hat + q_hat * y_g_hat) + u_r * (v_hat + r_hat * x_g_hat) - v_r * (u_hat - r_hat * y_g_hat) + (981 * sin(theta_hat) * (y_b_hat - y_g_hat)) / 100 + (981 * cos(theta_hat) * sin(phi_hat) * (x_b_hat - x_g_hat)) / 100, -p_hat * q_r, p_r * q_hat, r_r_dot, q_hat * q_r - p_hat * p_r, q_r * r_hat - p_r_dot, -q_r_dot - p_r * r_hat, m * v_r_dot - (981 * m * cos(theta_hat) * sin(phi_hat)) / 100 - m * p_hat * w_r + m * r_hat * u_r, m * r_hat * v_r - (981 * m * sin(theta_hat)) / 100 - m * q_hat * w_r - m * u_r_dot, 0.0, (981 * m * cos(theta_hat) * sin(phi_hat)) / 100, (981 * m * sin(theta_hat)) / 100, 0.0, u_hat * v_r, -u_r * v_hat, 0.0, p_hat * q_r - p_hat * p_r, -p_r * q_hat, r_r_dot, 0.0, 0.0, 0.0, 0.0, 0.0, 500 * r_hat * abs(r_hat);
-
-        // Define the torques vector
-        Eigen::Matrix<double, 4, 1> torques_vec;
-        torques_vec = B_pinv * (Y * pi_d + J.transpose() * error + K_d * s);
-
-        Eigen::Matrix<double, 25, 25> R;
-
-        R << 1000 * Eigen::Matrix<double, 25, 25>::Identity();
-        pi_d = dt * R.inverse() * Y.transpose() * s + pi_d;
-
-        if (torques_vec(3) > 37.471)
+        else if (GNC_status == "CONTROLLER_READY" || GNC_status == "GNC_READY")
         {
-            torques_vec(3) = 37.471;
-        }
-        else if (torques_vec(3) < -37.471)
-        {
-            torques_vec(3) = -37.471;
-        }
+            des_pose << x_d, y_d, z_d, phi_d, theta_d, psi_d;
+            des_pos_dot << x_dot_d, y_dot_d, z_dot_d, phi_dot_d, theta_dot_d, psi_dot_d;
+            est_pose << x_hat, y_hat, z_hat, phi_hat, theta_hat, psi_hat;
 
-        if (torques_vec(0) > 141.42)
-        {
-            torques_vec(0) = 141.42;
-        }
-        else if (torques_vec(0) < -141.42)
-        {
-            torques_vec(0) = -141.42;
-        }
+            error = des_pose - est_pose;
 
-        if (torques_vec(1) > 141.42)
-        {
-            torques_vec(1) = 141.42;
-        }
-        else if (torques_vec(1) < -141.42)
-        {
-            torques_vec(1) = -141.42;
-        }
+            error(3) = angleDifference(error(3));
+            error(4) = angleDifference(error(4));
+            error(5) = angleDifference(error(5));
 
-        if (torques_vec(2) > 70.71)
-        {
-            torques_vec(2) = 70.71;
-        }
-        else if (torques_vec(2) < -70.71)
-        {
-            torques_vec(2) = -70.71;
-        }
+            // ROS_WARN_STREAM("error" << error);
 
-        std::vector<double> torques = {torques_vec(0), torques_vec(1), torques_vec(2), 0.0, 0.0, torques_vec(3)};
+            // Define Jacobian Matrix
+            J << cos(psi_hat) * cos(theta_hat), cos(psi_hat) * sin(phi_hat) * sin(theta_hat) - cos(phi_hat) * sin(psi_hat), sin(phi_hat) * sin(psi_hat) + cos(phi_hat) * cos(psi_hat) * sin(theta_hat), 0, 0, 0,
+                cos(theta_hat) * sin(psi_hat), cos(phi_hat) * cos(psi_hat) + sin(phi_hat) * sin(psi_hat) * sin(theta_hat), cos(phi_hat) * sin(psi_hat) * sin(theta_hat) - cos(psi_hat) * sin(phi_hat), 0, 0, 0,
+                -sin(theta_hat), cos(theta_hat) * sin(phi_hat), cos(phi_hat) * cos(theta_hat), 0, 0, 0,
+                0, 0, 0, 1, sin(phi_hat) * tan(theta_hat), cos(phi_hat) * tan(theta_hat),
+                0, 0, 0, 0, cos(phi_hat), -sin(phi_hat),
+                0, 0, 0, 0, sin(phi_hat) / cos(theta_hat), cos(phi_hat) / cos(theta_hat);
 
-        // Publishing the torques
-        tesi_bluerov2::Floats torques_msg;
-        torques_msg.data = torques;
+            nu << u_hat, v_hat, w_hat, p_hat, q_hat, r_hat;
 
-        // Pubblico i dati solo dopo 5 secondi e se il tempo iniziale è stato calcolato correttamente
-        if (ros::Time::now().toSec() - init_time > 5.0 && !is_init)
-        {
+            est_pose_dot = J * nu;
+
+            phi_hat_dot = est_pose_dot(3);
+            theta_hat_dot = est_pose_dot(4);
+            psi_hat_dot = est_pose_dot(5);
+
+            nu_r = J.inverse() * (des_pos_dot + LAMBDA * error);
+
+            J_inv_dot << -psi_hat_dot * cos(theta_hat) * sin(psi_hat) - theta_hat_dot * cos(psi_hat) * sin(theta_hat), psi_hat_dot * cos(psi_hat) * cos(theta_hat) - theta_hat_dot * sin(psi_hat) * sin(theta_hat), -theta_hat_dot * cos(theta_hat), 0, 0, 0,
+                phi_hat_dot * (sin(phi_hat) * sin(psi_hat) + cos(phi_hat) * cos(psi_hat) * sin(theta_hat)) - psi_hat_dot * (cos(phi_hat) * cos(psi_hat) + sin(phi_hat) * sin(psi_hat) * sin(theta_hat)) + theta_hat_dot * cos(psi_hat) * cos(theta_hat) * sin(phi_hat), theta_hat_dot * cos(theta_hat) * sin(phi_hat) * sin(psi_hat) - psi_hat_dot * (cos(phi_hat) * sin(psi_hat) - cos(psi_hat) * sin(phi_hat) * sin(theta_hat)) - phi_hat_dot * (cos(psi_hat) * sin(phi_hat) - cos(phi_hat) * sin(psi_hat) * sin(theta_hat)), phi_hat_dot * cos(phi_hat) * cos(theta_hat) - theta_hat_dot * sin(phi_hat) * sin(theta_hat), 0, 0, 0,
+                phi_hat_dot * (cos(phi_hat) * sin(psi_hat) - cos(psi_hat) * sin(phi_hat) * sin(theta_hat)) + psi_hat_dot * (cos(psi_hat) * sin(phi_hat) - cos(phi_hat) * sin(psi_hat) * sin(theta_hat)) + theta_hat_dot * cos(phi_hat) * cos(psi_hat) * cos(theta_hat), psi_hat_dot * (sin(phi_hat) * sin(psi_hat) + cos(phi_hat) * cos(psi_hat) * sin(theta_hat)) - phi_hat_dot * (cos(phi_hat) * cos(psi_hat) + sin(phi_hat) * sin(psi_hat) * sin(theta_hat)) + theta_hat_dot * cos(phi_hat) * cos(theta_hat) * sin(psi_hat), -phi_hat_dot * cos(theta_hat) * sin(phi_hat) - theta_hat_dot * cos(phi_hat) * sin(theta_hat), 0, 0, 0,
+                0, 0, 0, 0, 0, -theta_hat_dot * cos(theta_hat),
+                0, 0, 0, 0, -phi_hat_dot * sin(phi_hat), phi_hat_dot * cos(phi_hat) * cos(theta_hat) - theta_hat_dot * sin(phi_hat) * sin(theta_hat),
+                0, 0, 0, 0, -phi_hat_dot * cos(phi_hat), -phi_hat_dot * cos(theta_hat) * sin(phi_hat) - theta_hat_dot * cos(phi_hat) * sin(theta_hat);
+
+            error_dot = des_pos_dot - est_pose_dot;
+
+            nu_r_dot = J.inverse() * (des_pos_2dot + LAMBDA * error_dot) + J_inv_dot * (des_pos_dot + LAMBDA * error);
+
+            s = J.inverse() * (error_dot + LAMBDA * error);
+
+            u_r = nu_r(0);
+            v_r = nu_r(1);
+            w_r = nu_r(2);
+            p_r = nu_r(3);
+            q_r = nu_r(4);
+            r_r = nu_r(5);
+
+            u_r_dot = nu_r_dot(0);
+            v_r_dot = nu_r_dot(1);
+            w_r_dot = nu_r_dot(2);
+            p_r_dot = nu_r_dot(3);
+            q_r_dot = nu_r_dot(4);
+            r_r_dot = nu_r_dot(5);
+
+            m_hat = pi_d(0);
+            I_x_hat = pi_d(1);
+            I_y_hat = pi_d(2);
+            I_z_hat = pi_d(3);
+            I_xy_hat = pi_d(4);
+            I_xz_hat = pi_d(5);
+            I_yz_hat = pi_d(6);
+            x_g_hat = pi_d(7);
+            y_g_hat = pi_d(8);
+            z_g_hat = pi_d(9);
+            x_b_hat = pi_d(10);
+            y_b_hat = pi_d(11);
+            z_b_hat = pi_d(12);
+            X_u_dot_hat = pi_d(13);
+            Y_v_dot_hat = pi_d(14);
+            Z_w_dot_hat = pi_d(15);
+            K_p_dot_hat = pi_d(16);
+            M_q_dot_hat = pi_d(17);
+            N_r_dot_hat = pi_d(18);
+
+            // Calcolo del Regressore sui parametri incogniti
+            Eigen::Matrix<double, 6, 25> Y;
+
+            Y << u_r_dot + q_r_dot * z_g - r_r_dot * y_g + p_r * (q_hat * y_g + r_hat * z_g) + q_r * (w_hat - q_hat * x_g) - r_r * (v_hat + r_hat * x_g), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, u_r_dot, r_r * v_hat, -q_r * w_hat, 0.0, 0.0, 0.0, -m * (q_hat * q_r + r_hat * r_r), -m * (r_r_dot - p_r * q_hat), m * (q_r_dot + p_r * r_hat), 0.0, 0.0, 0.0, 500 * u_hat * abs(u_hat), 0.0, 0.0, 0.0, 0.0, 0.0,
+                v_r_dot - p_r_dot * z_g + r_r_dot * x_g + q_r * (p_hat * x_g + r_hat * z_g) - p_r * (w_hat + p_hat * y_g) + r_r * (u_hat - r_hat * y_g), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -r_r * u_hat, v_r_dot, p_r * w_hat, 0.0, 0.0, 0.0, m * (r_r_dot + p_hat * q_r), -m * (p_hat * p_r + r_hat * r_r), -m * (p_r_dot - q_r * r_hat), 0.0, 0.0, 0.0, 0.0, 500 * v_hat * abs(v_hat), 0.0, 0.0, 0.0, 0.0,
+                w_r_dot + p_r_dot * y_g - q_r_dot * x_g + r_r * (p_hat * x_g + q_hat * y_g) + p_r * (v_hat - p_hat * z_g) - q_r * (u_hat + q_hat * z_g), 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, q_r * u_hat, -p_r * v_hat, w_r_dot, 0.0, 0.0, 0.0, -m * (q_r_dot - p_hat * r_r), m * (p_r_dot + q_hat * r_r), -m * (p_hat * p_r + q_hat * q_r), 0.0, 0.0, 0.0, 0.0, 0.0, 500 * w_hat * abs(w_hat), 0.0, 0.0, 0.0,
+                w_r_dot * y_g - v_r_dot * z_g - u_r * (q_hat * y_g + r_hat * z_g) + v_r * (w_hat + p_hat * y_g) - w_r * (v_hat - p_hat * z_g) + (981 * cos(phi_hat) * cos(theta_hat) * (y_b - y_g)) / 100 - (981 * cos(theta_hat) * sin(phi_hat) * (z_b - z_g)) / 100, p_r_dot, -q_hat * r_r, q_r * r_hat, p_hat * r_r - q_r_dot, -r_r_dot - p_hat * q_r, r_hat * r_r - q_hat * q_r, 0.0, v_hat * w_r, -v_r * w_hat, p_r_dot + p_hat * r_r, q_hat * r_r, -q_r * r_hat, 0.0, (m * (100 * w_r_dot - 981 * cos(phi_hat) * cos(theta_hat) + 100 * p_hat * v_r - 100 * q_hat * u_r)) / 100, -(m * (100 * v_r_dot - 981 * cos(theta_hat) * sin(phi_hat) - 100 * p_hat * w_r + 100 * r_hat * u_r)) / 100, 0.0, (981 * m * cos(phi_hat) * cos(theta_hat)) / 100, -(981 * m * cos(theta_hat) * sin(phi_hat)) / 100, 0.0, 0.0, 0.0, 500 * p_hat * abs(p_hat), 0.0, 0.0,
+                u_r_dot * z_g - w_r_dot * x_g - v_r * (p_hat * x_g + r_hat * z_g) - u_r * (w_hat - q_hat * x_g) + w_r * (u_hat + q_hat * z_g) - (981 * sin(theta_hat) * (z_b - z_g)) / 100 - (981 * cos(phi_hat) * cos(theta_hat) * (x_b - x_g)) / 100, p_hat * r_r, q_r_dot, -p_r * r_hat, -p_r_dot - q_hat * r_r, p_hat * p_r - r_hat * r_r, p_r * q_hat - r_r_dot, -u_hat * w_r, 0.0, u_r * w_hat, -p_hat * r_r, q_r_dot, p_r * r_hat, -(m * (100 * w_r_dot - 981 * cos(phi_hat) * cos(theta_hat) + 100 * p_hat * v_r - 100 * q_hat * u_r)) / 100, 0.0, (m * (100 * u_r_dot + 981 * sin(theta_hat) + 100 * q_hat * w_r - 100 * r_hat * v_r)) / 100, -(981 * m * cos(phi_hat) * cos(theta_hat)) / 100, 0.0, -(981 * m * sin(theta_hat)) / 100, 0.0, 0.0, 0.0, 0.0, 500 * q_hat * abs(q_hat), 0.0,
+                v_r_dot * x_g - u_r_dot * y_g - w_r * (p_hat * x_g + q_hat * y_g) + u_r * (v_hat + r_hat * x_g) - v_r * (u_hat - r_hat * y_g) + (981 * sin(theta_hat) * (y_b - y_g)) / 100 + (981 * cos(theta_hat) * sin(phi_hat) * (x_b - x_g)) / 100, -p_hat * q_r, p_r * q_hat, r_r_dot, q_hat * q_r - p_hat * p_r, q_r * r_hat - p_r_dot, -q_r_dot - p_r * r_hat, u_hat * v_r, -u_r * v_hat, 0.0, -p_hat * (p_r - q_r), -p_r * q_hat, r_r_dot, (m * (100 * v_r_dot - 981 * cos(theta_hat) * sin(phi_hat) - 100 * p_hat * w_r + 100 * r_hat * u_r)) / 100, -(m * (100 * u_r_dot + 981 * sin(theta_hat) + 100 * q_hat * w_r - 100 * r_hat * v_r)) / 100, 0.0, (981 * m * cos(theta_hat) * sin(phi_hat)) / 100, (981 * m * sin(theta_hat)) / 100, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 500 * r_hat * abs(r_hat);
+
+            torques_vec = B_pinv * (Y * pi_d + J.transpose() * error + K_d * s);
+
+            pi_d = dt * R.inverse() * Y.transpose() * s + pi_d;
+            
+            if (torques_vec(3) > 5.471)
+            {
+                torques_vec(3) = 5.471;
+            }
+            else if (torques_vec(3) < -5.471)
+            {
+                torques_vec(3) = -5.471;
+            }
+
+            if (torques_vec(0) > 141.42)
+            {
+                torques_vec(0) = 141.42;
+            }
+            else if (torques_vec(0) < -141.42)
+            {
+                torques_vec(0) = -141.42;
+            }
+
+            if (torques_vec(1) > 14.42)
+            {
+                torques_vec(1) = 14.42;
+            }
+            else if (torques_vec(1) < -14.42)
+            {
+                torques_vec(1) = -14.42;
+            }
+
+            if (torques_vec(2) > 70.71)
+            {
+                torques_vec(2) = 70.71;
+            }
+            else if (torques_vec(2) < -70.71)
+            {
+                torques_vec(2) = -70.71;
+            }
+
+            std::vector<double> torques = {torques_vec(0), torques_vec(1), torques_vec(2), 0.0, 0.0, torques_vec(3)};
+
+            // Publishing the torques
+            tesi_bluerov2::Floats torques_msg;
+            torques_msg.data = torques;
+
             chatter_pub.publish(torques_msg);
 
             if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())

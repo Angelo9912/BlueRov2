@@ -69,8 +69,14 @@ int main(int argc, char **argv)
         tesi_bluerov2::Floats msg;
         double valid = 1.0;
 
+        double z_m = z_hat + gaussianNoise(0, var_z);
+
+        if(z_m < 0.0){
+            z_m = 0.0;
+        }
+
         // Add noise to the depth_sensor data and fill the message
-        std::vector<double> depth_sensor_data = {z_hat + gaussianNoise(0, var_z), valid};
+        std::vector<double> depth_sensor_data = {z_m, valid};
         msg.data = depth_sensor_data;
 
         if (ros::Time::now().toSec() - start_time > 5)

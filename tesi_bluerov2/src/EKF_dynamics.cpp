@@ -144,6 +144,7 @@ double W = 0.0;
 double mahalanobis_distance = 0.0;
 
 bool is_prima_volta = true;
+bool first_nan_print = true;
 
 std::string GNC_status = "NOT_READY";
 
@@ -993,14 +994,22 @@ int main(int argc, char **argv)
 
             P_pred = F_k * P_curr * F_k.transpose() + D_k * Q * D_k.transpose();
 
-            Eigen::VectorXd P_pred_eig(12);
-            P_pred_eig = P_pred.eigenvalues().real();
-            double P_pred_min = P_pred_eig.minCoeff();
+            // Eigen::VectorXd P_pred_eig(12);
+            // P_pred_eig = P_pred.eigenvalues().real();
+            // double P_pred_min = P_pred_eig.minCoeff();
 
-            if((P_pred_min < 0.0) && (P_pred(0,0) == P_pred(0,0)))
+            // if((P_pred_min < 0.0) && (P_pred(0,0) == P_pred(0,0)))
+            // {
+            //     ROS_WARN_STREAM("P_pred: \n"
+            //                     << P_pred);
+            // }
+            if (xi_curr(0) != xi_curr(0))
             {
-                ROS_WARN_STREAM("P_pred: \n"
-                                << P_pred);
+                if (first_nan_print)
+                {
+                    ROS_WARN("NaN EKF Dynamics (no imu) error");
+                    first_nan_print = false;
+                }
             }
 
             ///////////////////////////////////////////////////////////////////////

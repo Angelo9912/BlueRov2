@@ -293,6 +293,11 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
         // wrapToPi(eta_k1(psi));
         eta_k1(5) = atan2(sin(eta_k1(5)), cos(eta_k1(5)));
 
+        if (eta_k1(2) <= 0.0)
+        {
+            eta_k1(2) = 0.0;
+        }
+
         sigma_points_out.col(i) << eta_k1, nu_k1;
     }
 

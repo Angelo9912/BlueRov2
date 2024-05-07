@@ -1,0 +1,8 @@
+prefix=/usr/local
+
+Name: tesi_bluerov2
+Description: Description of tesi_bluerov2
+Version: 0.0.0
+Cflags: -I${prefix}/include
+Libs: -L${prefix}/lib 
+Requires: roscpp rospy std_msgs message_runtime rosbag

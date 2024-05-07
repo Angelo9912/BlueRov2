@@ -471,7 +471,7 @@ int main(int argc, char **argv)
     double dt = 1 / freq;
 
     std::string path = ros::package::getPath("tesi_bluerov2");
-    bag.open(path + "/bag/ekf_dynamics.bag", rosbag::bagmode::Write);
+    bag.open(path + "/bag/ekf_dynamics_imu.bag", rosbag::bagmode::Write);
 
     bool is_init = false;
 
@@ -496,7 +496,7 @@ int main(int argc, char **argv)
     ros::Rate loop_rate(freq);
 
     // Create a publisher object
-    ros::Publisher est_state_pub = n.advertise<tesi_bluerov2::Floats>("state/est_state_topic", 1000);
+    ros::Publisher est_state_pub = n.advertise<tesi_bluerov2::Floats>("state/est_state_topic_imu", 1000);
     ros::Publisher publisher_gnc_status = n.advertise<std_msgs::String>("manager/GNC_status_requested_topic", 10); // publisher stato richiesto al GNC
 
     // Create subscriber objects
@@ -1021,7 +1021,7 @@ int main(int argc, char **argv)
         // Let ROS handle all incoming messages in a callback function
         if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
         {
-            bag.write("state/est_state_topic", ros::Time::now(), msg);
+            bag.write("state/est_state_topic_imu", ros::Time::now(), msg);
         }
 
         ros::spinOnce();

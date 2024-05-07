@@ -43,6 +43,7 @@ double x_t = 0.0;     // coordiata x del target da raggiungere a fine missione
 double y_t = 0.0;     // coordiata y del target da raggiungere a fine missione
 double z_t = 0.0;     // coordiata z del target da raggiungere a fine missione
 bool is_psi_adjusted; // flag per controllare se psi è stato aggiustato
+bool is_z_adjusted;   // flag per regolare la z e portarci sul piano xy in cui fare la guida
 int way_counter = 0;  // contatore per waypoint
 bool UP_DOWN_first_phase = true;
 std::string strategy = "";       // strategia di controllo
@@ -90,6 +91,7 @@ void waypointCallback(const tesi_bluerov2::waypoints::ConstPtr &msg) // CALLBACK
         psi_1 = psi_hat;
         way_counter = 1;
         is_psi_adjusted = false;
+        is_z_adjusted = false;
         way_spline = msg->waypoints;
         speed = msg->speed;
         strategy = msg->strategy;
@@ -160,9 +162,9 @@ void estStateCallback(const tesi_bluerov2::Floats::ConstPtr &msg) // CALLBACK in
         x_hat = msg->data[0];
         y_hat = msg->data[1];
         z_hat = msg->data[2];
-        psi_hat = msg->data[3];
-        phi_hat = msg->data[4];
-        theta_hat = msg->data[5];
+        phi_hat = msg->data[3];
+        theta_hat = msg->data[4];
+        psi_hat = msg->data[5];
         u_hat = msg->data[6];
         v_hat = msg->data[7];
         w_hat = msg->data[8];
@@ -200,6 +202,14 @@ double angleDifference(double e)
     return e;
 }
 
+double wrapToPi(double x)
+{
+    x = fmod(x * 180 / M_PI + 180, 360);
+    if (x < 0)
+        x += 360;
+    return (x - 180) * M_PI / 180;
+}
+
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "guidance");
@@ -210,11 +220,13 @@ int main(int argc, char **argv)
     ros::Publisher publisher_gnc_status = n.advertise<std_msgs::String>("manager/GNC_status_requested_topic", 10); // publisher stato richiesto al GNC
 
     ros::Subscriber sub_gnc_status = n.subscribe("manager/GNC_status_topic", 1, GNCstatusCallback); // sottoscrizione alla topic di stato del GNC
-    ros::Subscriber sub_est_state = n.subscribe("state/est_state_topic_no_dyn_imu", 1, estStateCallback);          // sottoscrizione alla topic di stato stimato
-    ros::Subscriber sub_waypoint = n.subscribe("waypoints_topic", 1, waypointCallback);             // sottoscrizione alla topic di waypoint
-    ros::Subscriber sub_status = n.subscribe("manager/mission_status_topic", 1, statusCallback);    // sottoscrizione alla topic di mission status
-    double freq = 50.0;                                                                             // frequenza di lavoro
-    double dt = 1 / freq;                                                                           // tempo di campionamento
+    // ros::Subscriber sub_est_state = n.subscribe("state/est_state_topic_no_dyn_imu", 1, estStateCallback);          // sottoscrizione alla topic di stato stimato
+    ros::Subscriber sub_est_state = n.subscribe("state/est_state_topic_no_dyn_imu", 1, estStateCallback); // sottoscrizione alla topic di stato stimato
+    ros::Subscriber sub_waypoint = n.subscribe("waypoints_topic", 1, waypointCallback);                   // sottoscrizione alla topic di waypoint
+    ros::Subscriber sub_status = n.subscribe("manager/mission_status_topic", 1, statusCallback);          // sottoscrizione alla topic di mission status
+
+    double freq = 50.0;   // frequenza di lavoro
+    double dt = 1 / freq; // tempo di campionamento
     ros::Rate loop_rate(freq);
     double i_psi = 0.0;
     int post_up_down = 0;        // intero che mi dice se la guida rect deve ripartire a seguito di un up_down
@@ -249,6 +261,10 @@ int main(int argc, char **argv)
 
     double u_d_tmp; // velocità di surge per tenere conto della velocità a cui siamo arrivati
     double w_d_tmp; // velocità di heave per tenere conto della velocità a cui siamo arrivati
+    double max_w_d = 0.3;
+    double delta_w = 0.03;
+    double delta_u = 0.05;
+    double step = 1.0 / 50.0; // lunghezza segmentini che costituiscono il segmento che congiunge due waypoint successivi
     bool is_u_d_tmp_initialized = false;
     bool is_w_d_tmp_initialized = false;
 
@@ -268,30 +284,25 @@ int main(int argc, char **argv)
     Eigen::VectorXd pose_d_dot(6);
     Eigen::VectorXd Mx(1);
     Eigen::VectorXd My(1);
-    Eigen::VectorXd Mz(1);
     Eigen::VectorXd Mx_tmp(1);
     Eigen::VectorXd My_tmp(1);
-    Eigen::VectorXd Mz_tmp(1);
     Eigen::VectorXd Sx(1);
     Eigen::VectorXd Sy(1);
-    Eigen::VectorXd Sz(1);
     Eigen::VectorXd ax(1);
     Eigen::VectorXd ay(1);
-    Eigen::VectorXd az(1);
     Eigen::VectorXd bx(1);
     Eigen::VectorXd by(1);
-    Eigen::VectorXd bz(1);
     Eigen::VectorXd cx(1);
     Eigen::VectorXd cy(1);
-    Eigen::VectorXd cz(1);
     Eigen::VectorXd dx(1);
     Eigen::VectorXd dy(1);
-    Eigen::VectorXd dz(1);
     Eigen::VectorXd way_spline_x(1); // vettore che contiene le x delle spline
     Eigen::VectorXd way_spline_y(1); // vettore che contiene le y delle spline
     Eigen::VectorXd way_spline_z(1); // vettore che contiene le z delle spline
     Eigen::VectorXd dist_psi(1);     // vettore che contiene le distanze tra psi desiderato e psi stimato
     // int i_min = 0;
+    bool is_init = true;
+    double init_time;
     while (ros::ok())
     {
         if (GNC_status == "CONTROLLER_READY")
@@ -299,9 +310,15 @@ int main(int argc, char **argv)
             std::string status_req = "GUIDANCE_READY";
             std_msgs::String msg;
             msg.data = status_req;
-            ros::Duration(20).sleep();
-            // Publish the message on the "topic1" topic
-            publisher_gnc_status.publish(msg);
+            if (is_init)
+            {
+                init_time = ros::Time::now().toSec();
+                is_init = false;
+            }
+            if (ros::Time::now().toSec() - init_time >= 15.0)
+            {
+                publisher_gnc_status.publish(msg);
+            }
         }
         else if (GNC_status == "GNC_READY")
         {
@@ -346,8 +363,9 @@ int main(int argc, char **argv)
 
                     for (int i = 0; i < n_waypoints - 1; i++)
                     {
-                        waypoint_distance_vector(i) = sqrt(pow(way_spline_x(i + 1) - way_spline_x(i), 2) + pow(way_spline_y(i + 1) - way_spline_y(i), 2) + pow(way_spline_z(i + 1) - way_spline_z(i), 2));
+                        waypoint_distance_vector(i) = sqrt(pow(way_spline_x(i + 1) - way_spline_x(i), 2) + pow(way_spline_y(i + 1) - way_spline_y(i), 2));
                     }
+
                     waypoint_distance = waypoint_distance_vector.sum();
                     h = waypoint_distance / speed;
                     dim = 0;
@@ -373,53 +391,38 @@ int main(int argc, char **argv)
 
                     Mx.resize(n_waypoints);
                     My.resize(n_waypoints);
-                    Mz.resize(n_waypoints);
                     Mx_tmp.resize(n_waypoints - 2);
                     My_tmp.resize(n_waypoints - 2);
-                    Mz_tmp.resize(n_waypoints - 2);
                     Sx.resize(n_waypoints - 2);
                     Sy.resize(n_waypoints - 2);
-                    Sz.resize(n_waypoints - 2);
                     ax.resize(n_waypoints - 1);
                     ay.resize(n_waypoints - 1);
-                    az.resize(n_waypoints - 1);
                     bx.resize(n_waypoints - 1);
                     by.resize(n_waypoints - 1);
-                    bz.resize(n_waypoints - 1);
                     cx.resize(n_waypoints - 1);
                     cy.resize(n_waypoints - 1);
-                    cz.resize(n_waypoints - 1);
                     dx.resize(n_waypoints - 1);
                     dy.resize(n_waypoints - 1);
-                    dz.resize(n_waypoints - 1);
-
                     for (int i = 0; i < n_waypoints - 2; i++)
                     {
                         Sx(i) = 6 / (h * h) * (way_spline_x(i) - 2 * way_spline_x(i + 1) + way_spline_x(i + 2));
                         Sy(i) = 6 / (h * h) * (way_spline_y(i) - 2 * way_spline_y(i + 1) + way_spline_y(i + 2));
-                        Sz(i) = 6 / (h * h) * (way_spline_z(i) - 2 * way_spline_z(i + 1) + way_spline_z(i + 2));
                     }
                     Mx_tmp = A.inverse() * Sx;
                     Mx << 0, Mx_tmp, 0;
                     My_tmp = A.inverse() * Sy;
                     My << 0, My_tmp, 0;
-                    Mz_tmp = A.inverse() * Sz;
-                    Mz << 0, Mz_tmp, 0;
 
                     for (int i = 0; i < n_waypoints - 1; i++)
                     {
                         ax(i) = (Mx(i + 1) - Mx(i)) / (6 * h);
                         ay(i) = (My(i + 1) - My(i)) / (6 * h);
-                        az(i) = (Mz(i + 1) - Mz(i)) / (6 * h);
                         bx(i) = Mx(i) / 2;
                         by(i) = My(i) / 2;
-                        bz(i) = Mz(i) / 2;
                         cx(i) = (way_spline_x(i + 1) - way_spline_x(i)) / h - h / 6 * (2 * Mx(i) + Mx(i + 1));
                         cy(i) = (way_spline_y(i + 1) - way_spline_y(i)) / h - h / 6 * (2 * My(i) + My(i + 1));
-                        cz(i) = (way_spline_z(i + 1) - way_spline_z(i)) / h - h / 6 * (2 * Mz(i) + Mz(i + 1));
                         dx(i) = way_spline_x(i);
                         dy(i) = way_spline_y(i);
-                        dz(i) = way_spline_z(i);
                     }
 
                     Eigen::VectorXd x2(dim);
@@ -441,7 +444,7 @@ int main(int argc, char **argv)
                         {
                             x2(j + j_prec) = ax(i) * pow(j * delta_t, 3) + bx(i) * pow(j * delta_t, 2) + cx(i) * (j * delta_t) + dx(i);
                             y2(j + j_prec) = ay(i) * pow(j * delta_t, 3) + by(i) * pow(j * delta_t, 2) + cy(i) * (j * delta_t) + dy(i);
-                            z2(j + j_prec) = az(i) * pow(j * delta_t, 3) + bz(i) * pow(j * delta_t, 2) + cz(i) * (j * delta_t) + dz(i);
+                            z2(j + j_prec) = way_spline_z(i);
                             phi2(j + j_prec) = 0.0;
                             theta2(j + j_prec) = 0.0;
                             psi2(j + j_prec) = atan2(3 * ay(i) * pow(j * delta_t, 2) + 2 * by(i) * (j * delta_t) + cy(i), 3 * ax(i) * pow(j * delta_t, 2) + 2 * bx(i) * (j * delta_t) + cx(i));
@@ -460,16 +463,37 @@ int main(int argc, char **argv)
                     int dim1 = 0;
                     if (angleDifference(psi2(0) - psi_1) > 10 * (M_PI / 180))
                     {
-                        dim1 = (int)(angleDifference(psi2(0) - psi_1) * freq / (10 * (M_PI / 180)));
+                        dim1 = (int)(angleDifference(psi2(0) - psi_1) * freq / (5 * (M_PI / 180)));
                     }
                     else if (angleDifference(psi2(0) - psi_1) < -10 * (M_PI / 180))
                     {
-                        dim1 = (int)(angleDifference(psi_1 - psi2(0)) * freq / (10 * (M_PI / 180)));
+                        dim1 = (int)(angleDifference(psi_1 - psi2(0)) * freq / (-5 * (M_PI / 180)));
                     }
                     else
                     {
                         is_psi_adjusted = true;
                     }
+
+                    Eigen::VectorXi middle_waypoints(n_waypoints);
+                    Eigen::VectorXd pos_rel_x(n_waypoints);
+                    Eigen::VectorXd pos_rel_y(n_waypoints);
+                    Eigen::VectorXd pos_rel_z(n_waypoints);
+                    Eigen::VectorXd dz(n_waypoints);
+                    Eigen::VectorXd dist_to_targ(n_waypoints);
+                    Eigen::VectorXd z(middle_waypoints(way_counter - 1));
+                    Eigen::VectorXd distz(middle_waypoints(way_counter - 1));
+                    pos_rel_x(way_counter - 1) = way_spline_x(way_counter) - way_spline_x(way_counter - 1);
+                    pos_rel_y(way_counter - 1) = way_spline_y(way_counter) - way_spline_y(way_counter - 1);
+                    pos_rel_z(way_counter - 1) = way_spline_z(way_counter) - way_spline_z(way_counter - 1);
+
+                    dist_to_targ(way_counter - 1) = sqrt(pow(pos_rel_x(way_counter - 1), 2) + pow(pos_rel_y(way_counter - 1), 2) + pow(pos_rel_z(way_counter - 1), 2));
+                    middle_waypoints(way_counter - 1) = (int)(floor(pos_rel_z(way_counter - 1) / step)); // numero di waypoint intermedi
+                    dz(way_counter - 1) = pos_rel_z(way_counter - 1) / middle_waypoints(way_counter - 1);
+                    if (abs(pos_rel_z(way_counter - 1)) <= 0.5)
+                    {
+                        is_z_adjusted = true;
+                    }
+                    double error_z_to_waypoint = way_spline_z(way_counter) - z_hat;
 
                     if (!is_psi_adjusted)
                     {
@@ -483,7 +507,7 @@ int main(int argc, char **argv)
                         phi_d = 0.0;
                         theta_d = 0.0;
                         psi_d = psi_1 + i_psi * delta_psi;
-                        psi_d = atan2(sin(psi_d), cos(psi_d));
+                        psi_d = wrapToPi(psi_d);
                         i_psi++;
                         if (i_psi >= dim1 - 1)
                         {
@@ -496,13 +520,125 @@ int main(int argc, char **argv)
                         p_d = 0.0;
                         q_d = 0.0;
                         r_d = 0.0;
-                        if (psi_d > psi_1)
+                        if (angleDifference(psi2(0) - psi_1) > 10 * (M_PI / 180))
                         {
-                            r_d = 2.0 * M_PI / 180;
+                            r_d = 5.0 * M_PI / 180;
                         }
-                        else if (psi_d < psi_1)
+                        else if ((angleDifference(psi2(0)) - psi_1) < -10 * (M_PI / 180))
                         {
-                            r_d = -2.0 * M_PI / 180;
+                            r_d = -5.0 * M_PI / 180;
+                        }
+                        else
+                        {
+                            r_d = 0.0;
+                        }
+                    }
+                    else if (!is_z_adjusted && is_psi_adjusted)
+                    {
+                        x_d = way_spline_x(way_counter - 1);
+                        y_d = way_spline_y(way_counter - 1);
+                        phi_d = 0.0;
+                        theta_d = 0.0;
+                        psi_d = psi2(0);
+                        u_d = 0.0;
+                        v_d = 0.0;
+                        p_d = 0.0;
+                        q_d = 0.0;
+                        r_d = 0.0;
+
+                        //////////////////////////////////////////////////
+                        /////////////////Regolazione di z/////////////////
+                        //////////////////////////////////////////////////
+                        int i_dist_min = 0;
+                        for (int j = 1; j < middle_waypoints(way_counter - 1); j++)
+                        {
+                            z(j - 1) = way_spline_z(way_counter - 1) + j * dz(way_counter - 1);
+                            distz(j - 1) = abs(z(j - 1) - z_hat);
+                            if (j == 1)
+                            {
+                                dist_min = distz(j - 1);
+                            }
+                            else
+                            {
+                                if (distz(j - 1) < dist_min)
+                                {
+                                    dist_min = distz(j - 1);
+                                    i_dist_min = j - 1;
+                                }
+                            }
+                        }
+                        z_d = z(i_dist_min);
+
+                        //////////////////////////////////////////////////
+                        /////////////////Regolazione di w/////////////////
+                        //////////////////////////////////////////////////
+
+                        if (pos_rel_z(way_counter - 1) > 0.5)
+                        {
+                            w_d = w_d + delta_w * dt;
+                            if (w_d >= max_w_d)
+                            {
+                                w_d = max_w_d;
+                            }
+
+                            if (abs(error_z_to_waypoint) <= 1.0 && abs(error_z_to_waypoint) > 0.5)
+                            {
+                                if (!is_w_d_tmp_initialized)
+                                {
+                                    w_d_tmp = w_d;
+                                    is_w_d_tmp_initialized = true;
+                                }
+                                w_d = w_d_tmp / 2;
+                            }
+                            else if (abs(error_z_to_waypoint) <= 0.5 && abs(error_z_to_waypoint) > 0.1 && is_w_d_tmp_initialized)
+                            {
+                                w_d = w_d_tmp / 3;
+                            }
+                            if (abs(error_z_to_waypoint) <= 0.1 && is_w_d_tmp_initialized)
+                            {
+                                w_d = 0.0;
+                                is_z_adjusted = true;
+                            }
+
+                            // Se, in fase di decelerazione (is_w_d_tmp_initialized = true), la velocità di discesa calcolata
+                            // risulta troppo bassa, la si imposta a 0.05 m/s
+                            if (abs(w_d) < 0.05 && (w_d != 0.0) && is_w_d_tmp_initialized)
+                            {
+                                w_d = 0.05; // Velocità minima di salita
+                            }
+                        }
+                        else if (pos_rel_z(way_counter - 1) < -0.5)
+                        {
+                            w_d = w_d - delta_w * dt;
+                            if (w_d <= -max_w_d)
+                            {
+                                w_d = -max_w_d;
+                            }
+                            if (abs(error_z_to_waypoint) <= 1.0 && abs(error_z_to_waypoint) > 0.5)
+                            {
+                                if (!is_w_d_tmp_initialized)
+                                {
+                                    w_d_tmp = w_d;
+                                    is_w_d_tmp_initialized = true;
+                                }
+                                w_d = w_d_tmp / 2;
+                            }
+                            else if (abs(error_z_to_waypoint) <= 0.5 && abs(error_z_to_waypoint) > 0.1 && is_w_d_tmp_initialized)
+                            {
+                                w_d = w_d_tmp / 3;
+                            }
+                            else if (abs(error_z_to_waypoint) <= 0.1 && is_w_d_tmp_initialized)
+                            {
+                                w_d = 0.0;
+                                is_z_adjusted = true;
+                            }
+
+                            // Se, in fase di decelerazione (is_w_d_tmp_initialized = true), la velocità di risalita calcolata
+                            // risulta troppo bassa, la si imposta a -0.05 m/s
+                            if (abs(w_d) < 0.05 && (w_d != 0.0) && is_w_d_tmp_initialized)
+                            {
+                                w_d = -0.05; // Velocità minima di discesa
+                            }
                         }
                     }
                     else
@@ -531,11 +667,11 @@ int main(int argc, char **argv)
 
                         x_d = x2(i_dist_min);
                         y_d = y2(i_dist_min);
-                        z_d = z2(i_dist_min);
+                        z_d = way_spline_z(way_counter);
 
-                        if(z_d <= 0.0)
+                        if (z_d <= 0.0)
                         {
-                            z_d = 0.0;
+                            z_d = 0.2;
                         }
 
                         phi_d = phi2(i_dist_min);
@@ -560,7 +696,7 @@ int main(int argc, char **argv)
 
                         Eigen::VectorXd pos_rel_z(way_counter);
                         pos_rel_z(way_counter - 1) = way_spline_z(way_counter) - way_spline_z(way_counter - 1);
-                        
+
                         //////////////////////////////////////////////////
                         /////////////////Regolazione di u/////////////////
                         //////////////////////////////////////////////////
@@ -697,7 +833,9 @@ int main(int argc, char **argv)
                         {
                             is_u_d_tmp_initialized = false;
                             is_w_d_tmp_initialized = false;
-                            if(way_counter < n_waypoints - 1)
+                            is_z_adjusted = false;
+                            z_1 = z_d;
+                            if (way_counter < n_waypoints - 1)
                             {
                                 way_counter++;
                             }
@@ -706,26 +844,25 @@ int main(int argc, char **argv)
                                 u_d = 0.0;
                             }
                         }
-
-                        // Define Jacobian Matrix
-                        J << cos(psi_d) * cos(theta_d), cos(psi_d) * sin(phi_d) * sin(theta_d) - cos(phi_d) * sin(psi_d), sin(phi_d) * sin(psi_d) + cos(phi_d) * cos(psi_d) * sin(theta_d), 0, 0, 0,
-                            cos(theta_d) * sin(psi_d), cos(phi_d) * cos(psi_d) + sin(phi_d) * sin(psi_d) * sin(theta_d), cos(phi_d) * sin(psi_d) * sin(theta_d) - cos(psi_d) * sin(phi_d), 0, 0, 0,
-                            -sin(theta_d), cos(theta_d) * sin(phi_d), cos(phi_d) * cos(theta_d), 0, 0, 0,
-                            0, 0, 0, 1, sin(phi_d) * tan(theta_d), cos(phi_d) * tan(theta_d),
-                            0, 0, 0, 0, cos(phi_d), -sin(phi_d),
-                            0, 0, 0, 0, sin(phi_d) / cos(theta_d), cos(phi_d) / cos(theta_d);
-
-                        nu_d << u_d, v_d, w_d, p_d, q_d, r_d;
-
-                        pose_d_dot = J * nu_d;
-
-                        x_dot_d = pose_d_dot(0);
-                        y_dot_d = pose_d_dot(1);
-                        z_dot_d = pose_d_dot(2);
-                        phi_dot_d = pose_d_dot(3);
-                        theta_dot_d = pose_d_dot(4);
-                        psi_dot_d = pose_d_dot(5);
                     }
+                    // Define Jacobian Matrix
+                    J << cos(psi_d) * cos(theta_d), cos(psi_d) * sin(phi_d) * sin(theta_d) - cos(phi_d) * sin(psi_d), sin(phi_d) * sin(psi_d) + cos(phi_d) * cos(psi_d) * sin(theta_d), 0, 0, 0,
+                        cos(theta_d) * sin(psi_d), cos(phi_d) * cos(psi_d) + sin(phi_d) * sin(psi_d) * sin(theta_d), cos(phi_d) * sin(psi_d) * sin(theta_d) - cos(psi_d) * sin(phi_d), 0, 0, 0,
+                        -sin(theta_d), cos(theta_d) * sin(phi_d), cos(phi_d) * cos(theta_d), 0, 0, 0,
+                        0, 0, 0, 1, sin(phi_d) * tan(theta_d), cos(phi_d) * tan(theta_d),
+                        0, 0, 0, 0, cos(phi_d), -sin(phi_d),
+                        0, 0, 0, 0, sin(phi_d) / cos(theta_d), cos(phi_d) / cos(theta_d);
+
+                    nu_d << u_d, v_d, w_d, p_d, q_d, r_d;
+
+                    pose_d_dot = J * nu_d;
+
+                    x_dot_d = pose_d_dot(0);
+                    y_dot_d = pose_d_dot(1);
+                    z_dot_d = pose_d_dot(2);
+                    phi_dot_d = pose_d_dot(3);
+                    theta_dot_d = pose_d_dot(4);
+                    psi_dot_d = pose_d_dot(5);
 
                     std::vector<double> des_state = {x_d, y_d, z_d, phi_d, theta_d, psi_d, x_dot_d, y_dot_d, z_dot_d, phi_dot_d, theta_dot_d, psi_dot_d};
                     des_state_msg.data = des_state;
@@ -765,29 +902,68 @@ int main(int argc, char **argv)
                     Eigen::VectorXd psi_to_go(n_waypoints - 1);
                     Eigen::VectorXi dim1(n_waypoints - 1);
                     Eigen::VectorXd delta_psi(n_waypoints - 1);
+                    Eigen::VectorXd pos_rel_x(n_waypoints);
+                    Eigen::VectorXd pos_rel_y(n_waypoints);
+                    Eigen::VectorXd pos_rel_z(n_waypoints);
+                    Eigen::VectorXd dist_to_targ(n_waypoints);
+                    Eigen::VectorXi middle_waypoints(n_waypoints);
+                    Eigen::VectorXd dx(n_waypoints);
+                    Eigen::VectorXd dy(n_waypoints);
+                    Eigen::VectorXd dz(n_waypoints);
+                    pos_rel_x(way_counter - 1) = way_spline_x(way_counter) - way_spline_x(way_counter - 1);
+                    pos_rel_y(way_counter - 1) = way_spline_y(way_counter) - way_spline_y(way_counter - 1);
+                    pos_rel_z(way_counter - 1) = way_spline_z(way_counter) - way_spline_z(way_counter - 1);
+
+                    dist_to_targ(way_counter - 1) = sqrt(pow(pos_rel_x(way_counter - 1), 2) + pow(pos_rel_y(way_counter - 1), 2) + pow(pos_rel_z(way_counter - 1), 2));
+                    middle_waypoints(way_counter - 1) = (int)(floor(dist_to_targ(way_counter - 1) / step)); // numero di waypoint intermedi
+
+                    dx(way_counter - 1) = pos_rel_x(way_counter - 1) / middle_waypoints(way_counter - 1);
+                    dy(way_counter - 1) = pos_rel_y(way_counter - 1) / middle_waypoints(way_counter - 1);
+                    dz(way_counter - 1) = pos_rel_z(way_counter - 1) / middle_waypoints(way_counter - 1);
+
+                    Eigen::VectorXd x(middle_waypoints(way_counter - 1));
+                    Eigen::VectorXd y(middle_waypoints(way_counter - 1));
+                    Eigen::VectorXd z(middle_waypoints(way_counter - 1));
+                    Eigen::VectorXd psi(middle_waypoints(way_counter - 1));
+                    Eigen::VectorXd dist(middle_waypoints(way_counter - 1));
 
                     if (way_counter < n_waypoints)
                     {
-                        x_to_go(way_counter - 1) = way_spline_x(way_counter) - way_spline_x(way_counter - 1);   // distanza da percorrere in x
-                        y_to_go(way_counter - 1) = way_spline_y(way_counter) - way_spline_y(way_counter - 1);   // distanza da percorrere in y
-                        z_to_go(way_counter - 1) = way_spline_z(way_counter) - way_spline_z(way_counter - 1);   // distanza da percorrere in z
-                        psi_to_go(way_counter - 1) = atan2(y_to_go(way_counter - 1), x_to_go(way_counter - 1)); // angolo da percorrere
+
+                        psi_to_go(way_counter - 1) = atan2(pos_rel_y(way_counter - 1), pos_rel_x(way_counter - 1)); // angolo da percorrere
 
                         if (angleDifference(psi_to_go(way_counter - 1) - psi_1) > 10 * (M_PI / 180))
                         {
-                            dim1(way_counter - 1) = (int)(angleDifference(psi_to_go(way_counter - 1) - psi_1) * freq / (10 * (M_PI / 180)));
+                            dim1(way_counter - 1) = (int)(angleDifference(psi_to_go(way_counter - 1) - psi_1) * freq / (5 * (M_PI / 180)));
                         }
                         else if (angleDifference(psi_to_go(way_counter - 1) - psi_1) < -10 * (M_PI / 180))
                         {
-                            dim1(way_counter - 1) = (int)(angleDifference(psi_1 - psi_to_go(way_counter - 1)) * freq / (10 * (M_PI / 180)));
+                            dim1(way_counter - 1) = (int)(angleDifference(psi_1 - psi_to_go(way_counter - 1)) * freq / (5 * (M_PI / 180)));
                         }
                         else
                         {
                             is_psi_adjusted = true;
                         }
 
+                        if (abs(pos_rel_z(way_counter - 1)) <= 0.5)
+                        {
+                            is_z_adjusted = true;
+                        }
+
+                        double error_x_to_waypoint = way_spline_x(way_counter) - x_hat;
+                        double error_y_to_waypoint = way_spline_y(way_counter) - y_hat;
+                        double error_z_to_waypoint = way_spline_z(way_counter) - z_hat;
+
+                        double dist_to_waypoint = sqrt(pow(error_x_to_waypoint, 2) + pow(error_y_to_waypoint, 2) + pow(error_z_to_waypoint, 2));
+                        double dist_to_waypoint_xy = sqrt(pow(error_x_to_waypoint, 2) + pow(error_y_to_waypoint, 2));
+
                         if (!is_psi_adjusted)
                         {
+
+                            ///////////////////////////////////////////////////
+                            ///////////////REGOLAZIONE DI PSI//////////////////
+                            ///////////////////////////////////////////////////
+
                             delta_psi(way_counter - 1) = angleDifference(psi_to_go(way_counter - 1) - psi_1) / dim1(way_counter - 1);
                             x_d = way_spline_x(way_counter - 1);
                             y_d = way_spline_y(way_counter - 1);
@@ -795,8 +971,9 @@ int main(int argc, char **argv)
                             phi_d = 0.0;
                             theta_d = 0.0;
                             psi_d = psi_1 + i_psi * delta_psi(way_counter - 1);
-                            psi_d = atan2(sin(psi_d), cos(psi_d));
+                            psi_d = wrapToPi(psi_d);
                             i_psi++;
+
                             if (i_psi >= dim1(way_counter - 1) - 1)
                             {
                                 is_psi_adjusted = true;
@@ -807,68 +984,153 @@ int main(int argc, char **argv)
                             w_d = 0.0;
                             p_d = 0.0;
                             q_d = 0.0;
-                            r_d = 0.0;
-                            if (psi_d > psi_1)
+
+                            if (angleDifference(psi_to_go(way_counter - 1) - psi_1) > 10 * (M_PI / 180))
                             {
-                                r_d = 10.0 * M_PI / 180;
+                                r_d = 5.0 * M_PI / 180;
                             }
-                            else if (psi_d < psi_1)
+                            else if (angleDifference(psi_to_go(way_counter - 1) - psi_1) < -10 * (M_PI / 180))
                             {
-                                r_d = -10.0 * M_PI / 180;
+                                r_d = -5.0 * M_PI / 180;
+                            }
+                            else
+                            {
+                                r_d = 0.0;
+                            }
+                        }
+                        else if (!is_z_adjusted && is_psi_adjusted)
+                        {
+                            x_d = way_spline_x(way_counter - 1);
+                            y_d = way_spline_y(way_counter - 1);
+                            phi_d = 0.0;
+                            theta_d = 0.0;
+                            psi_d = psi_to_go(way_counter - 1);
+                            u_d = 0.0;
+                            v_d = 0.0;
+                            p_d = 0.0;
+                            q_d = 0.0;
+                            r_d = 0.0;
+
+                            //////////////////////////////////////////////////
+                            /////////////////Regolazione di z/////////////////
+                            //////////////////////////////////////////////////
+                            int i_dist_min = 0;
+                            for (int j = 1; j < middle_waypoints(way_counter - 1); j++)
+                            {
+                                z(j - 1) = way_spline_z(way_counter - 1) + j * dz(way_counter - 1);
+                                dist(j - 1) = abs(z(j - 1) - z_hat);
+                                if (j == 1)
+                                {
+                                    dist_min = dist(j - 1);
+                                }
+                                else
+                                {
+                                    if (dist(j - 1) < dist_min)
+                                    {
+                                        dist_min = dist(j - 1);
+                                        i_dist_min = j - 1;
+                                    }
+                                }
+                            }
+                            z_d = z(i_dist_min);
+
+                            //////////////////////////////////////////////////
+                            /////////////////Regolazione di w/////////////////
+                            //////////////////////////////////////////////////
+
+                            if (pos_rel_z(way_counter - 1) > 0.5)
+                            {
+                                w_d = w_d + delta_w * dt;
+                                if (w_d >= max_w_d)
+                                {
+                                    w_d = max_w_d;
+                                }
+
+                                if (abs(error_z_to_waypoint) <= 1.0 && abs(error_z_to_waypoint) > 0.5)
+                                {
+                                    if (!is_w_d_tmp_initialized)
+                                    {
+                                        w_d_tmp = w_d;
+                                        is_w_d_tmp_initialized = true;
+                                    }
+                                    w_d = w_d_tmp / 2;
+                                }
+                                else if (abs(error_z_to_waypoint) <= 0.5 && abs(error_z_to_waypoint) > 0.1 && is_w_d_tmp_initialized)
+                                {
+                                    w_d = w_d_tmp / 3;
+                                }
+                                if (abs(error_z_to_waypoint) <= 0.1 && is_w_d_tmp_initialized)
+                                {
+                                    w_d = 0.0;
+                                    is_z_adjusted = true;
+                                }
+
+                                // Se, in fase di decelerazione (is_w_d_tmp_initialized = true), la velocità di discesa calcolata
+                                // risulta troppo bassa, la si imposta a 0.05 m/s
+                                if (abs(w_d) < 0.05 && (w_d != 0.0) && is_w_d_tmp_initialized)
+                                {
+                                    w_d = 0.05; // Velocità minima di salita
+                                }
+                            }
+                            else if (pos_rel_z(way_counter - 1) < -0.5)
+                            {
+                                w_d = w_d - delta_w * dt;
+                                if (w_d <= -max_w_d)
+                                {
+                                    w_d = -max_w_d;
+                                }
+                                if (abs(error_z_to_waypoint) <= 1.0 && abs(error_z_to_waypoint) > 0.5)
+                                {
+                                    if (!is_w_d_tmp_initialized)
+                                    {
+                                        w_d_tmp = w_d;
+                                        is_w_d_tmp_initialized = true;
+                                    }
+                                    w_d = w_d_tmp / 2;
+                                }
+                                else if (abs(error_z_to_waypoint) <= 0.5 && abs(error_z_to_waypoint) > 0.1 && is_w_d_tmp_initialized)
+                                {
+                                    w_d = w_d_tmp / 3;
+                                }
+                                else if (abs(error_z_to_waypoint) <= 0.1 && is_w_d_tmp_initialized)
+                                {
+                                    w_d = 0.0;
+                                    is_z_adjusted = true;
+                                }
+
+                                // Se, in fase di decelerazione (is_w_d_tmp_initialized = true), la velocità di risalita calcolata
+                                // risulta troppo bassa, la si imposta a -0.05 m/s
+                                if (abs(w_d) < 0.05 && (w_d != 0.0) && is_w_d_tmp_initialized)
+                                {
+                                    w_d = -0.05; // Velocità minima di discesa
+                                }
                             }
                         }
                         else
                         {
+
+                            /////////////////////////////////////////////////////////////
+                            ///////////////////FASE DI AVANZAMENTO///////////////////////
+                            /////////////////////////////////////////////////////////////
+
                             i_psi = 0;
-                            double delta_u = 0.05;
                             u_d = u_d + delta_u * dt;
                             if (u_d >= speed)
                             {
                                 u_d = speed;
                             }
 
-                            double v_d = 0.0;
-                            double w_d = 0.0;
-                            double r_d = 0.0;
-                            Eigen::VectorXd pos_rel_x(n_waypoints);
-                            Eigen::VectorXd pos_rel_y(n_waypoints);
-                            Eigen::VectorXd pos_rel_z(n_waypoints);
-                            Eigen::VectorXd dist_to_targ(n_waypoints);
-                            Eigen::VectorXi middle_waypoints(n_waypoints);
-                            Eigen::VectorXd dx(n_waypoints);
-                            Eigen::VectorXd dy(n_waypoints);
-                            Eigen::VectorXd dz(n_waypoints);
+                            v_d = 0.0;
+                            w_d = 0.0;
+                            r_d = 0.0;
 
-                            pos_rel_x(way_counter - 1) = way_spline_x(way_counter) - way_spline_x(way_counter - 1);
-                            pos_rel_y(way_counter - 1) = way_spline_y(way_counter) - way_spline_y(way_counter - 1);
-                            pos_rel_z(way_counter - 1) = way_spline_z(way_counter) - way_spline_z(way_counter - 1);
-
-                            dist_to_targ(way_counter - 1) = sqrt(pow(pos_rel_x(way_counter - 1), 2) + pow(pos_rel_y(way_counter - 1), 2) + pow(pos_rel_z(way_counter - 1), 2));
-                            double step = 1.0 / 50.0;
-                            middle_waypoints(way_counter - 1) = (int)(floor(dist_to_targ(way_counter - 1) / step)); // numero di waypoint intermedi
-
-                            dx(way_counter - 1) = pos_rel_x(way_counter - 1) / middle_waypoints(way_counter - 1);
-                            dy(way_counter - 1) = pos_rel_y(way_counter - 1) / middle_waypoints(way_counter - 1);
-                            dz(way_counter - 1) = pos_rel_z(way_counter - 1) / middle_waypoints(way_counter - 1);
-
-                            Eigen::VectorXd x(middle_waypoints(way_counter - 1));
-                            Eigen::VectorXd y(middle_waypoints(way_counter - 1));
-                            Eigen::VectorXd z(middle_waypoints(way_counter - 1));
-                            Eigen::VectorXd phi(middle_waypoints(way_counter - 1));
-                            Eigen::VectorXd theta(middle_waypoints(way_counter - 1));
-                            Eigen::VectorXd psi(middle_waypoints(way_counter - 1));
-                            Eigen::VectorXd dist(middle_waypoints(way_counter - 1));
                             int i_dist_min = 0;
 
                             for (int j = 1; j < middle_waypoints(way_counter - 1); j++)
                             {
                                 x(j - 1) = way_spline_x(way_counter - 1) + j * dx(way_counter - 1);
                                 y(j - 1) = way_spline_y(way_counter - 1) + j * dy(way_counter - 1);
-                                z(j - 1) = way_spline_z(way_counter - 1) + j * dz(way_counter - 1);
-                                phi(j - 1) = 0.0;
-                                theta(j - 1) = 0.0;
-                                psi(j - 1) = atan2(dy(way_counter - 1), dx(way_counter - 1));
-                                dist(j - 1) = sqrt(pow(x_hat - x(j - 1), 2.0) + pow(y_hat - y(j - 1), 2.0) + pow(z_hat - z(j - 1), 2.0));
+                                dist(j - 1) = sqrt(pow(x_hat - x(j - 1), 2.0) + pow(y_hat - y(j - 1), 2.0));
                                 if (j == 1)
                                 {
                                     dist_min = dist(j - 1);
@@ -885,18 +1147,16 @@ int main(int argc, char **argv)
 
                             x_d = x(i_dist_min);
                             y_d = y(i_dist_min);
-                            z_d = z(i_dist_min);
+                            z_d = way_spline_z(way_counter);
+                            if (z_d == 0.0)
+                            {
+                                z_d = 0.2;
+                            }
+
                             phi_d = 0.0;
                             theta_d = 0.0;
-                            psi_d = psi(i_dist_min);
+                            psi_d = psi_to_go(way_counter - 1);
                             // ROS_WARN("i_dist_min: %d", i_dist_min);
-
-                            double error_x_to_waypoint = way_spline_x(way_counter) - x_hat;
-                            double error_y_to_waypoint = way_spline_y(way_counter) - y_hat;
-                            double error_z_to_waypoint = way_spline_z(way_counter) - z_hat;
-
-                            double dist_to_waypoint = sqrt(pow(error_x_to_waypoint, 2) + pow(error_y_to_waypoint, 2) + pow(error_z_to_waypoint, 2));
-                            double dist_to_waypoint_xy = sqrt(pow(error_x_to_waypoint, 2) + pow(error_y_to_waypoint, 2));
 
                             //////////////////////////////////////////////////
                             /////////////////Regolazione di u/////////////////
@@ -925,9 +1185,9 @@ int main(int argc, char **argv)
                                 u_d = u_d_tmp / 4;
                             }
 
-                            if (u_d < 0.05)
+                            if (u_d < 0.1)
                             {
-                                u_d = 0.05; // Velocità minima di avanzamento
+                                u_d = 0.1; // Velocità minima di avanzamento
                             }
 
                             if (dist_to_waypoint_xy <= 0.15 && is_u_d_tmp_initialized)
@@ -939,130 +1199,62 @@ int main(int argc, char **argv)
                             /////////////////Regolazione di v/////////////////
                             //////////////////////////////////////////////////
 
-                            Eigen::MatrixXd Body2NED(3, 3);
-                            Body2NED << cos(psi_hat) * cos(theta_hat), cos(psi_hat) * sin(phi_hat) * sin(theta_hat) - cos(phi_hat) * sin(psi_hat), sin(phi_hat) * sin(psi_hat) + cos(phi_hat) * cos(psi_hat) * sin(theta_hat),
-                                cos(theta_hat) * sin(psi_hat), cos(phi_hat) * cos(psi_hat) + sin(phi_hat) * sin(psi_hat) * sin(theta_hat), cos(phi_hat) * sin(psi_hat) * sin(theta_hat) - cos(psi_hat) * sin(phi_hat),
-                                -sin(theta_hat), cos(theta_hat) * sin(phi_hat), cos(phi_hat) * cos(theta_hat);
+                            // Eigen::MatrixXd Body2NED(3, 3);
+                            // Body2NED << cos(psi_hat) * cos(theta_hat), cos(psi_hat) * sin(phi_hat) * sin(theta_hat) - cos(phi_hat) * sin(psi_hat), sin(phi_hat) * sin(psi_hat) + cos(phi_hat) * cos(psi_hat) * sin(theta_hat),
+                            //     cos(theta_hat) * sin(psi_hat), cos(phi_hat) * cos(psi_hat) + sin(phi_hat) * sin(psi_hat) * sin(theta_hat), cos(phi_hat) * sin(psi_hat) * sin(theta_hat) - cos(psi_hat) * sin(phi_hat),
+                            //     -sin(theta_hat), cos(theta_hat) * sin(phi_hat), cos(phi_hat) * cos(theta_hat);
 
-                            Eigen::VectorXd pose_d(3);
-                            pose_d << x_d, y_d, z_d;
-                            Eigen::VectorXd pose_hat(3);
-                            pose_hat << x_hat, y_hat, z_hat;
+                            // Eigen::VectorXd pose_d(3);
+                            // pose_d << x_d, y_d, z_d;
+                            // Eigen::VectorXd pose_hat(3);
+                            // pose_hat << x_hat, y_hat, z_hat;
 
-                            Eigen::VectorXd pose_error_body = Body2NED.transpose() * (pose_d - pose_hat);
+                            // Eigen::VectorXd pose_error_body = Body2NED.transpose() * (pose_d - pose_hat);
 
-                            if (pose_error_body(1) > 0.5)
-                            {
-                                v_d = 0.05;
-                            }
-                            else if (pose_error_body(1) < -0.5)
-                            {
-                                v_d = -0.05;
-                            }
-                            else
-                            {
-                                v_d = 0.0;
-                            }
+                            // if (pose_error_body(1) > 0.5)
+                            // {
+                            //     v_d = 0.05;
+                            // }
+                            // else if (pose_error_body(1) < -0.5)
+                            // {
+                            //     v_d = -0.05;
+                            // }
+                            // else
+                            // {
+                            //     v_d = 0.0;
+                            // }
 
-                            //////////////////////////////////////////////////
-                            /////////////////Regolazione di w/////////////////
-                            //////////////////////////////////////////////////
-
-                            double max_w_d = abs(pos_rel_z(way_counter - 1)) * speed / dist_to_waypoint_xy;
-                            double delta_w = abs(pos_rel_z(way_counter - 1)) * delta_u / dist_to_waypoint_xy;
-
-                            if (pos_rel_z(way_counter - 1) > 0.5)
-                            {
-                                w_d = w_d + delta_w * dt;
-                                if (w_d >= max_w_d)
-                                {
-                                    w_d = max_w_d;
-                                }
-
-                                if (abs(error_z_to_waypoint) <= 1.0 && abs(error_z_to_waypoint) > 0.5)
-                                {
-                                    if (!is_w_d_tmp_initialized)
-                                    {
-                                        w_d_tmp = w_d;
-                                        is_w_d_tmp_initialized = true;
-                                    }
-                                    w_d = w_d_tmp / 2;
-                                }
-                                else if (abs(error_z_to_waypoint) <= 0.5 && abs(error_z_to_waypoint) > 0.2 && is_w_d_tmp_initialized)
-                                {
-                                    w_d = w_d_tmp / 3;
-                                }
-
-                                if (abs(w_d) < 0.05)
-                                {
-                                    w_d = 0.05; // Velocità minima di salita
-                                }
-
-                                if (abs(error_z_to_waypoint) <= 0.1 && is_w_d_tmp_initialized)
-                                {
-                                    w_d = 0.0;
-                                }
-                            }
-                            else if (pos_rel_z(way_counter - 1) < -0.5)
-                            {
-                                w_d = w_d - delta_w * dt;
-                                if (w_d <= -max_w_d)
-                                {
-                                    w_d = -max_w_d;
-                                }
-                                if (abs(error_z_to_waypoint) <= 1.0 && abs(error_z_to_waypoint) > 0.5)
-                                {
-                                    if (!is_w_d_tmp_initialized)
-                                    {
-                                        w_d_tmp = w_d;
-                                        is_w_d_tmp_initialized = true;
-                                    }
-                                    w_d = w_d_tmp / 2;
-                                }
-                                else if (abs(error_z_to_waypoint) <= 0.5 && abs(error_z_to_waypoint) > 0.2 && is_w_d_tmp_initialized)
-                                {
-                                    w_d = w_d_tmp / 3;
-                                }
-
-                                if (abs(w_d) < 0.05)
-                                {
-                                    w_d = -0.05; // Velocità minima di discesa
-                                }
-
-                                if (abs(error_z_to_waypoint) <= 0.1 && is_w_d_tmp_initialized)
-                                {
-                                    w_d = 0.0;
-                                }
-                            }
+                            v_d = 0.0;
 
                             if (dist_to_waypoint < 0.2)
                             {
                                 is_psi_adjusted = false;
+                                is_z_adjusted = false;
                                 is_u_d_tmp_initialized = false;
                                 is_w_d_tmp_initialized = false;
                                 way_counter++;
                                 psi_1 = psi_d;
+                                z_1 = z_d;
                             }
-
-                            // Define Jacobian Matrix
-                            J << cos(psi_d) * cos(theta_d), cos(psi_d) * sin(phi_d) * sin(theta_d) - cos(phi_d) * sin(psi_d), sin(phi_d) * sin(psi_d) + cos(phi_d) * cos(psi_d) * sin(theta_d), 0, 0, 0,
-                                cos(theta_d) * sin(psi_d), cos(phi_d) * cos(psi_d) + sin(phi_d) * sin(psi_d) * sin(theta_d), cos(phi_d) * sin(psi_d) * sin(theta_d) - cos(psi_d) * sin(phi_d), 0, 0, 0,
-                                -sin(theta_d), cos(theta_d) * sin(phi_d), cos(phi_d) * cos(theta_d), 0, 0, 0,
-                                0, 0, 0, 1, sin(phi_d) * tan(theta_d), cos(phi_d) * tan(theta_d),
-                                0, 0, 0, 0, cos(phi_d), -sin(phi_d),
-                                0, 0, 0, 0, sin(phi_d) / cos(theta_d), cos(phi_d) / cos(theta_d);
-
-                            nu_d << u_d, v_d, w_d, p_d, q_d, r_d;
-
-                            pose_d_dot = J * nu_d;
-
-                            x_dot_d = pose_d_dot(0);
-                            y_dot_d = pose_d_dot(1);
-                            z_dot_d = pose_d_dot(2);
-                            phi_dot_d = pose_d_dot(3);
-                            theta_dot_d = pose_d_dot(4);
-                            psi_dot_d = pose_d_dot(5);
                         }
+                        // Define Jacobian Matrix
+                        J << cos(psi_d) * cos(theta_d), cos(psi_d) * sin(phi_d) * sin(theta_d) - cos(phi_d) * sin(psi_d), sin(phi_d) * sin(psi_d) + cos(phi_d) * cos(psi_d) * sin(theta_d), 0, 0, 0,
+                            cos(theta_d) * sin(psi_d), cos(phi_d) * cos(psi_d) + sin(phi_d) * sin(psi_d) * sin(theta_d), cos(phi_d) * sin(psi_d) * sin(theta_d) - cos(psi_d) * sin(phi_d), 0, 0, 0,
+                            -sin(theta_d), cos(theta_d) * sin(phi_d), cos(phi_d) * cos(theta_d), 0, 0, 0,
+                            0, 0, 0, 1, sin(phi_d) * tan(theta_d), cos(phi_d) * tan(theta_d),
+                            0, 0, 0, 0, cos(phi_d), -sin(phi_d),
+                            0, 0, 0, 0, sin(phi_d) / cos(theta_d), cos(phi_d) / cos(theta_d);
+
+                        nu_d << u_d, v_d, w_d, p_d, q_d, r_d;
+
+                        pose_d_dot = J * nu_d;
+
+                        x_dot_d = pose_d_dot(0);
+                        y_dot_d = pose_d_dot(1);
+                        z_dot_d = pose_d_dot(2);
+                        phi_dot_d = pose_d_dot(3);
+                        theta_dot_d = pose_d_dot(4);
+                        psi_dot_d = pose_d_dot(5);
 
                         std::vector<double> des_state = {x_d, y_d, z_d, phi_d, theta_d, psi_d, x_dot_d, y_dot_d, z_dot_d, phi_dot_d, theta_dot_d, psi_dot_d};
                         des_state_msg.data = des_state;

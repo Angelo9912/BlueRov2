@@ -503,6 +503,11 @@ int main(int argc, char **argv)
                 nu_pred << u_pred, v_pred, w_pred, p_pred, q_pred, r_pred;
                 xi_pred << eta_pred, nu_pred;
 
+                if (xi_pred(2) <= 0.0)
+                {
+                    xi_pred(2) = 0.0;
+                }
+
                 // wrapToPi
                 xi_pred(3) = wrapToPi(xi_pred(3));
                 xi_pred(4) = wrapToPi(xi_pred(4));
@@ -716,6 +721,11 @@ int main(int argc, char **argv)
 
             nu_pred << u_pred, v_pred, w_pred, p_pred, q_pred, r_pred;
             xi_pred << eta_pred, nu_pred;
+
+            if (xi_pred(2) <= 0.0)
+            {
+                xi_pred(2) = 0.0;
+            }
 
             // wrapToPi
             xi_pred(3) = wrapToPi(xi_pred(3));

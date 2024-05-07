@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Site BuildName="(empty)"
+	BuildStamp="20240507-0805-Experimental"
+	Name="angelo-IdeaPad"
+	Generator="ctest-3.16.3"
+	CompilerName="/usr/bin/g++"
+	CompilerVersion="9.4.0"
+	OSName="Linux"
+	Hostname="angelo-IdeaPad"
+	OSRelease="5.15.0-105-generic"
+	OSVersion="#115~20.04.1-Ubuntu SMP Mon Apr 15 17:33:04 UTC 2024"
+	OSPlatform="x86_64"
+	Is64Bits="1"
+	VendorString="GenuineIntel"
+	VendorID="Intel Corporation"
+	FamilyID="6"
+	ModelID="154"
+	ProcessorCacheSize="24576"
+	NumberOfLogicalCPU="16"
+	NumberOfPhysicalCPU="10"
+	TotalVirtualMemory="2047"
+	TotalPhysicalMemory="15712"
+	LogicalProcessorsPerPhysical="1"
+	ProcessorClockFrequency="2700"
+	>
+	<Testing>
+		<StartDateTime>May 07 16:40 CEST</StartDateTime>
+		<StartTestTime>1715092840</StartTestTime>
+		<TestList/>
+		<EndDateTime>May 07 16:40 CEST</EndDateTime>
+		<EndTestTime>1715092840</EndTestTime>
+		<ElapsedMinutes>0</ElapsedMinutes>
+	</Testing>
+</Site>

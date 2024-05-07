@@ -127,6 +127,8 @@ double N_p_dot = 0.0;
 double N_q_dot = 0.0;
 double N_r_dot = 0.0;
 
+bool first_nan_print = true;
+
 // Distanza di Mahalanobis
 double mahalanobis_distance = 0.0;
 
@@ -321,6 +323,11 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
 
         Eigen::VectorXd eta_k1(6);
         eta_k1 = dt * (Jacobian * nu) + eta;
+
+        if (eta_k1(2) <= 0.0)
+        {
+            eta_k1(2) = 0.0;
+        }
 
         // wrapToPi(eta_k1(phi));
         eta_k1(3) = atan2(sin(eta_k1(3)), cos(eta_k1(3)));
@@ -1064,6 +1071,15 @@ int main(int argc, char **argv)
             xi_pred = Prediction_out.getX();
 
             P_pred = Prediction_out.getSigmaX();
+
+            if (xi_curr(0) != xi_curr(0))
+            {
+                if (first_nan_print)
+                {
+                    ROS_WARN("NaN UKF Dynamics (no imu) error");
+                    first_nan_print = false;
+                }
+            }
 
             ///////////////////////////////////////////////////////////////////////
             ///////////////////////////// PUBLISHING //////////////////////////////
