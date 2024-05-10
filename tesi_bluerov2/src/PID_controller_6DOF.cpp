@@ -373,7 +373,7 @@ int main(int argc, char **argv)
                 init_time = ros::Time::now().toSec();
                 is_init = false;
             }
-            if (ros::Time::now().toSec() - init_time >= 0.0/*wait_for_controller*/)
+            if (ros::Time::now().toSec() - init_time >= wait_for_controller)
             {
                 publisher_gnc_status.publish(msg);
             }

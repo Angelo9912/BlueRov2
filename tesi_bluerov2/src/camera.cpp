@@ -47,17 +47,17 @@ int main(int argc, char **argv)
     ros::Publisher buoy_pub = nh.advertise<tesi_bluerov2::buoy>("sensors/buoy_topic", 10);
 
     // Create a subscriber that subscribes to messages on the "state_topic" topic
-    ros::Subscriber state_sub = nh.subscribe("state/est_state_UKF_topic", 10, estStateCallback);
+    ros::Subscriber state_sub = nh.subscribe("state/state_topic", 10, estStateCallback);
 
     // Set the publishing rate (e.g., 10 Hz)
     ros::Rate rate(5);
 
     Eigen::Matrix<double, 1, 3> sphere1;
-    sphere1 << 0.0, 4.0, 1.0;
+    sphere1 << 0.0, 4.0, 0.4;
     Eigen::Matrix<double, 1, 3> sphere2;
     sphere2 << 0.0, 4.0, 4.0;
     Eigen::Matrix<double, 1, 3> box1;
-    box1 << 8.0, 6.0, 1.0;
+    box1 << 8.0, 6.0, 0.4;
     Eigen::Matrix<double, 1, 3> box2;
     box2 << 8.0, 6.0, 4.0;
     Eigen::Matrix<double, 4, 3> buoy_positions;

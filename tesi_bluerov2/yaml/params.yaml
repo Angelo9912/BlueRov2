@@ -127,6 +127,6 @@ coord_4_long : 9.864693489139816
 start_lat : 44.09610021334762 
 start_long : 9.864990204688155
 
-wait_for_controller : 40
-exploration_strategy : "Spline"
+wait_for_controller : 30
+exploration_strategy : "Rect"
 

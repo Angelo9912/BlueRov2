@@ -43,7 +43,7 @@
     <!-- <node name="err_vis" pkg="tesi_bluerov2" type="err_vis" />  -->
     <node name="guidance" pkg="tesi_bluerov2" type="guidance" />
     <node name="planner" pkg="tesi_bluerov2" type="planner" />
-    <!-- <node name="camera" pkg="tesi_bluerov2" type="camera" /> -->
+    <node name="camera" pkg="tesi_bluerov2" type="camera" />
     <node name="sim_visualization_6DOF" pkg="tesi_bluerov2" type="sim_visualization_6DOF" />
     <node name="GNC_manager" pkg="tesi_bluerov2" type="GNC_manager" />
     <!-- <node name="trajectory_publisher" pkg="tesi_bluerov2" type="trajectory_publisher"/> -->

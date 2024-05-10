@@ -480,14 +480,14 @@ int main(int argc, char **argv)
                     Eigen::VectorXd pos_rel_z(n_waypoints);
                     Eigen::VectorXd dz(n_waypoints);
                     Eigen::VectorXd dist_to_targ(n_waypoints);
-                    Eigen::VectorXd z(middle_waypoints(way_counter - 1));
-                    Eigen::VectorXd distz(middle_waypoints(way_counter - 1));
                     pos_rel_x(way_counter - 1) = way_spline_x(way_counter) - way_spline_x(way_counter - 1);
                     pos_rel_y(way_counter - 1) = way_spline_y(way_counter) - way_spline_y(way_counter - 1);
                     pos_rel_z(way_counter - 1) = way_spline_z(way_counter) - way_spline_z(way_counter - 1);
 
                     dist_to_targ(way_counter - 1) = sqrt(pow(pos_rel_x(way_counter - 1), 2) + pow(pos_rel_y(way_counter - 1), 2) + pow(pos_rel_z(way_counter - 1), 2));
                     middle_waypoints(way_counter - 1) = (int)(floor(pos_rel_z(way_counter - 1) / step)); // numero di waypoint intermedi
+                    Eigen::VectorXd z(middle_waypoints(way_counter - 1));
+                    Eigen::VectorXd distz(middle_waypoints(way_counter - 1));
                     dz(way_counter - 1) = pos_rel_z(way_counter - 1) / middle_waypoints(way_counter - 1);
                     if (abs(pos_rel_z(way_counter - 1)) <= 0.5)
                     {
@@ -504,6 +504,10 @@ int main(int argc, char **argv)
                         x_d = x_1;
                         y_d = y_1;
                         z_d = z_1;
+                        if(z_d <= 0.0)
+                        {
+                            z_d = 0.15;
+                        }
                         phi_d = 0.0;
                         theta_d = 0.0;
                         psi_d = psi_1 + i_psi * delta_psi;
@@ -552,7 +556,10 @@ int main(int argc, char **argv)
                         int i_dist_min = 0;
                         for (int j = 1; j < middle_waypoints(way_counter - 1); j++)
                         {
-                            z(j - 1) = way_spline_z(way_counter - 1) + j * dz(way_counter - 1);
+                            ROS_WARN("Sono nel for con j: %d", j);
+                            ROS_WARN("I middle waypoints sono: %d", middle_waypoints(way_counter - 1));
+                            ROS_WARN_STREAM("la dimensione di z e' : " << z.size());
+                            z(j - 1) = way_spline_z(way_counter - 1) + j * step;
                             distz(j - 1) = abs(z(j - 1) - z_hat);
                             if (j == 1)
                             {
@@ -567,7 +574,9 @@ int main(int argc, char **argv)
                                 }
                             }
                         }
+                        ROS_WARN("i_dist_min: %d", i_dist_min);
                         z_d = z(i_dist_min);
+                        ROS_WARN("z_d: %f", z_d);
 
                         //////////////////////////////////////////////////
                         /////////////////Regolazione di w/////////////////
@@ -668,6 +677,10 @@ int main(int argc, char **argv)
                         x_d = x2(i_dist_min);
                         y_d = y2(i_dist_min);
                         z_d = way_spline_z(way_counter);
+                        if(z_d <= 0.0)
+                        {
+                            z_d = 0.15;
+                        }
 
                         if (z_d <= 0.0)
                         {
