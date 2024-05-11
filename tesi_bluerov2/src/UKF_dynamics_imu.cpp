@@ -17,6 +17,19 @@ double tau_p = 0.0;
 double tau_q = 0.0;
 double tau_r = 0.0;
 
+double u1 = 0.0;
+double u2 = 0.0;
+double u3 = 0.0;
+double u4 = 0.0;
+double u5 = 0.0;
+double u6 = 0.0;
+
+double x_r = 0.1105;
+double y_r = 0.133;
+double c_45 = cos(45 * M_PI / 180);
+
+Eigen::Matrix<double, 4, 6> B;
+
 double x_GPS = 0.0;
 double y_GPS = 0.0;
 double x_scanner = 0.0;
@@ -43,12 +56,10 @@ double valid_DVL = 0;
 double valid_depth_sensor = 0;
 
 // Covariance values (process noise)
-double var_tau_u = 0.0;
-double var_tau_v = 0.0;
-double var_tau_w = 0.0;
 double var_tau_p = 0.0;
 double var_tau_q = 0.0;
-double var_tau_r = 0.0;
+
+double var_tau_motor = 0.0;
 
 // Covariance values (sensor noise)
 
@@ -182,14 +193,13 @@ double wrapToPi(double x)
 }
 
 // Trasformata unscented (predizione)
-UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::VectorXd tau_k, Eigen::MatrixXd P_kk, Eigen::MatrixXd Q, double dt, Eigen::MatrixXd M)
+UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::VectorXd inputs, Eigen::MatrixXd P_kk, Eigen::MatrixXd Q, double dt, Eigen::MatrixXd M)
 {
-
     // Il vettore utilizzato effettivamente nella trasformata
-    Eigen::VectorXd xi_prediction(xi_k.size() + tau_k.size());
-    Eigen::VectorXd zeros(tau_k.size());
+    Eigen::VectorXd xi_prediction(xi_k.size() + Q.rows());
+    Eigen::VectorXd zeros(Q.rows());
     zeros.setZero();
-    xi_prediction << xi_k, zeros; // 6 = dim(Q) zeri
+    xi_prediction << xi_k, zeros; // 8 = dim(Q) zeri
 
     int n = xi_prediction.size();
     int n_sigma = 2 * n + 1;
@@ -198,10 +208,10 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
     double beta = 2.0;
     double lambda = alpha * alpha * (n + kappa) - n;
 
-    Eigen::MatrixXd Zeros(xi_k.size(), tau_k.size());
+    Eigen::MatrixXd Zeros(xi_k.size(), Q.rows());
     Zeros.setZero();
 
-    Eigen::MatrixXd ZerosT(tau_k.size(), xi_k.size());
+    Eigen::MatrixXd ZerosT(Q.rows(), xi_k.size());
     ZerosT.setZero();
 
     Eigen::MatrixXd Sigma(n, n);
@@ -213,6 +223,8 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
     Eigen::VectorXd Singular_values(n);
     Singular_values = Sigma.bdcSvd(Eigen::ComputeFullU).singularValues();
     U = Sigma.bdcSvd(Eigen::ComputeFullU).matrixU();
+
+    Eigen::MatrixXd provaSigma = U * Singular_values.asDiagonal() * U.transpose();
 
     // Create sigma points
     Eigen::MatrixXd sigma_points(n, n_sigma);
@@ -254,8 +266,8 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
         Eigen::VectorXd nu(6);
         nu = xi_aug(Eigen::seq(6, 11));
 
-        Eigen::VectorXd tau_noise(6);
-        tau_noise = xi_aug.tail(6);
+        Eigen::VectorXd tau_noise(8);
+        tau_noise = xi_aug.tail(8);
 
         double phi = eta(3);
         double theta = eta(4);
@@ -319,10 +331,20 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
             (z_g - z_b) * W * sin(theta) + (x_g - x_b) * W * cos(theta) * cos(phi),
             -(x_g - x_b) * W * cos(theta) * sin(phi) - (y_g - y_b) * W * sin(theta);
 
+        // Calcolo delle forze e momenti controllabili (u,v,w,r)
+
+        Eigen::VectorXd tau_motor(4);
+        tau_motor = B * (inputs + tau_noise.head(6));
+
+        // Vettore delle forze e momenti totale
+        Eigen::VectorXd tau(6);
+        tau << tau_motor(0), tau_motor(1), tau_motor(2), tau_noise(6), tau_noise(7), tau_motor(3);
+
         // Dinamica del sistema
 
         Eigen::Matrix<double, 6, 1> nu_k1;
-        nu_k1 = (dt * M.inverse() * (tau_k + tau_noise - C * nu - D * nu - G)) + nu;
+        nu_k1 = (dt * M.inverse() * (tau - C * nu - D * nu - G)) + nu;
+
         // VETTORE DELLE POSIZIONI
         Eigen::Matrix<double, 6, 6> Jacobian;
         Jacobian << cos(psi) * cos(theta), cos(psi) * sin(phi) * sin(theta) - cos(phi) * sin(psi), sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta), 0, 0, 0,
@@ -407,7 +429,6 @@ UnscentedOutput UnscentedTransform_Correction(Eigen::VectorXd xi_k, Eigen::Vecto
 {
 
     // Definiamo i dati secondo le misure che abbiamo ricevuto
-
     Eigen::VectorXd xi_correction(xi_k.size());
     Eigen::MatrixXd R(var_used.size(), var_used.size());
     R = var_used.asDiagonal();
@@ -694,6 +715,7 @@ void IMU_cameraCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
         valid_IMU_camera = msg->data[3];
     }
 }
+
 void GNCstatusCallback(const std_msgs::String::ConstPtr &msg) // CALLBACK che riceve lo stato del GNC
 {
     GNC_status = msg->data;
@@ -703,21 +725,21 @@ void tau_callback(const tesi_bluerov2::Floats::ConstPtr &msg)
 {
     if (msg->data[0] != msg->data[0])
     {
-        tau_u = 0.0;
-        tau_v = 0.0;
-        tau_w = 0.0;
-        tau_p = 0.0;
-        tau_q = 0.0;
-        tau_r = 0.0;
+        u1 = 0.0;
+        u2 = 0.0;
+        u3 = 0.0;
+        u4 = 0.0;
+        u5 = 0.0;
+        u6 = 0.0;
     }
     else
     {
-        tau_u = msg->data[0];
-        tau_v = msg->data[1];
-        tau_w = msg->data[2];
-        tau_p = msg->data[3];
-        tau_q = msg->data[4];
-        tau_r = msg->data[5];
+        u1 = msg->data[0];
+        u2 = msg->data[1];
+        u3 = msg->data[2];
+        u4 = msg->data[3];
+        u5 = msg->data[4];
+        u6 = msg->data[5];
     }
 }
 
@@ -800,16 +822,12 @@ int main(int argc, char **argv)
     n.getParam("var_p_IMU_camera", var_p_IMU_camera);
     n.getParam("var_q_IMU_camera", var_q_IMU_camera);
     n.getParam("var_r_IMU_camera", var_r_IMU_camera);
-
-    n.getParam("var_tau_u", var_tau_u);
-    n.getParam("var_tau_v", var_tau_v);
-    n.getParam("var_tau_w", var_tau_w);
+    n.getParam("var_tau_motor", var_tau_motor);
     n.getParam("var_tau_p", var_tau_p);
     n.getParam("var_tau_q", var_tau_q);
-    n.getParam("var_tau_r", var_tau_r);
 
     std::string path = ros::package::getPath("tesi_bluerov2");
-    bag.open(path + "/bag/ukf_dynamics.bag", rosbag::bagmode::Write);
+    bag.open(path + "/bag/ukf_dynamics_imu.bag", rosbag::bagmode::Write);
 
     // Current corrected state vector (12x1)
     Eigen::VectorXd xi_curr(12);
@@ -846,8 +864,13 @@ int main(int argc, char **argv)
     Eigen::Matrix<double, 6, 6> M;
     M = M_rb + M_a;
 
+    B << c_45, c_45, -c_45, -c_45, 0.0, 0.0,
+        -c_45, c_45, c_45, -c_45, 0.0, 0.0,
+        0.0, 0.0, 0.0, 0.0, -1.0, -1.0,
+        -(x_r + y_r) * sqrt(2) / 2, (x_r + y_r) * sqrt(2) / 2, -(x_r + y_r) * sqrt(2) / 2, (x_r + y_r) * sqrt(2) / 2, 0.0, 0.0;
+
     // Time step
-    double freq = 50;
+    double freq = 50.0;
     double dt = 1 / freq;
 
     bool is_init = false;
@@ -862,13 +885,15 @@ int main(int argc, char **argv)
     Eigen::VectorXd var_sensors(14);
     var_sensors << var_x_GPS, var_y_GPS, var_x_scanner, var_y_scanner, var_z_depth_sensor, var_phi_IMU, var_theta_IMU, var_psi_IMU, var_u_DVL, var_v_DVL, var_w_DVL, var_p_IMU_camera, var_q_IMU_camera, var_r_IMU_camera;
 
-    Eigen::MatrixXd Q(6, 6);
-    Q << var_tau_u, 0.0, 0.0, 0.0, 0.0, 0.0,
-        0.0, var_tau_v, 0.0, 0.0, 0.0, 0.0,
-        0.0, 0.0, var_tau_w, 0.0, 0.0, 0.0,
-        0.0, 0.0, 0.0, var_tau_p, 0.0, 0.0,
-        0.0, 0.0, 0.0, 0.0, var_tau_q, 0.0,
-        0.0, 0.0, 0.0, 0.0, 0.0, var_tau_r;
+    Eigen::MatrixXd Q(8, 8);
+    Q << var_tau_motor, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+        0.0, var_tau_motor, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+        0.0, 0.0, var_tau_motor, 0.0, 0.0, 0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0, var_tau_motor, 0.0, 0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0, 0.0, var_tau_motor, 0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0, 0.0, 0.0, var_tau_motor, 0.0, 0.0,
+        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, var_tau_p, 0.0,
+        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, var_tau_q;
 
     // Set the loop rate
     ros::Rate loop_rate(freq);
@@ -985,10 +1010,11 @@ int main(int argc, char **argv)
                 ////////////////////////////////////////////////////////////////////
 
                 // VETTORE DI FORZE E MOMENTI
-                Eigen::VectorXd tau(6);
-                tau << tau_u, tau_v, tau_w, tau_p, tau_q, tau_r;
+                Eigen::VectorXd inputs(6);
+                inputs << u1, u2, u3, u4, u5, u6;
+
                 // Predizione
-                UnscentedOutput Prediction_out = UnscentedTransform_Prediction(xi_curr, tau, P_curr, Q, dt, M);
+                UnscentedOutput Prediction_out = UnscentedTransform_Prediction(xi_curr, inputs, P_curr, Q, dt, M);
 
                 xi_pred = Prediction_out.getX();
 
@@ -1059,9 +1085,6 @@ int main(int argc, char **argv)
                 Eigen::VectorXd e_k(n_z);
                 e_k = Correction_out.getX();
 
-                // ROS_WARN_STREAM("e_k UKF: \n"
-                //                 << e_k.transpose());
-
                 int row_s = Correction_out.getSigmaX().rows();
                 int col_s = Correction_out.getSigmaX().cols();
                 Eigen::MatrixXd S_k(row_s, col_s);
@@ -1099,11 +1122,11 @@ int main(int argc, char **argv)
             ////////////////////////////////////////////////////////////////////
 
             // VETTORE DI FORZE E MOMENTI
-            Eigen::VectorXd tau(6);
-            tau << tau_u, tau_v, tau_w, tau_p, tau_q, tau_r;
+            Eigen::VectorXd inputs(6);
+            inputs << u1, u2, u3, u4, u5, u6;
 
             // Predizione
-            UnscentedOutput Prediction_out = UnscentedTransform_Prediction(xi_curr, tau, P_curr, Q, dt, M);
+            UnscentedOutput Prediction_out = UnscentedTransform_Prediction(xi_curr, inputs, P_curr, Q, dt, M);
 
             xi_pred = Prediction_out.getX();
 
@@ -1121,20 +1144,20 @@ int main(int argc, char **argv)
             est_state_pub.publish(msg);
             if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
             {
-                bag.write("state/est_state_UKF_topic", ros::Time::now(), msg);
+                bag.write("state/est_state_UKF_imu_topic", ros::Time::now(), msg);
             }
         }
 
         valid_GPS = 0;
         valid_scanner = 0;
         valid_IMU = 0;
+        valid_IMU_camera = 0;
         valid_DVL = 0;
         valid_depth_sensor = 0;
 
         // Let ROS handle all incoming messages in a callback function
         ros::spinOnce();
 
-        // Sleep for the remaining time to hit our 10Hz target
         loop_rate.sleep();
     }
     bag.close();

@@ -160,7 +160,7 @@ int main(int argc, char **argv)
     ros::Publisher publisher_gnc_status = n.advertise<std_msgs::String>("manager/GNC_status_requested_topic", 10); // publisher stato richiesto al GNC
 
     ros::Subscriber sub_des_state = n.subscribe("state/desired_state_topic", 1, desStateCallback);
-    ros::Subscriber sub_est_state = n.subscribe("state/est_state_no_dyn_imu_topic", 1, estStateCallback);
+    ros::Subscriber sub_est_state = n.subscribe("state/est_state_UKF_imu_topic", 1, estStateCallback);
     ros::Subscriber sub_gnc_status = n.subscribe("manager/GNC_status_topic", 1, GNCstatusCallback); // sottoscrizione alla topic di stato del GNC
 
     double freq = 60;
@@ -375,7 +375,6 @@ int main(int argc, char **argv)
     double A_q_hat = pi_d(23);
     double A_r_hat = pi_d(24);
 
-
     // Define error vector
     Eigen::Matrix<double, 6, 1> error;
 
@@ -408,19 +407,20 @@ int main(int argc, char **argv)
     K_d(5, 5) = 1.0;
 
     Eigen::Matrix<double, 6, 6> K_f;
-    K_f << 0.1*Eigen::Matrix<double, 6, 6>::Identity();
+    K_f << 0.1 * Eigen::Matrix<double, 6, 6>::Identity();
 
     double x_r = 0.1105;
     double y_r = 0.133;
+    double c_45 = cos(M_PI / 4);
 
     Eigen::Matrix<double, 4, 6> B;
-    B << 1, 1, -1, -1, 0, 0,
-        -1, 1, 1, -1, 0, 0,
-        0, 0, 0, 0, -1, -1,
-        -(x_r + y_r)*sqrt(2)/2, (x_r + y_r)*sqrt(2)/2, -(x_r + y_r)*sqrt(2)/2, (x_r + y_r)*sqrt(2)/2, 0, 0;
+    B << c_45, c_45, -c_45, -c_45, 0.0, 0.0,
+        -c_45, c_45, c_45, -c_45, 0.0, 0.0,
+        0.0, 0.0, 0.0, 0.0, -1.0, -1.0,
+        -(x_r + y_r) * sqrt(2) / 2, (x_r + y_r) * sqrt(2) / 2, -(x_r + y_r) * sqrt(2) / 2, (x_r + y_r) * sqrt(2) / 2, 0.0, 0.0;
 
     Eigen::Matrix<double, 6, 4> B_cross;
-    B_cross = B.transpose()*(B*B.transpose()).inverse();
+    B_cross = B.transpose() * (B * B.transpose()).inverse();
 
     Eigen::Matrix<double, 25, 25> R;
 
@@ -488,13 +488,6 @@ int main(int argc, char **argv)
             psi_hat_dot = est_pose_dot(5);
 
             nu_r = J.inverse() * (des_pos_dot + LAMBDA * error);
-
-            // J_inv_dot << -psi_hat_dot * cos(theta_hat) * sin(psi_hat) - theta_hat_dot * cos(psi_hat) * sin(theta_hat), psi_hat_dot * cos(psi_hat) * cos(theta_hat) - theta_hat_dot * sin(psi_hat) * sin(theta_hat), -theta_hat_dot * cos(theta_hat), 0, 0, 0,
-            //     phi_hat_dot * (sin(phi_hat) * sin(psi_hat) + cos(phi_hat) * cos(psi_hat) * sin(theta_hat)) - psi_hat_dot * (cos(phi_hat) * cos(psi_hat) + sin(phi_hat) * sin(psi_hat) * sin(theta_hat)) + theta_hat_dot * cos(psi_hat) * cos(theta_hat) * sin(phi_hat), theta_hat_dot * cos(theta_hat) * sin(phi_hat) * sin(psi_hat) - psi_hat_dot * (cos(phi_hat) * sin(psi_hat) - cos(psi_hat) * sin(phi_hat) * sin(theta_hat)) - phi_hat_dot * (cos(psi_hat) * sin(phi_hat) - cos(phi_hat) * sin(psi_hat) * sin(theta_hat)), phi_hat_dot * cos(phi_hat) * cos(theta_hat) - theta_hat_dot * sin(phi_hat) * sin(theta_hat), 0, 0, 0,
-            //     phi_hat_dot * (cos(phi_hat) * sin(psi_hat) - cos(psi_hat) * sin(phi_hat) * sin(theta_hat)) + psi_hat_dot * (cos(psi_hat) * sin(phi_hat) - cos(phi_hat) * sin(psi_hat) * sin(theta_hat)) + theta_hat_dot * cos(phi_hat) * cos(psi_hat) * cos(theta_hat), psi_hat_dot * (sin(phi_hat) * sin(psi_hat) + cos(phi_hat) * cos(psi_hat) * sin(theta_hat)) - phi_hat_dot * (cos(phi_hat) * cos(psi_hat) + sin(phi_hat) * sin(psi_hat) * sin(theta_hat)) + theta_hat_dot * cos(phi_hat) * cos(theta_hat) * sin(psi_hat), -phi_hat_dot * cos(theta_hat) * sin(phi_hat) - theta_hat_dot * cos(phi_hat) * sin(theta_hat), 0, 0, 0,
-            //     0, 0, 0, 0, 0, -theta_hat_dot * cos(theta_hat),
-            //     0, 0, 0, 0, -phi_hat_dot * sin(phi_hat), phi_hat_dot * cos(phi_hat) * cos(theta_hat) - theta_hat_dot * sin(phi_hat) * sin(theta_hat),
-            //     0, 0, 0, 0, -phi_hat_dot * cos(phi_hat), -phi_hat_dot * cos(theta_hat) * sin(phi_hat) - theta_hat_dot * cos(phi_hat) * sin(theta_hat);
 
             error_dot = des_pos_dot - est_pose_dot;
 
@@ -565,8 +558,6 @@ int main(int argc, char **argv)
             A_q_hat = pi_d(23);
             A_r_hat = pi_d(24);
 
-
-
             // Calcolo del Regressore sui parametri incogniti
             Eigen::Matrix<double, 6, 25> Y;
 
@@ -600,16 +591,16 @@ int main(int argc, char **argv)
 
             inputs = B_cross * torques_vec;
 
-            std::vector<double> inputs_vec = {inputs(0), inputs(1), inputs(2), inputs(3)};
+            std::vector<double> inputs_vec = {inputs(0), inputs(1), inputs(2), inputs(3), inputs(4), inputs(5)};
             std::vector<double> est_params = {m_hat, I_x_hat, I_y_hat, I_z_hat, I_xy_hat, I_xz_hat, I_yz_hat, x_g_hat, y_g_hat, z_g_hat, x_b_hat, y_b_hat, z_b_hat, X_u_dot_hat, Y_v_dot_hat, Z_w_dot_hat, K_p_dot_hat, M_q_dot_hat, N_r_dot_hat, A_x_hat, A_y_hat, A_z_hat, A_p_hat, A_q_hat, A_r_hat};
-            
+
             // Publishing the torques
             tesi_bluerov2::Floats torques_msg;
             torques_msg.data = inputs_vec;
 
             tesi_bluerov2::Floats pi_d_msg;
             pi_d_msg.data = est_params;
-            
+
             chatter_pub.publish(torques_msg);
             publisher_est_param.publish(pi_d_msg);
 

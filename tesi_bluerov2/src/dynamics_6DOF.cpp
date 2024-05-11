@@ -10,13 +10,6 @@
 #include <ros/package.h>
 #include <random>
 
-double tau_u = 0.0;
-double tau_v = 0.0;
-double tau_w = 0.0;
-double tau_p = 0.0;
-double tau_q = 0.0;
-double tau_r = 0.0;
-
 double u1 = 0.0;
 double u2 = 0.0;
 double u3 = 0.0;
@@ -75,10 +68,6 @@ void tauCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
         {
             u1 = -36.4;
         }
-        else if (u1 <= 0.1962 && u1 >= -0.1962)
-        {
-            u1 = 0.0;
-        }
 
         if (u2 >= 36.4)
         {
@@ -87,10 +76,6 @@ void tauCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
         else if (u2 <= -36.4)
         {
             u2 = -36.4;
-        }
-        else if (u2 <= 0.1962 && u2 >= -0.1962)
-        {
-            u2 = 0.0;
         }
 
         if (u3 >= 36.4)
@@ -101,10 +86,6 @@ void tauCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
         {
             u3 = -36.4;
         }
-        else if (u3 <= 0.1962 && u3 >= -0.1962)
-        {
-            u3 = 0.0;
-        }
 
         if (u4 >= 36.4)
         {
@@ -113,10 +94,6 @@ void tauCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
         else if (u4 <= -36.4)
         {
             u4 = -36.4;
-        }
-        else if (u4 <= 0.1962 && u4 >= -0.1962)
-        {
-            u4 = 0.0;
         }
 
         if (u5 >= 36.4)
@@ -127,10 +104,6 @@ void tauCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
         {
             u5 = -36.4;
         }
-        else if (u5 <= 0.1962 && u5 >= -0.1962)
-        {
-            u5 = 0.0;
-        }
 
         if (u6 >= 36.4)
         {
@@ -139,10 +112,6 @@ void tauCallback(const tesi_bluerov2::Floats::ConstPtr &msg)
         else if (u6 <= -36.4)
         {
             u6 = -36.4;
-        }
-        else if (u6 <= 0.1962 && u6 >= -0.1962)
-        {
-            u6 = 0.0;
         }
     }
 }
@@ -233,7 +202,7 @@ int main(int argc, char **argv)
     double var_tau_p = 0.0;
     double var_tau_q = 0.0;
     double var_tau_r = 0.0;
-    double var_tau = 0.0;
+    double var_tau_motor = 0.0;
 
     n.getParam("m", m);
     n.getParam("x_g", x_g);
@@ -299,7 +268,7 @@ int main(int argc, char **argv)
     n.getParam("var_tau_p", var_tau_p);
     n.getParam("var_tau_q", var_tau_q);
     n.getParam("var_tau_r", var_tau_r);
-    n.getParam("var_tau", var_tau);
+    n.getParam("var_tau_motor", var_tau_motor);
 
     // MATRICE DI MASSA
 
@@ -332,12 +301,13 @@ int main(int argc, char **argv)
 
     double x_r = 0.1105;
     double y_r = 0.133;
+    double c_45 = cos(45 * M_PI / 180);
 
     Eigen::Matrix<double, 4, 6> B;
-    B << 1, 1, -1, -1, 0, 0,
-        -1, 1, 1, -1, 0, 0,
-        0, 0, 0, 0, -1, -1,
-        -(x_r + y_r) * sqrt(2) / 2, (x_r + y_r) * sqrt(2) / 2, -(x_r + y_r) * sqrt(2) / 2, (x_r + y_r) * sqrt(2) / 2, 0, 0;
+    B << c_45, c_45, -c_45, -c_45, 0.0, 0.0,
+        -c_45, c_45, c_45, -c_45, 0.0, 0.0,
+        0.0, 0.0, 0.0, 0.0, -1.0, -1.0,
+        -(x_r + y_r) * sqrt(2) / 2, (x_r + y_r) * sqrt(2) / 2, -(x_r + y_r) * sqrt(2) / 2, (x_r + y_r) * sqrt(2) / 2, 0.0, 0.0;
 
     while (ros::ok())
     {
@@ -413,7 +383,7 @@ int main(int argc, char **argv)
 
         // VETTORE DI FORZE E MOMENTI
 
-        motor_inputs << u1 + gaussianNoise(0.0, var_tau), u2 + gaussianNoise(0.0, var_tau), u3 + gaussianNoise(0.0, var_tau), u4 + gaussianNoise(0.0, var_tau), u5 + gaussianNoise(0.0, var_tau), u6 + gaussianNoise(0.0, var_tau);
+        motor_inputs << u1 + gaussianNoise(0.0, var_tau_motor), u2 + gaussianNoise(0.0, var_tau_motor), u3 + gaussianNoise(0.0, var_tau_motor), u4 + gaussianNoise(0.0, var_tau_motor), u5 + gaussianNoise(0.0, var_tau_motor), u6 + gaussianNoise(0.0, var_tau_motor);
 
         tau_motor = B * motor_inputs;
 

@@ -92,12 +92,9 @@ var_q_IMU_camera : 0.0000078
 var_r_IMU_camera : 0.0000078
 
 # Varianze del rumore di processo
-var_tau_u : 0.5
-var_tau_v : 0.5
-var_tau_w : 0.5
+var_tau_motor : 0.1
 var_tau_p : 0.1
 var_tau_q : 0.1
-var_tau_r : 0.1
 
 
 var_model_x: 0.01

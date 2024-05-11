@@ -230,9 +230,6 @@ void buoyCallback(const tesi_bluerov2::buoy::ConstPtr &msg)
         }
     }
 }
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////// Subscriber callback function //////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char **argv)
 {
@@ -251,7 +248,7 @@ int main(int argc, char **argv)
     ros::Subscriber gnc_status_sub = nh.subscribe("manager/GNC_status_topic", 1, GNCstatusCallback); // sottoscrizione alla topic di stato del GNC
     ros::Subscriber subscriber = nh.subscribe("sensors/buoy_topic", 10, buoyCallback);
     // ros::Subscriber subscriber_state = nh.subscribe("state/est_state_topic_no_dyn_imu", 10, estStateCallback);
-    ros::Subscriber subscriber_state = nh.subscribe("state/est_state_topic_no_dyn_imu", 10, estStateCallback);
+    ros::Subscriber subscriber_state = nh.subscribe("state/est_state_UKF_imu_topic", 10, estStateCallback);
     ros::Subscriber subscriber_status = nh.subscribe("manager/mission_status_topic", 10, statusCallback);
 
     ////////////////////////// Get parameters from YAML file //////////////////////////

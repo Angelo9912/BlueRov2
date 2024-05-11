@@ -42,9 +42,6 @@ double valid_IMU_camera = 0;
 double var_acc_u = 0.0;
 double var_acc_v = 0.0;
 double var_acc_w = 0.0;
-double var_tau_p = 0.0;
-double var_tau_q = 0.0;
-double var_tau_r = 0.0;
 // Covariance values (sensor noise)
 
 double var_x_GPS = 0.0;
@@ -702,9 +699,6 @@ int main(int argc, char **argv)
     n.getParam("var_acc_u", var_acc_u);
     n.getParam("var_acc_v", var_acc_v);
     n.getParam("var_acc_w", var_acc_w);
-    n.getParam("var_tau_p", var_tau_p);
-    n.getParam("var_tau_q", var_tau_q);
-    n.getParam("var_tau_r", var_tau_r);
 
     // Current corrected state vector (12x1)
     Eigen::VectorXd xi_curr(12);
@@ -721,7 +715,7 @@ int main(int argc, char **argv)
     P_pred.setZero();
 
     // Time step
-    double freq = 50;
+    double freq = 18;
     double dt = 1 / freq;
     std::string path = ros::package::getPath("tesi_bluerov2");
     bag.open(path + "/bag/ukf_kinematics_imu.bag", rosbag::bagmode::Write);

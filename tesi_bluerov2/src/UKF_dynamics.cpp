@@ -10,12 +10,18 @@
 #include <random>
 #include <rosbag/bag.h>
 
-double tau_u = 0.0;
-double tau_v = 0.0;
-double tau_w = 0.0;
-double tau_p = 0.0;
-double tau_q = 0.0;
-double tau_r = 0.0;
+double u1 = 0.0;
+double u2 = 0.0;
+double u3 = 0.0;
+double u4 = 0.0;
+double u5 = 0.0;
+double u6 = 0.0;
+
+double x_r = 0.1105;
+double y_r = 0.133;
+double c_45 = cos(45 * M_PI / 180);
+
+Eigen::Matrix<double, 4, 6> B;
 
 double x_GPS = 0.0;
 double y_GPS = 0.0;
@@ -45,6 +51,8 @@ double var_tau_w = 0.0;
 double var_tau_p = 0.0;
 double var_tau_q = 0.0;
 double var_tau_r = 0.0;
+
+double var_tau_motor = 0.0;
 
 // Covariance values (sensor noise)
 
@@ -142,6 +150,14 @@ double gaussianNoise(double mean, double var)
     return d(gen);
 }
 
+double wrapToPi(double x)
+{
+    x = fmod(x * 180 / M_PI + 180, 360);
+    if (x < 0)
+        x += 360;
+    return (x - 180) * M_PI / 180;
+}
+
 double angleDifference(double e)
 {
     if (e > 0)
@@ -171,14 +187,13 @@ double angleDifference(double e)
 }
 
 // Trasformata unscented (predizione)
-UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::VectorXd tau_k, Eigen::MatrixXd P_kk, Eigen::MatrixXd Q, double dt, Eigen::MatrixXd M)
+UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::VectorXd inputs, Eigen::MatrixXd P_kk, Eigen::MatrixXd Q, double dt, Eigen::MatrixXd M)
 {
-
     // Il vettore utilizzato effettivamente nella trasformata
-    Eigen::VectorXd xi_prediction(xi_k.size() + tau_k.size());
-    Eigen::VectorXd zeros(tau_k.size());
+    Eigen::VectorXd xi_prediction(xi_k.size() + Q.rows());
+    Eigen::VectorXd zeros(Q.rows());
     zeros.setZero();
-    xi_prediction << xi_k, zeros; // 6 = dim(Q) zeri
+    xi_prediction << xi_k, zeros; // 8 = dim(Q) zeri
 
     int n = xi_prediction.size();
     int n_sigma = 2 * n + 1;
@@ -187,10 +202,10 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
     double beta = 2.0;
     double lambda = alpha * alpha * (n + kappa) - n;
 
-    Eigen::MatrixXd Zeros(xi_k.size(), tau_k.size());
+    Eigen::MatrixXd Zeros(xi_k.size(), Q.rows());
     Zeros.setZero();
 
-    Eigen::MatrixXd ZerosT(tau_k.size(), xi_k.size());
+    Eigen::MatrixXd ZerosT(Q.rows(), xi_k.size());
     ZerosT.setZero();
 
     Eigen::MatrixXd Sigma(n, n);
@@ -203,6 +218,8 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
     Singular_values = Sigma.bdcSvd(Eigen::ComputeFullU).singularValues();
     U = Sigma.bdcSvd(Eigen::ComputeFullU).matrixU();
 
+    Eigen::MatrixXd provaSigma = U * Singular_values.asDiagonal() * U.transpose();
+
     // Create sigma points
     Eigen::MatrixXd sigma_points(n, n_sigma);
 
@@ -211,14 +228,14 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
     for (int i = 0; i < n; i++)
     {
         sigma_points.col(i) = xi_prediction + sqrt(n + lambda) * U.col(i) * sqrt(Singular_values(i));
-        sigma_points.col(i)(3) = atan2(sin(sigma_points.col(i)(3)), cos(sigma_points.col(i)(3)));
-        sigma_points.col(i)(4) = atan2(sin(sigma_points.col(i)(4)), cos(sigma_points.col(i)(4)));
-        sigma_points.col(i)(5) = atan2(sin(sigma_points.col(i)(5)), cos(sigma_points.col(i)(5)));
+        sigma_points.col(i)(3) = wrapToPi(sigma_points.col(i)(3));
+        sigma_points.col(i)(4) = wrapToPi(sigma_points.col(i)(4));
+        sigma_points.col(i)(5) = wrapToPi(sigma_points.col(i)(5));
 
         sigma_points.col(i + n) = xi_prediction - sqrt(n + lambda) * U.col(i) * sqrt(Singular_values(i));
-        sigma_points.col(i + n)(3) = atan2(sin(sigma_points.col(i + n)(3)), cos(sigma_points.col(i + n)(3)));
-        sigma_points.col(i + n)(4) = atan2(sin(sigma_points.col(i + n)(4)), cos(sigma_points.col(i + n)(4)));
-        sigma_points.col(i + n)(5) = atan2(sin(sigma_points.col(i + n)(5)), cos(sigma_points.col(i + n)(5)));
+        sigma_points.col(i + n)(3) = wrapToPi(sigma_points.col(i + n)(3));
+        sigma_points.col(i + n)(4) = wrapToPi(sigma_points.col(i + n)(4));
+        sigma_points.col(i + n)(5) = wrapToPi(sigma_points.col(i + n)(5));
 
         weights[i] = 1 / (2 * (n + lambda));
         weights[i + n] = 1 / (2 * (n + lambda));
@@ -243,8 +260,8 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
         Eigen::VectorXd nu(6);
         nu = xi_aug(Eigen::seq(6, 11));
 
-        Eigen::VectorXd tau_noise(6);
-        tau_noise = xi_aug.tail(6);
+        Eigen::VectorXd tau_noise(8);
+        tau_noise = xi_aug.tail(8);
 
         double phi = eta(3);
         double theta = eta(4);
@@ -308,10 +325,20 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
             (z_g - z_b) * W * sin(theta) + (x_g - x_b) * W * cos(theta) * cos(phi),
             -(x_g - x_b) * W * cos(theta) * sin(phi) - (y_g - y_b) * W * sin(theta);
 
+        // Calcolo delle forze e momenti controllabili (u,v,w,r)
+
+        Eigen::VectorXd tau_motor(4);
+        tau_motor = B * (inputs + tau_noise.head(6));
+
+        // Vettore delle forze e momenti totale
+        Eigen::VectorXd tau(6);
+        tau << tau_motor(0), tau_motor(1), tau_motor(2), tau_noise(6), tau_noise(7), tau_motor(3);
+
         // Dinamica del sistema
 
         Eigen::Matrix<double, 6, 1> nu_k1;
-        nu_k1 = (dt * M.inverse() * (tau_k + tau_noise - C * nu - D * nu - G)) + nu;
+        nu_k1 = (dt * M.inverse() * (tau - C * nu - D * nu - G)) + nu;
+
         // VETTORE DELLE POSIZIONI
         Eigen::Matrix<double, 6, 6> Jacobian;
         Jacobian << cos(psi) * cos(theta), cos(psi) * sin(phi) * sin(theta) - cos(phi) * sin(psi), sin(phi) * sin(psi) + cos(phi) * cos(psi) * sin(theta), 0, 0, 0,
@@ -324,20 +351,12 @@ UnscentedOutput UnscentedTransform_Prediction(Eigen::VectorXd xi_k, Eigen::Vecto
         Eigen::VectorXd eta_k1(6);
         eta_k1 = dt * (Jacobian * nu) + eta;
 
-        if (eta_k1(2) <= 0.0)
-        {
-            eta_k1(2) = 0.0;
-        }
-
         // wrapToPi(eta_k1(phi));
-        eta_k1(3) = atan2(sin(eta_k1(3)), cos(eta_k1(3)));
-
+        eta_k1(3) = wrapToPi(eta_k1(3));
         // wrapToPi(eta_k1(theta));
-        eta_k1(4) = atan2(sin(eta_k1(4)), cos(eta_k1(4)));
-
+        eta_k1(4) = wrapToPi(eta_k1(4));
         // wrapToPi(eta_k1(psi));
-        eta_k1(5) = atan2(sin(eta_k1(5)), cos(eta_k1(5)));
-
+        eta_k1(5) = wrapToPi(eta_k1(5));
         sigma_points_out.col(i) << eta_k1, nu_k1;
     }
 
@@ -437,14 +456,14 @@ UnscentedOutput UnscentedTransform_Correction(Eigen::VectorXd xi_k, Eigen::Vecto
     for (int i = 0; i < n; i++)
     {
         sigma_points.col(i) = xi_correction + sqrt(n + lambda) * U.col(i) * sqrt(Singular_values(i));
-        sigma_points.col(i)(3) = atan2(sin(sigma_points.col(i)(3)), cos(sigma_points.col(i)(3)));
-        sigma_points.col(i)(4) = atan2(sin(sigma_points.col(i)(4)), cos(sigma_points.col(i)(4)));
-        sigma_points.col(i)(5) = atan2(sin(sigma_points.col(i)(5)), cos(sigma_points.col(i)(5)));
+        sigma_points.col(i)(3) = wrapToPi(sigma_points.col(i)(3));
+        sigma_points.col(i)(4) = wrapToPi(sigma_points.col(i)(4));
+        sigma_points.col(i)(5) = wrapToPi(sigma_points.col(i)(5));
 
         sigma_points.col(i + n) = xi_correction - sqrt(n + lambda) * U.col(i) * sqrt(Singular_values(i));
-        sigma_points.col(i + n)(3) = atan2(sin(sigma_points.col(i + n)(3)), cos(sigma_points.col(i + n)(3)));
-        sigma_points.col(i + n)(4) = atan2(sin(sigma_points.col(i + n)(4)), cos(sigma_points.col(i + n)(4)));
-        sigma_points.col(i + n)(5) = atan2(sin(sigma_points.col(i + n)(5)), cos(sigma_points.col(i + n)(5)));
+        sigma_points.col(i + n)(3) = wrapToPi(sigma_points.col(i + n)(3));
+        sigma_points.col(i + n)(4) = wrapToPi(sigma_points.col(i + n)(4));
+        sigma_points.col(i + n)(5) = wrapToPi(sigma_points.col(i + n)(5));
 
         weights[i] = 1 / (2 * (n + lambda));
         weights[i + n] = 1 / (2 * (n + lambda));
@@ -679,21 +698,21 @@ void tau_callback(const tesi_bluerov2::Floats::ConstPtr &msg)
 {
     if (msg->data[0] != msg->data[0])
     {
-        tau_u = 0.0;
-        tau_v = 0.0;
-        tau_w = 0.0;
-        tau_p = 0.0;
-        tau_q = 0.0;
-        tau_r = 0.0;
+        u1 = 0.0;
+        u2 = 0.0;
+        u3 = 0.0;
+        u4 = 0.0;
+        u5 = 0.0;
+        u6 = 0.0;
     }
     else
     {
-        tau_u = msg->data[0];
-        tau_v = msg->data[1];
-        tau_w = msg->data[2];
-        tau_p = msg->data[3];
-        tau_q = msg->data[4];
-        tau_r = msg->data[5];
+        u1 = msg->data[0];
+        u2 = msg->data[1];
+        u3 = msg->data[2];
+        u4 = msg->data[3];
+        u5 = msg->data[4];
+        u6 = msg->data[5];
     }
 }
 
@@ -777,10 +796,7 @@ int main(int argc, char **argv)
     n.getParam("var_q_IMU", var_q_IMU);
     n.getParam("var_r_IMU", var_r_IMU);
 
-    n.getParam("var_tau_u", var_tau_u);
-    n.getParam("var_tau_v", var_tau_v);
-    n.getParam("var_tau_w", var_tau_w);
-    n.getParam("var_tau_p", var_tau_p);
+    n.getParam("var_tau_motor", var_tau_motor);
     n.getParam("var_tau_q", var_tau_q);
     n.getParam("var_tau_r", var_tau_r);
 
@@ -822,6 +838,11 @@ int main(int argc, char **argv)
     Eigen::Matrix<double, 6, 6> M;
     M = M_rb + M_a;
 
+    B << c_45, c_45, -c_45, -c_45, 0.0, 0.0,
+        -c_45, c_45, c_45, -c_45, 0.0, 0.0,
+        0.0, 0.0, 0.0, 0.0, -1.0, -1.0,
+        -(x_r + y_r) * sqrt(2) / 2, (x_r + y_r) * sqrt(2) / 2, -(x_r + y_r) * sqrt(2) / 2, (x_r + y_r) * sqrt(2) / 2, 0.0, 0.0;
+
     // Time step
     double freq = 50;
     double dt = 1 / freq;
@@ -836,13 +857,15 @@ int main(int argc, char **argv)
     Eigen::VectorXd var_sensors(11);
     var_sensors << var_x_GPS, var_y_GPS, var_x_scanner, var_y_scanner, var_z_depth_sensor, var_phi_IMU, var_theta_IMU, var_psi_IMU, var_u_DVL, var_v_DVL, var_w_DVL;
 
-    Eigen::MatrixXd Q(6, 6);
-    Q << var_tau_u, 0.0, 0.0, 0.0, 0.0, 0.0,
-        0.0, var_tau_v, 0.0, 0.0, 0.0, 0.0,
-        0.0, 0.0, var_tau_w, 0.0, 0.0, 0.0,
-        0.0, 0.0, 0.0, var_tau_p, 0.0, 0.0,
-        0.0, 0.0, 0.0, 0.0, var_tau_q, 0.0,
-        0.0, 0.0, 0.0, 0.0, 0.0, var_tau_r;
+    Eigen::MatrixXd Q(8, 8);
+    Q << var_tau_motor, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+        0.0, var_tau_motor, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+        0.0, 0.0, var_tau_motor, 0.0, 0.0, 0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0, var_tau_motor, 0.0, 0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0, 0.0, var_tau_motor, 0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0, 0.0, 0.0, var_tau_motor, 0.0, 0.0,
+        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, var_tau_p, 0.0,
+        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, var_tau_q;
 
     // Set the loop rate
     ros::Rate loop_rate(freq);
@@ -947,10 +970,11 @@ int main(int argc, char **argv)
                 ////////////////////////////////////////////////////////////////////
 
                 // VETTORE DI FORZE E MOMENTI
-                Eigen::VectorXd tau(6);
-                tau << tau_u, tau_v, tau_w, tau_p, tau_q, tau_r;
+                Eigen::VectorXd inputs(6);
+                inputs << u1, u2, u3, u4, u5, u6;
+
                 // Predizione
-                UnscentedOutput Prediction_out = UnscentedTransform_Prediction(xi_curr, tau, P_curr, Q, dt, M);
+                UnscentedOutput Prediction_out = UnscentedTransform_Prediction(xi_curr, inputs, P_curr, Q, dt, M);
 
                 xi_pred = Prediction_out.getX();
 
@@ -1044,9 +1068,9 @@ int main(int argc, char **argv)
 
                 xi_corr = xi_pred + K * e_k;
 
-                xi_corr(3) = atan2(sin(xi_corr(3)), cos(xi_corr(3)));
-                xi_corr(4) = atan2(sin(xi_corr(4)), cos(xi_corr(4)));
-                xi_corr(5) = atan2(sin(xi_corr(5)), cos(xi_corr(5)));
+                xi_corr(3) = wrapToPi(xi_corr(3));
+                xi_corr(4) = wrapToPi(xi_corr(4));
+                xi_corr(5) = wrapToPi(xi_corr(5));
 
                 // Calcolo la matrice di covarianza corretta
                 Eigen::MatrixXd P_corr(row_pxz, row_pxz);
@@ -1062,11 +1086,11 @@ int main(int argc, char **argv)
             ////////////////////////////////////////////////////////////////////
 
             // VETTORE DI FORZE E MOMENTI
-            Eigen::VectorXd tau(6);
-            tau << tau_u, tau_v, tau_w, tau_p, tau_q, tau_r;
+            Eigen::VectorXd inputs(6);
+            inputs << u1, u2, u3, u4, u5, u6;
 
             // Predizione
-            UnscentedOutput Prediction_out = UnscentedTransform_Prediction(xi_curr, tau, P_curr, Q, dt, M);
+            UnscentedOutput Prediction_out = UnscentedTransform_Prediction(xi_curr, inputs, P_curr, Q, dt, M);
 
             xi_pred = Prediction_out.getX();
 
