@@ -248,7 +248,7 @@ int main(int argc, char **argv)
     ros::Subscriber gnc_status_sub = nh.subscribe("manager/GNC_status_topic", 1, GNCstatusCallback); // sottoscrizione alla topic di stato del GNC
     ros::Subscriber subscriber = nh.subscribe("sensors/buoy_topic", 10, buoyCallback);
     // ros::Subscriber subscriber_state = nh.subscribe("state/est_state_topic_no_dyn_imu", 10, estStateCallback);
-    ros::Subscriber subscriber_state = nh.subscribe("state/est_state_UKF_imu_topic", 10, estStateCallback);
+    ros::Subscriber subscriber_state = nh.subscribe("state/est_state_EKF_no_dyn_imu_topic", 10, estStateCallback);
     ros::Subscriber subscriber_status = nh.subscribe("manager/mission_status_topic", 10, statusCallback);
 
     ////////////////////////// Get parameters from YAML file //////////////////////////
@@ -491,16 +491,30 @@ int main(int argc, char **argv)
                     waypoint_msg.strategy = "Circumference";
 
                     // Calcolo dei punti in terna body
-
+                    /*
                     double x_boa_body = cos(psi_hat) * (x_b - x_hat) + sin(psi_hat) * (y_b - y_hat);
                     double y_boa_body = -sin(psi_hat) * (x_b - x_hat) + cos(psi_hat) * (y_b - y_hat);
                     double z_boa_body = z_b - z_hat;
+                    double alpha;
+                    double dist_to_buoy = sqrt(pow(x_boa_body, 2) + pow(y_boa_body, 2));
+                    double a = 0.8; // raggio della circonferenza: consideriamo un segmento per ricavarci il punto di tangenza
+                    double dist_to_p = sqrt(pow(dist_to_buoy, 2) - pow(a, 2)); // segmento per raggiungere il punto di tangenza
+                    double gamma = atan2(a,dist_to_p);//angolo compreso tra dist_to_p e dist_to_buoy
+                    double epsilon = M_PI/2 + gamma; // angolo tra a e il prolungamento di dist_to_buoy
 
-                    double alpha = atan2(y_boa_body, x_boa_body);
+                    if (clockwise == 1)
+                    {
+                        alpha = atan2(y_boa_body, x_boa_body) + epsilon;
+                    }
+
+                    else
+                    {
+                        alpha = atan2(y_boa_body, x_boa_body) - epsilon;
+                    }
 
                     // Calcolo del punto di tangenza alla circonferenza in terna body
-                    double x_p_body = x_boa_body + cos(alpha);
-                    double y_p_body = y_boa_body + sin(alpha);
+                    double x_p_body = x_boa_body + a * cos(alpha);
+                    double y_p_body = y_boa_body + a * sin(alpha);
                     double z_p_body = z_boa_body;
 
                     // Trasformazione in terna NED
@@ -508,8 +522,8 @@ int main(int argc, char **argv)
                     double x_p = cos(psi_hat) * x_p_body - sin(psi_hat) * y_p_body + x_hat;
                     double y_p = sin(psi_hat) * x_p_body + cos(psi_hat) * y_p_body + y_hat;
                     double z_p = z_p_body + z_hat;
-
-                    std::vector<double> waypoint_pos = {x_b, y_b, z_b, x_p, y_p, z_p};
+                    */
+                    std::vector<double> waypoint_pos = {x_b, y_b, z_b};
                     waypoint_msg.waypoints = waypoint_pos;
                     waypoint_msg.speed = surge_speed_replanning;
                     waypoint_msg.approach = approach;
@@ -577,7 +591,7 @@ int main(int argc, char **argv)
                 else
                 {
                     std::vector<double> waypoint_pos = {};
-                    ROS_WARN("WAYPOINT MANCANTI \n");
+                    ROS_WARN("WAYPOINTS TO GO \n");
 
                     for (int i = 0; i < n_waypoints; i++)
                     {
@@ -603,7 +617,6 @@ int main(int argc, char **argv)
                     ros::Duration(2).sleep(); // sleep
                 }
             }
-            // CASO DI EMERGENZA (se il robot si trova troppo vicino al muro)
             else if (mission_status == "RUNNING")
             {
                 double dist_to_next_waypoint;
@@ -616,14 +629,14 @@ int main(int argc, char **argv)
                         {
                             if (i == 0)
                             {
-                                ROS_WARN("SONO PASSATO DAL WAYPOINT %d", i);
+                                ROS_WARN("PASSED BY WAYPOINT %d", i);
                                 waypoint_passed(i) = 1;
                             }
                             else
                             {
                                 if (waypoint_passed(i - 1) == 1)
                                 {
-                                    ROS_WARN("SONO PASSATO DAL WAYPOINT %d", i);
+                                    ROS_WARN("PASSED BY WAYPOINT %d", i);
                                     waypoint_passed(i) = 1;
                                 }
                             }

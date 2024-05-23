@@ -160,7 +160,8 @@ int main(int argc, char **argv)
     ros::Publisher publisher_gnc_status = n.advertise<std_msgs::String>("manager/GNC_status_requested_topic", 10); // publisher stato richiesto al GNC
 
     ros::Subscriber sub_des_state = n.subscribe("state/desired_state_topic", 1, desStateCallback);
-    ros::Subscriber sub_est_state = n.subscribe("state/est_state_UKF_imu_topic", 1, estStateCallback);
+    // ros::Subscriber sub_est_state = n.subscribe("state/est_state_EKF_no_dyn_topic", 1, estStateCallback);
+    ros::Subscriber sub_est_state = n.subscribe("state/state_topic", 1, estStateCallback);
     ros::Subscriber sub_gnc_status = n.subscribe("manager/GNC_status_topic", 1, GNCstatusCallback); // sottoscrizione alla topic di stato del GNC
 
     double freq = 60;
@@ -397,17 +398,17 @@ int main(int argc, char **argv)
     LAMBDA(0, 0) = 3.0;
     LAMBDA(1, 1) = 3.0;
     LAMBDA(2, 2) = 3.0;
-    LAMBDA(5, 5) = 2.0;
+    LAMBDA(5, 5) = 3.0;
 
     Eigen::Matrix<double, 6, 6> K_d;
     K_d << Eigen::Matrix<double, 6, 6>::Identity();
-    K_d(0, 0) = 1.0;
-    K_d(1, 1) = 1.0;
-    K_d(2, 2) = 2.0;
-    K_d(5, 5) = 1.0;
+    K_d(0, 0) = 1.5;
+    K_d(1, 1) = 1.5;
+    K_d(2, 2) = 1.5;
+    K_d(5, 5) = 3.0;
 
     Eigen::Matrix<double, 6, 6> K_f;
-    K_f << 0.1 * Eigen::Matrix<double, 6, 6>::Identity();
+    K_f << 50 * Eigen::Matrix<double, 6, 6>::Identity();
 
     double x_r = 0.1105;
     double y_r = 0.133;
@@ -424,7 +425,7 @@ int main(int argc, char **argv)
 
     Eigen::Matrix<double, 25, 25> R;
 
-    R << 100.0 * Eigen::Matrix<double, 25, 25>::Identity();
+    R << 10.0 * Eigen::Matrix<double, 25, 25>::Identity();
 
     Eigen::Matrix<double, 4, 6> Control_Selector;
 

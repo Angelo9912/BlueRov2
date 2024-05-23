@@ -158,8 +158,7 @@ int main(int argc, char **argv)
 
     ros::Subscriber sub_gnc_status = n.subscribe("manager/GNC_status_topic", 1, GNCstatusCallback); // sottoscrizione alla topic di stato del GNC
     ros::Subscriber sub_des_state = n.subscribe("state/desired_state_topic", 1, desStateCallback);
-    // ros::Subscriber sub_est_state = n.subscribe("state/est_state_topic_no_dyn_imu", 1, estStateCallback);
-    ros::Subscriber sub_est_state = n.subscribe("state/est_state_topic_no_dyn", 1, estStateCallback);
+    ros::Subscriber sub_est_state = n.subscribe("state/est_state_EKF_no_dyn_topic", 1, estStateCallback);
 
     double freq = 60;
     double dt = 1 / freq;
@@ -331,18 +330,47 @@ int main(int argc, char **argv)
 
     Eigen::Matrix<double, 6, 6> J_inv_dot;
 
+    double x_r = 0.1105;
+    double y_r = 0.133;
+    double c_45 = cos(M_PI / 4);
+
+    Eigen::Matrix<double, 4, 6> Control_Selector;
+
+    Control_Selector << 1, 0, 0, 0, 0, 0,
+        0, 1, 0, 0, 0, 0,
+        0, 0, 1, 0, 0, 0,
+        0, 0, 0, 0, 0, 1;
+
+    Eigen::Matrix<double, 4, 6> B;
+    B << c_45, c_45, -c_45, -c_45, 0.0, 0.0,
+        -c_45, c_45, c_45, -c_45, 0.0, 0.0,
+        0.0, 0.0, 0.0, 0.0, -1.0, -1.0,
+        -(x_r + y_r) * sqrt(2) / 2, (x_r + y_r) * sqrt(2) / 2, -(x_r + y_r) * sqrt(2) / 2, (x_r + y_r) * sqrt(2) / 2, 0.0, 0.0;
+
+    Eigen::Matrix<double, 6, 4> B_cross;
+    B_cross = B.transpose() * (B * B.transpose()).inverse();
+
+    Eigen::Matrix<double, 4, 1> torques_vec;
+    Eigen::Matrix<double, 6, 1> inputs;
+
     while (ros::ok())
     {
         if (GNC_status == "NAVIGATION_READY")
         {
             std_msgs::String msg;
             msg.data = "CONTROLLER_READY";
-            ros::Duration(wait_for_controller).sleep();
-            publisher_gnc_status.publish(msg);
+            if (is_init)
+            {
+                init_time = ros::Time::now().toSec();
+                is_init = false;
+            }
+            if (ros::Time::now().toSec() - init_time >= wait_for_controller)
+            {
+                publisher_gnc_status.publish(msg);
+            }
         }
         else if (GNC_status == "CONTROLLER_READY" || GNC_status == "GNC_READY")
         {
-
             des_pose << x_d, y_d, z_d, phi_d, theta_d, psi_d;
             des_pos_dot << x_dot_d, y_dot_d, z_dot_d, phi_dot_d, theta_dot_d, psi_dot_d;
             est_pose << x_hat, y_hat, z_hat, phi_hat, theta_hat, psi_hat;
@@ -369,18 +397,18 @@ int main(int argc, char **argv)
             theta_hat_dot = est_pose_dot(4);
             psi_hat_dot = est_pose_dot(5);
 
+            Eigen::Matrix<double, 6, 6> LAMBDA;
             LAMBDA << Eigen::Matrix<double, 6, 6>::Identity();
-            LAMBDA(0, 0) = 10.0;
-            LAMBDA(1, 1) = 10.0;
-            LAMBDA(2, 2) = 10.0;
-            LAMBDA(5, 5) = 10.0;
+            LAMBDA(0, 0) = 3.0;
+            LAMBDA(1, 1) = 3.0;
+            LAMBDA(2, 2) = 3.0;
+            LAMBDA(5, 5) = 3.0;
 
             Eigen::Matrix<double, 6, 6> K_d;
             K_d << Eigen::Matrix<double, 6, 6>::Identity();
-
-            K_d(0, 0) = 3.0;
-            K_d(1, 1) = 3.0;
-            K_d(2, 2) = 3.0;
+            K_d(0, 0) = 1.5;
+            K_d(1, 1) = 1.5;
+            K_d(2, 2) = 1.5;
             K_d(5, 5) = 3.0;
 
             q_r_dot = J.inverse() * (des_pos_dot + LAMBDA * error);
@@ -471,23 +499,8 @@ int main(int argc, char **argv)
                 (z_g - z_b) * W * sin(theta_hat) + (x_g - x_b) * W * cos(theta_hat) * cos(phi_hat),
                 -(x_g - x_b) * W * cos(theta_hat) * sin(phi_hat) - (y_g - y_b) * W * sin(theta_hat);
 
-            if (z_hat < 0.0)
-            {
-                G(2) = -W;
-            }
-
-            Eigen::Matrix<double, 6, 4> B;
-
-            Eigen::Matrix<double, 4, 6> B_pinv;
-
-            B_pinv << 1, 0, 0, 0, 0, 0,
-                0, 1, 0, 0, 0, 0,
-                0, 0, 1, 0, 0, 0,
-                0, 0, 0, 0, 0, 1;
-
-            // Define the torques vector
-            Eigen::Matrix<double, 4, 1> torques_vec;
-            torques_vec = B_pinv * (M * q_r_2dot + K_d * s + C * q_r_dot + G + J.transpose() * error + D * nu);
+            double norm_error = error.norm();
+            torques_vec = Control_Selector * (M * q_r_2dot + K_d * s + C * q_r_dot + G + J.transpose() * error + D * nu);
 
             if (torques_vec(3) > 5.471)
             {
@@ -498,45 +511,18 @@ int main(int argc, char **argv)
                 torques_vec(3) = -5.471;
             }
 
-            if (torques_vec(0) > 141.42)
-            {
-                torques_vec(0) = 141.42;
-            }
-            else if (torques_vec(0) < -141.42)
-            {
-                torques_vec(0) = -141.42;
-            }
+            inputs = B_cross * torques_vec;
 
-            if (torques_vec(1) > 141.42)
-            {
-                torques_vec(1) = 141.42;
-            }
-            else if (torques_vec(1) < -141.42)
-            {
-                torques_vec(1) = -141.42;
-            }
+            std::vector<double> inputs_vec = {inputs(0), inputs(1), inputs(2), inputs(3), inputs(4), inputs(5)};
 
-            if (torques_vec(2) > 70.71)
-            {
-                torques_vec(2) = 70.71;
-            }
-            else if (torques_vec(2) < -70.71)
-            {
-                torques_vec(2) = -70.71;
-            }
-
-            std::vector<double> torques = {torques_vec(0), torques_vec(1), torques_vec(2), 0.0, 0.0, torques_vec(3)};
-            std::vector<double> error_to_plot = {error(0), error(1), error(2), error(3), error(4), error(5), s(0), s(1), s(2), s(3), s(4), s(5)};
             // Publishing the torques
             tesi_bluerov2::Floats torques_msg;
-            torques_msg.data = torques;
-            error_to_plot_msg.data = error_to_plot;
+            torques_msg.data = inputs_vec;
+
             chatter_pub.publish(torques_msg);
-            pub_error.publish(error_to_plot_msg);
             if (ros::Time::now().toSec() > ros::TIME_MIN.toSec())
             {
                 tau_bag.write("tau_topic", ros::Time::now(), torques_msg);
-                error_bag.write("error_topic", ros::Time::now(), error_to_plot_msg);
             }
         }
 

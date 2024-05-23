@@ -31,42 +31,42 @@ A_z : 0.1545
 A_p : 0.001
 A_q : 0.001
 A_r : 0.07
-X_u_dot : -1.53
+X_u_dot : 1.53
 X_v_dot : 0.0
 X_w_dot : 0.0
 X_p_dot : 0.0
 X_q_dot : 0.0
 X_r_dot : 0.0
 Y_u_dot : 0.0
-Y_v_dot : -1.53
+Y_v_dot : 1.53
 Y_w_dot : 0.0
 Y_p_dot : 0.0
 Y_q_dot : 0.0
 Y_r_dot : 0.0
 Z_u_dot : 0.0
 Z_v_dot : 0.0
-Z_w_dot : -1.53
+Z_w_dot : 1.53
 Z_p_dot : 0.0
 Z_q_dot : 0.0
 Z_r_dot : 0.0
 K_u_dot : 0.0
 K_v_dot : 0.0
 K_w_dot : 0.0
-K_p_dot : -0.049
+K_p_dot : 0.049
 K_q_dot : 0.0
 K_r_dot : 0.0
 M_u_dot : 0.0
 M_v_dot : 0.0
 M_w_dot : 0.0
 M_p_dot : 0.0
-M_q_dot : -0.061
+M_q_dot : 0.061
 M_r_dot : 0.0
 N_u_dot : 0.0
 N_v_dot : 0.0
 N_w_dot : 0.0
 N_p_dot : 0.0
 N_q_dot : 0.0
-N_r_dot : -0.041
+N_r_dot : 0.041
 
 target_x : 15
 target_y : 15
@@ -126,4 +126,3 @@ start_long : 9.864990204688155
 
 wait_for_controller : 30
 exploration_strategy : "Rect"
-

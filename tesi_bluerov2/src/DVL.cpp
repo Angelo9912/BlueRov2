@@ -67,7 +67,7 @@ int main(int argc, char **argv)
             is_first_loop = false;
         }
         tesi_bluerov2::Floats msg;
-        double valid = 1.0;
+        double valid = 0.0;
 
         // Add noise to the DVL data and fill the message
         std::vector<double> DVL_data = {u_hat + gaussianNoise(0, var_u), v_hat + gaussianNoise(0, var_v), w_hat + gaussianNoise(0, var_w), valid};

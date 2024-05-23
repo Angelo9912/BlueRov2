@@ -25,6 +25,7 @@ double r_hat = 0.0;     // velocità angolare di yaw stimata
 double speed = 0.0;     // velocità di crociera
 int clockwise = 0;      // flag per indicare se il giro è in senso orario
 int up = 0;             // flag per indicare se la traiettoria è in salita
+int CIRCUMFERENCE_phase = 1; // fase della circonferenza
 
 double x_1 = 0.0;   // coordiata x del primo waypoint
 double y_1 = 0.0;   // coordiata y del primo waypoint
@@ -102,14 +103,13 @@ void waypointCallback(const tesi_bluerov2::waypoints::ConstPtr &msg) // CALLBACK
         y_1 = y_hat;
         z_1 = z_hat;
         psi_1 = psi_hat;
+        is_psi_adjusted = false;
         way_counter = 1;
         is_psi_adjusted = false;
+        CIRCUMFERENCE_phase = 1;
         x_b = msg->waypoints[0];
         y_b = msg->waypoints[1];
         z_b = msg->waypoints[2];
-        x_p = msg->waypoints[3];
-        y_p = msg->waypoints[4];
-        z_p = msg->waypoints[5];
         speed = msg->speed;
         strategy = msg->strategy;
         clockwise = msg->approach;
@@ -221,9 +221,9 @@ int main(int argc, char **argv)
 
     ros::Subscriber sub_gnc_status = n.subscribe("manager/GNC_status_topic", 1, GNCstatusCallback); // sottoscrizione alla topic di stato del GNC
     // ros::Subscriber sub_est_state = n.subscribe("state/est_state_topic_no_dyn_imu", 1, estStateCallback);          // sottoscrizione alla topic di stato stimato
-    ros::Subscriber sub_est_state = n.subscribe("state/est_state_UKF_imu_topic", 1, estStateCallback); // sottoscrizione alla topic di stato stimato
-    ros::Subscriber sub_waypoint = n.subscribe("waypoints_topic", 1, waypointCallback);                   // sottoscrizione alla topic di waypoint
-    ros::Subscriber sub_status = n.subscribe("manager/mission_status_topic", 1, statusCallback);          // sottoscrizione alla topic di mission status
+    ros::Subscriber sub_est_state = n.subscribe("state/est_state_EKF_no_dyn_imu_topic", 1, estStateCallback); // sottoscrizione alla topic di stato stimato
+    ros::Subscriber sub_waypoint = n.subscribe("waypoints_topic", 1, waypointCallback);                       // sottoscrizione alla topic di waypoint
+    ros::Subscriber sub_status = n.subscribe("manager/mission_status_topic", 1, statusCallback);              // sottoscrizione alla topic di mission status
 
     double freq = 50.0;   // frequenza di lavoro
     double dt = 1 / freq; // tempo di campionamento
@@ -268,7 +268,6 @@ int main(int argc, char **argv)
     bool is_u_d_tmp_initialized = false;
     bool is_w_d_tmp_initialized = false;
 
-    int CIRCUMFERENCE_phase = 0;
     double dist_min;
     double dist_min_psi;
 
@@ -504,7 +503,7 @@ int main(int argc, char **argv)
                         x_d = x_1;
                         y_d = y_1;
                         z_d = z_1;
-                        if(z_d <= 0.0)
+                        if (z_d <= 0.0)
                         {
                             z_d = 0.15;
                         }
@@ -677,7 +676,7 @@ int main(int argc, char **argv)
                         x_d = x2(i_dist_min);
                         y_d = y2(i_dist_min);
                         z_d = way_spline_z(way_counter);
-                        if(z_d <= 0.0)
+                        if (z_d <= 0.0)
                         {
                             z_d = 0.15;
                         }
@@ -1277,178 +1276,214 @@ int main(int argc, char **argv)
                 }
                 else if (strategy == "Circumference")
                 {
-                    double x[199];
-                    double y[199];
-                    double z[199];
-                    double phi[199];
-                    double theta[199];
-                    double psi[199];
-
-                    double u_d = surge_speed;
-                    double v_d = 0.0;
-                    double w_d = 0.0;
-                    double p_d = 0.0;
-                    double q_d = 0.0;
-                    double r_d = 0.0;
-
-                    Eigen::VectorXd dist(199);
-                    double dx = (x_p - x_1) / 100;
-                    double dy = (y_p - y_1) / 100;
-                    double dz = (z_p - z_1) / 100;
-
-                    for (int i = 0; i < 99; i++)
+                    double dist_to_buoy = sqrt(pow(x_1 - x_b, 2.0) + pow(y_1 - y_b, 2.0));
+                    int n_elements_circ = (int)(dist_to_buoy * 100);        // divido la circonferenza in 100 elementi
+                    int n_elements_semi = (int)(n_elements_circ / 2);       // divido la circonferenza in 2 semicirconferenze
+                    int n_elements_tot = n_elements_circ + n_elements_semi; // percorriamo una circonferenza e mezzo
+                    double x[n_elements_tot];
+                    double y[n_elements_tot];
+                    double z[n_elements_tot];
+                    double x_dot;
+                    double y_dot;
+                    double phi;
+                    double theta;
+                    double psi[n_elements_tot];
+                    double beta = atan2(y_1 - y_b, x_1 - x_b);
+                    int n_elements_psi;
+                    Eigen::VectorXd dist(n_elements_tot);
+                    double delta_psi_circ;
+                    for (int i = 0; i < n_elements_tot; i++)
                     {
-                        x[i] = x_1 + (i + 1) * dx;
-                        y[i] = y_1 + (i + 1) * dy;
-                        z[i] = z_1 + (i + 1) * dz;
-                        psi[i] = atan2(dy, dx);
-                    }
-
-                    double k = 2 * M_PI / 100;
-                    double beta = atan2(y_p - y_b, x_p - x_b);
-
-                    for (int i = 99; i < 199; i++)
-                    {
-                        double t;
-                        if (clockwise == 0)
+                        if (clockwise == 1)
                         {
-                            t = -(i - 99) * k;
-                            psi[i] = atan2(-cos(beta + t), sin(beta + t));
+                            x[i] = x_b + dist_to_buoy * cos(2 * M_PI * i / n_elements_circ + beta);
+                            y[i] = y_b + dist_to_buoy * sin(2 * M_PI * i / n_elements_circ + beta);
                         }
                         else
                         {
-                            t = (i - 99) * k;
-                            psi[i] = atan2(cos(beta + t), -sin(beta + t));
+                            x[i] = x_b + dist_to_buoy * cos(-2 * M_PI * i / n_elements_circ + beta);
+                            y[i] = y_b + dist_to_buoy * sin(-2 * M_PI * i / n_elements_circ + beta);
                         }
-                        x[i] = x_b + cos(beta + t);
-                        y[i] = y_b + sin(beta + t);
                         z[i] = z_b;
+                        if (i < n_elements_tot - 1)
+                        {
+                            if (clockwise == 1)
+                            {
+                                x_dot = -dist_to_buoy * sin(2 * M_PI * i / n_elements_circ + beta) * 2 * M_PI / n_elements_circ;
+                                y_dot = dist_to_buoy * cos(2 * M_PI * i / n_elements_circ + beta) * 2 * M_PI / n_elements_circ;
+                            }
+                            else
+                            {
+                                x_dot = dist_to_buoy * sin(-2 * M_PI * i / n_elements_circ + beta) * 2 * M_PI / n_elements_circ;
+                                y_dot = -dist_to_buoy * cos(-2 * M_PI * i / n_elements_circ + beta) * 2 * M_PI / n_elements_circ;
+                            }
+                            psi[i] = atan2(y_dot, x_dot);
+                        }
+                        else
+                        {
+                            psi[i] = psi[0];
+                        }
                     }
 
-                    int i_dist_min;
-                    if (CIRCUMFERENCE_phase == 1)
+                    if (angleDifference(psi[0] - psi_1) > 10 * (M_PI / 180))
                     {
-                        // ROS_WARN("RETTA");
-                        i_dist_min = 0;
-                        for (int i = 0; i < 99; i++)
-                        {
-                            dist(i) = sqrt(pow(x_hat - x[i], 2.0) + pow(y_hat - y[i], 2.0) + pow(z_hat - z[i], 2.0));
-                            if (i == 0)
-                            {
-                                dist_min = dist(i);
-                            }
-                            else
-                            {
-                                if (dist(i) < dist_min)
-                                {
-                                    dist_min = dist(i);
-                                    i_dist_min = i;
-                                }
-                            }
-                        }
-                        if (i_dist_min >= 97)
-                        {
-                            CIRCUMFERENCE_phase = 2;
-                        }
+                        n_elements_psi = (int)(angleDifference(psi[0] - psi_1) * freq / (5 * (M_PI / 180)));
                     }
-                    else if (CIRCUMFERENCE_phase == 2)
+                    else if (angleDifference(psi[0] - psi_1) < -10 * (M_PI / 180))
                     {
-                        // ROS_WARN("CIRCONFERENZA 1");
-                        i_dist_min = 99;
-                        for (int i = 99; i < 149; i++)
-                        {
-                            dist(i) = sqrt(pow(x_hat - x[i], 2.0) + pow(y_hat - y[i], 2.0) + pow(z_hat - z[i], 2.0));
-                            if (i == 99)
-                            {
-                                dist_min = dist(i);
-                            }
-                            else
-                            {
-                                if (dist(i) < dist_min)
-                                {
-                                    dist_min = dist(i);
-                                    i_dist_min = i;
-                                }
-                            }
-                        }
-                        if (i_dist_min >= 147)
-                        {
-                            CIRCUMFERENCE_phase = 3;
-                        }
+                        n_elements_psi = (int)(angleDifference(psi_1 - psi[0]) * freq / (5 * (M_PI / 180)));
                     }
                     else
                     {
-                        // ROS_WARN("CIRCONFERENZA 2");
-
-                        i_dist_min = 149;
-                        for (int i = 149; i < 199; i++)
-                        {
-                            dist(i) = sqrt(pow(x_hat - x[i], 2.0) + pow(y_hat - y[i], 2.0) + pow(z_hat - z[i], 2.0));
-                            if (i == 149)
-                            {
-                                dist_min = dist(i);
-                            }
-                            else
-                            {
-                                if (dist(i) < dist_min)
-                                {
-                                    dist_min = dist(i);
-                                    i_dist_min = i;
-                                }
-                            }
-                        }
+                        is_psi_adjusted = true;
                     }
-
-                    x_d = x[i_dist_min];
-                    y_d = y[i_dist_min];
-                    z_d = z[i_dist_min];
-                    phi_d = 0.0;
-                    theta_d = 0.0;
-                    psi_d = psi[i_dist_min];
-                    // ROS_WARN("i_dist_min: %d", i_dist_min);
-                    if (i_dist_min <= 99)
+                    if (!is_psi_adjusted)
                     {
-                        u_d = surge_speed;
-                        v_d = 0.0;
-                        if (z_d - z_hat > 0.1)
-                        {
-                            w_d = 0.1;
-                        }
-                        else if (z_d - z_hat < -0.1)
-                        {
-                            w_d = -0.1;
-                        }
-                        else
-                        {
-                            w_d = 0.0;
-                        }
-                        p_d = 0.0;
-                        q_d = 0.0;
-                        r_d = 0.0;
-                    }
-                    else if (i_dist_min > 99 && i_dist_min <= 196)
-                    {
-                        u_d = surge_speed_replanning;
-                        v_d = 0.0;
-                        w_d = 0.0;
-                        p_d = 0.0;
-                        q_d = 0.0;
-                        r_d = 0.0;
-                    }
-                    else if (i_dist_min > 196)
-                    {
+                        ///////////////////////////////////////////////////
+                        ///////////////REGOLAZIONE DI PSI//////////////////
+                        ///////////////////////////////////////////////////
+                        ROS_WARN("Regolazione di psi");
+                        delta_psi_circ = angleDifference(psi[0] - psi_1) / n_elements_psi;
+                        x_d = x_1;
+                        y_d = y_1;
+                        z_d = z_1;
+                        phi_d = 0.0;
+                        theta_d = 0.0;
+                        psi_d = psi_1 + i_psi * delta_psi_circ;
+                        psi_d = wrapToPi(psi_d);
+                        i_psi++;
                         u_d = 0.0;
                         v_d = 0.0;
                         w_d = 0.0;
                         p_d = 0.0;
                         q_d = 0.0;
-                        r_d = 0.0;
-                        std::string status_req = "PAUSED";
-                        std_msgs::String msg;
-                        msg.data = status_req;
-                        publisher_status.publish(msg);
-                        CIRCUMFERENCE_phase = 1;
+                        if (angleDifference(psi[0] - psi_1) > 10 * (M_PI / 180))
+                        {
+                            r_d = 5.0 * M_PI / 180;
+                        }
+                        else if (angleDifference(psi[0] - psi_1) < -10 * (M_PI / 180))
+                        {
+                            r_d = -5.0 * M_PI / 180;
+                        }
+                        else
+                        {
+                            r_d = 0.0;
+                        }
+
+                        if (i_psi >= n_elements_psi - 1)
+                        {
+                            is_psi_adjusted = true;
+                        }
                     }
+                    else
+                    {
+                        int i_dist_min = 0;
+                        if (CIRCUMFERENCE_phase == 1)
+                        {
+                            for (int i = 0; i < n_elements_semi; i++)
+                            {
+                                dist(i) = sqrt(pow(x_hat - x[i], 2.0) + pow(y_hat - y[i], 2.0));
+                                if (i == 0)
+                                {
+                                    dist_min = dist(i);
+                                }
+                                else
+                                {
+                                    if (dist(i) < dist_min)
+                                    {
+                                        dist_min = dist(i);
+                                        i_dist_min = i;
+                                    }
+                                }
+                            }
+                            ROS_WARN("i_dist_min: %d di %d", i_dist_min, n_elements_semi);
+
+                            if (i_dist_min >= n_elements_semi - 3)
+                            {
+                                CIRCUMFERENCE_phase = 2;
+                            }
+                        }
+                        else if (CIRCUMFERENCE_phase == 2)
+                        {
+                            i_dist_min = n_elements_semi;
+                            for (int i = n_elements_semi; i < n_elements_circ; i++)
+                            {
+                                dist(i) = sqrt(pow(x_hat - x[i], 2.0) + pow(y_hat - y[i], 2.0));
+                                if (i == n_elements_semi)
+                                {
+                                    dist_min = dist(i);
+                                }
+                                else
+                                {
+                                    if (dist(i) < dist_min)
+                                    {
+                                        dist_min = dist(i);
+                                        i_dist_min = i;
+                                    }
+                                }
+                            }
+                            ROS_WARN("i_dist_min: %d di %d", i_dist_min, n_elements_circ);
+
+                            if (i_dist_min >= n_elements_circ - 3)
+                            {
+                                CIRCUMFERENCE_phase = 3;
+                            }
+                        }
+                        else if (CIRCUMFERENCE_phase == 3)
+                        {
+                            i_dist_min = n_elements_circ;
+                            for (int i = n_elements_circ; i < n_elements_tot; i++)
+                            {
+                                dist(i) = sqrt(pow(x_hat - x[i], 2.0) + pow(y_hat - y[i], 2.0));
+                                if (i == n_elements_circ)
+                                {
+                                    dist_min = dist(i);
+                                }
+                                else
+                                {
+                                    if (dist(i) < dist_min)
+                                    {
+                                        dist_min = dist(i);
+                                        i_dist_min = i;
+                                    }
+                                }
+                                ROS_WARN("i_dist_min: %d di %d", i_dist_min, n_elements_tot);
+                            }
+                        }
+
+                        x_d = x[i_dist_min];
+                        y_d = y[i_dist_min];
+                        z_d = z[i_dist_min];
+                        phi_d = 0.0;
+                        theta_d = 0.0;
+                        psi_d = psi[i_dist_min];
+                        u_d = speed;
+                        v_d = 0.0;
+                        p_d = 0.0;
+                        q_d = 0.0;
+                        r_d = 0.0;
+                        if (i_dist_min >= n_elements_tot - 3)
+                        {
+                            x_d = x[n_elements_tot - 3];
+                            y_d = y[n_elements_tot - 3];
+                            z_d = z[n_elements_tot - 3];
+                            phi_d = 0.0;
+                            theta_d = 0.0;
+                            psi_d = psi[n_elements_tot - 3];
+                            u_d = 0.0;
+                            v_d = 0.0;
+                            w_d = 0.0;
+                            p_d = 0.0;
+                            q_d = 0.0;
+                            r_d = 0.0;
+                            std::string status_req = "PAUSED";
+                            std_msgs::String msg;
+                            msg.data = status_req;
+                            publisher_status.publish(msg);
+                            i_psi = 0;
+                        }
+                    }
+
                     J << cos(psi_d) * cos(theta_d), cos(psi_d) * sin(phi_d) * sin(theta_d) - cos(phi_d) * sin(psi_d), sin(phi_d) * sin(psi_d) + cos(phi_d) * cos(psi_d) * sin(theta_d), 0, 0, 0,
                         cos(theta_d) * sin(psi_d), cos(phi_d) * cos(psi_d) + sin(phi_d) * sin(psi_d) * sin(theta_d), cos(phi_d) * sin(psi_d) * sin(theta_d) - cos(psi_d) * sin(phi_d), 0, 0, 0,
                         -sin(theta_d), cos(theta_d) * sin(phi_d), cos(phi_d) * cos(theta_d), 0, 0, 0,

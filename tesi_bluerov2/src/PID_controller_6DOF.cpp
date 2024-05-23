@@ -166,146 +166,13 @@ int main(int argc, char **argv)
 
     ros::Subscriber sub_gnc_status = n.subscribe("manager/GNC_status_topic", 1, GNCstatusCallback); // sottoscrizione alla topic di stato del GNC
     ros::Subscriber sub_des_state = n.subscribe("state/desired_state_topic", 1, desStateCallback);
-    // ros::Subscriber sub_est_state = n.subscribe("state/est_state_UKF_topic", 1, estStateCallback);
+    ros::Subscriber sub_est_state = n.subscribe("state/est_state_EKF_no_dyn_imu_topic", 1, estStateCallback);
+    //ros::Subscriber sub_est_state = n.subscribe("state/state_topic", 1, estStateCallback);
 
-    ros::Subscriber sub_est_state = n.subscribe("state/est_state_topic_no_dyn_imu", 1, estStateCallback);
     double freq = 200;
     double dt = 1 / freq;
     ros::Rate loop_rate(freq);
 
-    // Import parameters from YAML file
-
-    double m = 0.0;
-    double d = 0.0;
-    double l = 0.0;
-    double x_g = 0.0;
-    double y_g = 0.0;
-    double z_g = 0.0;
-    double x_b = 0.0;
-    double y_b = 0.0;
-    double z_b = 0.0;
-    double I_x = 0.0;
-    double I_y = 0.0;
-    double I_z = 0.0;
-    double I_xy = 0.0;
-    double I_xz = 0.0;
-    double I_yz = 0.0;
-    double I_yx = 0.0;
-    double I_zx = 0.0;
-    double I_zy = 0.0;
-    double A_x = 0.0;
-    double A_y = 0.0;
-    double A_z = 0.0;
-    double A_p = 0.0;
-    double A_q = 0.0;
-    double A_r = 0.0;
-    double X_u_dot = 0.0;
-    double X_v_dot = 0.0;
-    double X_w_dot = 0.0;
-    double X_p_dot = 0.0;
-    double X_q_dot = 0.0;
-    double X_r_dot = 0.0;
-    double Y_u_dot = 0.0;
-    double Y_v_dot = 0.0;
-    double Y_w_dot = 0.0;
-    double Y_p_dot = 0.0;
-    double Y_q_dot = 0.0;
-    double Y_r_dot = 0.0;
-    double Z_u_dot = 0.0;
-    double Z_v_dot = 0.0;
-    double Z_w_dot = 0.0;
-    double Z_p_dot = 0.0;
-    double Z_q_dot = 0.0;
-    double Z_r_dot = 0.0;
-    double K_u_dot = 0.0;
-    double K_v_dot = 0.0;
-    double K_w_dot = 0.0;
-    double K_p_dot = 0.0;
-    double K_q_dot = 0.0;
-    double K_r_dot = 0.0;
-    double M_u_dot = 0.0;
-    double M_v_dot = 0.0;
-    double M_w_dot = 0.0;
-    double M_p_dot = 0.0;
-    double M_q_dot = 0.0;
-    double M_r_dot = 0.0;
-    double N_u_dot = 0.0;
-    double N_v_dot = 0.0;
-    double N_w_dot = 0.0;
-    double N_p_dot = 0.0;
-    double N_q_dot = 0.0;
-    double N_r_dot = 0.0;
-    double var_tau_u = 0.0;
-    double var_tau_v = 0.0;
-    double var_tau_w = 0.0;
-    double var_tau_p = 0.0;
-    double var_tau_q = 0.0;
-    double var_tau_r = 0.0;
-
-    n.getParam("m", m);
-    n.getParam("x_g", x_g);
-    n.getParam("y_g", y_g);
-    n.getParam("z_g", z_g);
-    n.getParam("x_b", x_b);
-    n.getParam("y_b", y_b);
-    n.getParam("z_b", z_b);
-    n.getParam("I_x", I_x);
-    n.getParam("I_y", I_y);
-    n.getParam("I_z", I_z);
-    n.getParam("I_xy", I_xy);
-    n.getParam("I_xz", I_xz);
-    n.getParam("I_yz", I_yz);
-    n.getParam("I_yx", I_yx);
-    n.getParam("I_zx", I_zx);
-    n.getParam("I_zy", I_zy);
-    n.getParam("A_x", A_x);
-    n.getParam("A_y", A_y);
-    n.getParam("A_z", A_z);
-    n.getParam("A_p", A_p);
-    n.getParam("A_q", A_q);
-    n.getParam("A_r", A_r);
-    n.getParam("X_u_dot", X_u_dot);
-    n.getParam("X_v_dot", X_v_dot);
-    n.getParam("X_w_dot", X_w_dot);
-    n.getParam("X_p_dot", X_p_dot);
-    n.getParam("X_q_dot", X_q_dot);
-    n.getParam("X_r_dot", X_r_dot);
-    n.getParam("Y_u_dot", Y_u_dot);
-    n.getParam("Y_v_dot", Y_v_dot);
-    n.getParam("Y_w_dot", Y_w_dot);
-    n.getParam("Y_p_dot", Y_p_dot);
-    n.getParam("Y_q_dot", Y_q_dot);
-    n.getParam("Y_r_dot", Y_r_dot);
-    n.getParam("Z_u_dot", Z_u_dot);
-    n.getParam("Z_v_dot", Z_v_dot);
-    n.getParam("Z_w_dot", Z_w_dot);
-    n.getParam("Z_p_dot", Z_p_dot);
-    n.getParam("Z_q_dot", Z_q_dot);
-    n.getParam("Z_r_dot", Z_r_dot);
-    n.getParam("K_u_dot", K_u_dot);
-    n.getParam("K_v_dot", K_v_dot);
-    n.getParam("K_w_dot", K_w_dot);
-    n.getParam("K_p_dot", K_p_dot);
-    n.getParam("K_q_dot", K_q_dot);
-    n.getParam("K_r_dot", K_r_dot);
-    n.getParam("M_u_dot", M_u_dot);
-    n.getParam("M_v_dot", M_v_dot);
-    n.getParam("M_w_dot", M_w_dot);
-    n.getParam("M_p_dot", M_p_dot);
-    n.getParam("M_q_dot", M_q_dot);
-    n.getParam("M_r_dot", M_r_dot);
-    n.getParam("N_u_dot", N_u_dot);
-    n.getParam("N_v_dot", N_v_dot);
-    n.getParam("N_w_dot", N_w_dot);
-    n.getParam("N_p_dot", N_p_dot);
-    n.getParam("N_q_dot", N_q_dot);
-    n.getParam("N_r_dot", N_r_dot);
-    n.getParam("var_tau_u", var_tau_u);
-    n.getParam("var_tau_v", var_tau_v);
-    n.getParam("var_tau_w", var_tau_w);
-    n.getParam("var_tau_p", var_tau_p);
-    n.getParam("var_tau_q", var_tau_q);
-    n.getParam("var_tau_r", var_tau_r);
     n.getParam("wait_for_controller", wait_for_controller);
 
     bool is_init = true;
@@ -338,22 +205,43 @@ int main(int argc, char **argv)
 
     // Define the gains
     Eigen::Matrix<double, 3, 3> K_p_lin;
-    K_p_lin = (400.0) * Eigen::Matrix<double, 3, 3>::Identity();
+   //K_p_lin = (400.0) * Eigen::Matrix<double, 3, 3>::Identity();
+
+    K_p_lin = 30*Eigen::Matrix<double, 3, 3>::Identity();
 
     Eigen::Matrix<double, 3, 3> K_d_lin;
-    K_d_lin = (200.0) * Eigen::Matrix<double, 3, 3>::Identity();
+    //K_d_lin = (200.0) * Eigen::Matrix<double, 3, 3>::Identity();
+    K_d_lin = 10*Eigen::Matrix<double, 3, 3>::Identity();
 
     Eigen::Matrix<double, 3, 3> K_i_lin;
-    K_i_lin = (0.0) * Eigen::Matrix<double, 3, 3>::Identity();
+   // K_i_lin = (0.1) * Eigen::Matrix<double, 3, 3>::Identity();
+    K_i_lin = 0.8*Eigen::Matrix<double, 3, 3>::Identity();
+
 
     double K_p_psi;
-    K_p_psi = 50.0;
+   // K_p_psi = 50.0;
+
+    K_p_psi = 30.0;
 
     double K_d_psi;
     K_d_psi = 0.0;
 
+
     double K_i_psi;
-    K_i_psi = 0.1;
+    K_i_psi = 5.0;
+
+    double x_r = 0.1105;
+    double y_r = 0.133;
+    double c_45 = cos(M_PI / 4);
+
+    Eigen::Matrix<double, 4, 6> B;
+    B << c_45, c_45, -c_45, -c_45, 0.0, 0.0,
+        -c_45, c_45, c_45, -c_45, 0.0, 0.0,
+        0.0, 0.0, 0.0, 0.0, -1.0, -1.0,
+        -(x_r + y_r) * sqrt(2) / 2, (x_r + y_r) * sqrt(2) / 2, -(x_r + y_r) * sqrt(2) / 2, (x_r + y_r) * sqrt(2) / 2, 0.0, 0.0;
+
+    Eigen::Matrix<double, 6, 4> B_cross;
+    B_cross = B.transpose() * (B * B.transpose()).inverse();
 
     Eigen::Vector3d tau_lin;
     double tau_psi;
@@ -361,6 +249,8 @@ int main(int argc, char **argv)
     Eigen::Vector3d anti_windup_lin;
     anti_windup_lin.setZero();
     double anti_windup_psi = 0.0;
+
+    Eigen::Matrix<double, 6, 1> inputs;
 
     while (ros::ok())
     {
@@ -411,65 +301,74 @@ int main(int argc, char **argv)
 
             torques_vec << tau_lin(0), tau_lin(1), tau_lin(2), tau_psi;
 
-            double tau_u;
-            double tau_v;
-            double tau_w;
-            double tau_r;
+            // Post saturation torques
+            double sat_tau_u = torques_vec(0);
+            double sat_tau_v = torques_vec(1);
+            double sat_tau_w = torques_vec(2);
+            double sat_tau_r = tau_psi;
 
             std::vector<double> torques = {torques_vec(0), torques_vec(1), torques_vec(2), 0.0, 0.0, torques_vec(3)};
 
             if (torques_vec(3) > 37.471)
             {
-                tau_r = 37.471;
-                torques[5] = tau_r;
+                sat_tau_r = 37.471;
+                torques[5] = sat_tau_r;
             }
             else if (torques_vec(3) < -37.471)
             {
-                tau_r = -37.471;
-                torques[5] = tau_r;
+                sat_tau_r = -37.471;
+                torques[5] = sat_tau_r;
             }
 
             if (torques_vec(0) > 141.42)
             {
-                tau_u = 141.42;
-                torques[0] = tau_u;
+                sat_tau_u = 141.42;
+                torques[0] = sat_tau_u;
             }
             else if (torques_vec(0) < -141.42)
             {
-                tau_u = -141.42;
-                torques[0] = tau_u;
+                sat_tau_u = -141.42;
+                torques[0] = sat_tau_u;
             }
 
             if (torques_vec(1) > 141.42)
             {
-                tau_v = 141.42;
-                torques[1] = tau_v;
+                sat_tau_v = 141.42;
+                torques[1] = sat_tau_v;
             }
             else if (torques_vec(1) < -141.42)
             {
-                tau_v = -141.42;
-                torques[1] = tau_v;
+                sat_tau_v = -141.42;
+                torques[1] = sat_tau_v;
             }
 
             if (torques_vec(2) > 70.71)
             {
-                tau_w = 70.71;
-                torques[2] = tau_w;
+                sat_tau_w = 70.71;
+                torques[2] = sat_tau_w;
             }
             else if (torques_vec(2) < -70.71)
             {
-                tau_w = -70.71;
-                torques[2] = tau_w;
+                sat_tau_w = -70.71;
+                torques[2] = sat_tau_w;
             }
 
             Eigen::Vector4d tau_out_sat;
-            tau_out_sat << tau_u, tau_v, tau_w, tau_r;
+            
+            
+            tau_out_sat << sat_tau_u, sat_tau_v, sat_tau_w, sat_tau_r;
+
+
             anti_windup_lin = tau_out_sat.head(3) - tau_lin;
             anti_windup_psi = tau_out_sat(3) - tau_psi;
 
+            inputs = B_cross * torques_vec;
+
+            std::vector<double> inputs_vec = {inputs(0), inputs(1), inputs(2), inputs(3), inputs(4), inputs(5)};
+
             // Publishing the torques
             tesi_bluerov2::Floats torques_msg;
-            torques_msg.data = torques;
+            torques_msg.data = inputs_vec;
 
             chatter_pub.publish(torques_msg);
 
